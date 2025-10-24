@@ -37,9 +37,9 @@ window.addEventListener('beforeunload', () => {
         'user-scalable=no'
     ].join(','));
 
-    if (!document.getElementById('doach-mobile-css')) {
+    if (!document.getElementById('viason-mobile-css')) {
         const css = document.createElement('style');
-        css.id = 'doach-mobile-css';
+        css.id = 'viason-mobile-css';
         css.textContent = `
       html, body { margin:0; padding:0; height:100%; background:#000; overscroll-behavior:none; }
       .session-container, #videoPlayer { width:100%; height:100svh; object-fit:cover; }
@@ -139,7 +139,7 @@ function formatCapDisplay(cap) {
 }
 function currentFacingLabel() {
     try {
-        const f = (localStorage.getItem('doach_camera_facing') || '').toLowerCase();
+        const f = (localStorage.getItem('viason_camera_facing') || '').toLowerCase();
         if (f === 'user' || f === 'front') return 'Front';
         if (f === 'environment' || f === 'back' || f === 'rear') return 'Back';
     } catch { }
@@ -413,7 +413,7 @@ export function mountSessionHUD() {
 
             function applyMute(btn, muted, announce = false) {
                 setState(btn, muted);
-                try { localStorage.setItem('doach_muted', JSON.stringify(muted)); } catch { }
+                try { localStorage.setItem('viason_muted', JSON.stringify(muted)); } catch { }
                 try { window.__coachMuted = muted; } catch { }
                 try { window.dispatchEvent(new CustomEvent('hud:mute-toggle', { detail: { muted } })); } catch { }
 
@@ -431,8 +431,8 @@ export function mountSessionHUD() {
                     }
                 }
 
-                if (typeof window.doachSpeak === 'function') {
-                    try { window.doachSpeak(muted ? 'Voice off.' : 'Voice on.'); } catch { }
+                if (typeof window.viasonSpeak === 'function') {
+                    try { window.viasonSpeak(muted ? 'Voice off.' : 'Voice on.'); } catch { }
                 }
             }
 
@@ -440,7 +440,7 @@ export function mountSessionHUD() {
                 // restore saved
                 let savedMuted = false;
                 try {
-                    const raw = localStorage.getItem('doach_muted');
+                    const raw = localStorage.getItem('viason_muted');
                     if (raw != null) savedMuted = JSON.parse(raw);
                 } catch { }
                 applyMute(btn, savedMuted, false);
@@ -509,9 +509,9 @@ export function mountSessionHUD() {
         camBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
             try {
-                const cur = (localStorage.getItem('doach_camera_facing') || 'environment').toLowerCase();
+                const cur = (localStorage.getItem('viason_camera_facing') || 'environment').toLowerCase();
                 const next = (cur === 'user' || cur === 'front') ? 'environment' : 'user';
-                localStorage.setItem('doach_camera_facing', next);
+                localStorage.setItem('viason_camera_facing', next);
                 if (typeof window.setPreferredFacing === 'function') await window.setPreferredFacing(next);
                 else if (typeof window.flipCamera === 'function') await window.flipCamera();
             } catch (err) {
@@ -556,7 +556,7 @@ window.updateSessionHUD = updateSessionHUD;
     function readPref() { try { return localStorage.getItem('cam_facing') || 'Back'; } catch { return 'Back'; } }
     function writePref(v) {
         try { localStorage.setItem('cam_facing', v); } catch { }
-        try { localStorage.setItem('doach_camera_facing', v === 'Back' ? 'environment' : 'user'); } catch { }
+        try { localStorage.setItem('viason_camera_facing', v === 'Back' ? 'environment' : 'user'); } catch { }
     }
 
     function stopStream() {
@@ -910,7 +910,7 @@ export function renderFullShotTable() {
     tbody.textContent = '';
     list.forEach((shot, idx) => {
         const coachSource = shot && !shot.pending
-            ? (shot.doach || shot.coach || shot.coachText || shot.feedback || shot.summary || shot.text || '')
+            ? (shot.viason || shot.coach || shot.coachText || shot.feedback || shot.summary || shot.text || '')
             : '';
         const coachText = coachSource ? coachSource : SHOT_SUMMARY_TEXT.pending;
 
@@ -1105,7 +1105,7 @@ window.recordShotSummary = function recordShotSummary(summary) {
     window.__lastShotKey = key;
 
     // carry coach and via
-    if (!summary.doach && window.__lastCoachText) summary.doach = window.__lastCoachText;
+    if (!summary.viason && window.__lastCoachText) summary.viason = window.__lastCoachText;
     if (!summary.via) summary.via = window.__lastReleaseVia || summary.via || '';
 
     const mergeSummary = (target = {}) => {
@@ -1146,7 +1146,7 @@ window.recordShotSummary = function recordShotSummary(summary) {
             tbody.appendChild(tr);
         }
         const merged = (Number.isFinite(idx) && idx > 0 && list[idx - 1]) ? list[idx - 1] : summary;
-        const coach = String(merged.doach || '—');
+        const coach = String(merged.viason || '—');
         const tdCoach = tr.querySelector('.coach');
         if (tdCoach) { tdCoach.textContent = coach; tdCoach.title = coach; }
 
@@ -1240,7 +1240,7 @@ function getPlayerDisplayNameForPrompt() {
         if (typeof lsName === 'string' && lsName.trim()) return lsName.trim();
     } catch { }
     try {
-        const raw = localStorage.getItem('doachProfile');
+        const raw = localStorage.getItem('viasonProfile');
         if (raw) {
             const profile = JSON.parse(raw);
             const name = profile?.name || profile?.firstName;
@@ -1394,7 +1394,7 @@ function finalizeToStartOverlay() {
     } catch { }
     try { setSessionStatus?.(null); } catch { }
     try { updateSessionHUD?.({ taken: 0, made: 0, accuracy: 0, elapsedSec: 0 }); } catch { }
-    try { window.doachSession?.reset?.(); } catch { }
+    try { window.viasonSession?.reset?.(); } catch { }
     try { clearInterval(window.__coachPoseInterval); window.__coachPoseInterval = null; } catch { }
     try { cancelAnimationFrame(window.__coachPaintRaf); window.__coachPaintRaf = null; } catch { }
     showStartSessionOverlay();
@@ -1428,9 +1428,9 @@ function ensureCoachFeedbackVisible() {
 
 async function speakNewSessionInvite(line) {
     if (!line) return;
-    if (typeof window.doachSpeak === 'function') {
+    if (typeof window.viasonSpeak === 'function') {
         try {
-            await window.doachSpeak(line);
+            await window.viasonSpeak(line);
             return;
         } catch { }
     }
@@ -1548,7 +1548,7 @@ function handleHudStartSession(event) {
 
     try { setSessionStatus?.('SESSION IN PROGRESS…'); } catch { }
     try { hidePromptMessage(); } catch { }
-    try { window.doachVoice?.on?.(); } catch { }
+    try { window.viasonVoice?.on?.(); } catch { }
 
     const hoopBox = (() => {
         try { return getLockedHoopBox?.(); } catch { return null; }
@@ -1634,10 +1634,10 @@ function startShotTrackingCountdown(sec = 5) {
             window.__shotTrackingArmed = true;
             try { window.dispatchEvent(new CustomEvent('hud:armed')); } catch { }
             try {
-                if (typeof window.doachSpeak === 'function') {
-                    await window.doachSpeak('Shoot when ready.');
+                if (typeof window.viasonSpeak === 'function') {
+                    await window.viasonSpeak('Shoot when ready.');
                 } else {
-                    console.warn('[countdown] doachSpeak unavailable for cue');
+                    console.warn('[countdown] viasonSpeak unavailable for cue');
                 }
             } catch (err) {
                 console.warn('[countdown] cue failed', err);

@@ -1,4 +1,4 @@
-# Unified DOACH app.py — optimized for dual model use, cleaned init, and removed /detect_video_init
+# Unified viason app.py — optimized for dual model use, cleaned init, and removed /detect_video_init
 from sqlalchemy import select, func, MetaData, Table
 from sqlalchemy.orm import Session           # if you use Core/engine sessions
 from sqlalchemy.dialects.mysql import insert as mysql_insert
@@ -710,9 +710,9 @@ def api_me():
             return jsonify({'user': None})
         return jsonify({'user': {'user_id': row.user_id, 'name': row.name, 'email': row.email}})
 
-@app.route('/my_doach')
-def my_doach():
-    return send_from_directory('static', 'my_doach.html')
+@app.route('/my_viason')
+def my_viason():
+    return send_from_directory('static', 'my_viason.html')
 
 @app.route('/dashboard')
 def dashboard():
@@ -923,7 +923,7 @@ def api_coach():
     lang_hint = "" if lang in ("en", "en-US") else f" Respond in {LANG_NAMES.get(lang, lang)}."
 
     system = (
-        "You are Doach, a concise basketball shooting coach. "
+        "You are viason, a concise basketball shooting coach. "
         "Be supportive and specific; give 1–3 concrete cues (e.g., 'elbow under ball', "
         "'hold follow-through', 'higher arc' , 'feet placement', 'snap wrist', 'release point'). Keep it under ~6 sentences."
         + lang_hint
@@ -1326,7 +1326,7 @@ def compile_dataset(folder):
     data = request.get_json()
     yaml_text = data.get('yaml', '')
 
-    base_path = os.path.join('datasets', 'doach_seg')
+    base_path = os.path.join('datasets', 'viason_seg')
     img_dir = os.path.join(base_path, 'images', 'train')
     label_dir = os.path.join(base_path, 'labels', 'train')
     os.makedirs(img_dir, exist_ok=True)
@@ -1363,8 +1363,8 @@ def compile_dataset(folder):
 # replaces start_training - initiate training Yolo model
 def _kickoff_training():
     try:
-        yaml_path = os.path.join('datasets', 'doach_seg', 'data.yaml')
-        run_name = f"doach_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        yaml_path = os.path.join('datasets', 'viason_seg', 'data.yaml')
+        run_name = f"viason_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         epochs   = 120
         imgsz    = 640
         batch    = 16
@@ -1580,8 +1580,8 @@ def rotate_frame():
             print('⚠️ label rotate failed:', e)
 
     # Invalidate dataset copies (if they exist) to prevent stale training
-    ds_lbl = os.path.join('datasets', 'doach_seg', 'labels', 'train', label_name)
-    ds_img = os.path.join('datasets', 'doach_seg', 'images', 'train', filename)
+    ds_lbl = os.path.join('datasets', 'viason_seg', 'labels', 'train', label_name)
+    ds_img = os.path.join('datasets', 'viason_seg', 'images', 'train', filename)
     for p in (ds_lbl, ds_img):
         if os.path.exists(p):
             try:
@@ -1597,7 +1597,7 @@ def load_yolo_label(folder, filename):
     """
     Search order:
       1) frames/<folder>/<filename>
-      2) datasets/doach_seg/labels/train/<filename>  (fallback)
+      2) datasets/viason_seg/labels/train/<filename>  (fallback)
     Returns text/plain if found; otherwise 204 (no content).
     """
     # primary: frames/<folder>/<filename>
@@ -1607,7 +1607,7 @@ def load_yolo_label(folder, filename):
         return send_file(cand, mimetype='text/plain')
 
     # fallback: dataset label copy
-    ds_root = os.path.abspath(os.path.join(app.root_path, 'datasets', 'doach_seg', 'labels', 'train'))
+    ds_root = os.path.abspath(os.path.join(app.root_path, 'datasets', 'viason_seg', 'labels', 'train'))
     ds_cand = os.path.abspath(os.path.join(ds_root, filename))
     if ds_cand.startswith(ds_root) and os.path.exists(ds_cand):
         return send_file(ds_cand, mimetype='text/plain')
@@ -1686,8 +1686,8 @@ def label_frame():
         # ✅ Save label and return
         yolo_path = save_yolo_labels(abs_path, high_conf_boxes)
         # 🟡 Also copy label + image to YOLO training dataset
-        train_label_dir = 'datasets/doach_seg/labels/train'
-        train_image_dir = 'datasets/doach_seg/images/train'
+        train_label_dir = 'datasets/viason_seg/labels/train'
+        train_image_dir = 'datasets/viason_seg/images/train'
         os.makedirs(train_label_dir, exist_ok=True)
         os.makedirs(train_image_dir, exist_ok=True)
 
@@ -1930,7 +1930,7 @@ def fix_label_swap():
                     w.write('\n'.join(new_lines) + ('\n' if new_lines else ''))
                 changed += 1
                 # also update dataset copy if exists
-                ds_path = os.path.join('datasets', 'doach_seg', 'labels', 'train', fn)
+                ds_path = os.path.join('datasets', 'viason_seg', 'labels', 'train', fn)
                 if os.path.exists(ds_path):
                     with open(ds_path, 'w') as w:
                         w.write('\n'.join(new_lines) + ('\n' if new_lines else ''))
@@ -2153,9 +2153,9 @@ def set_detector_model():
         return jsonify({'error': str(e)}), 500
 
 # route to serve training labels
-@app.route('/datasets/doach_seg/labels/train/<filename>')
+@app.route('/datasets/viason_seg/labels/train/<filename>')
 def serve_dataset_label(filename):
-    return send_from_directory('datasets/doach_seg/labels/train', filename)
+    return send_from_directory('datasets/viason_seg/labels/train', filename)
 
 # list_frame_folders route to populate dropdown on extraction page
 @app.route('/list_frame_folders')
@@ -2525,7 +2525,7 @@ if __name__ == '__main__':
         port = int(os.getenv('PORT', '5001'))
     except Exception:
         port = 5001
-    print(f"Starting Doach server on http://{host}:{port}")
+    print(f"Starting viason server on http://{host}:{port}")
     try:
         app.run(host=host, port=port, debug=True, use_reloader=False, threaded=False)
     except OSError as e:

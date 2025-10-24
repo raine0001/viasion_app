@@ -1539,7 +1539,7 @@
 
 
 
-        if (interaction.role !== 'doach' && interaction.role !== 'admin' && status && PENDING_INTERACTION_STATUSES.has(status)) {
+        if (interaction.role !== 'viason' && interaction.role !== 'admin' && status && PENDING_INTERACTION_STATUSES.has(status)) {
 
 
 
@@ -2619,7 +2619,7 @@
 
 
 
-        noteSummary(entry, shot?.doach, 'AI');
+        noteSummary(entry, shot?.viason, 'AI');
 
 
 

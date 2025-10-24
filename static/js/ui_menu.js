@@ -1,11 +1,11 @@
 // /static/js/ui_menu.js
-// Hamburger menu + slideouts + floating MyDoach button
+// Hamburger menu + slideouts + floating Myviason button
 // DOES NOT TOUCH VIDEO LOADING. Uses #videoInput and handleVideoUpload in app.js.
 
 (function () {
   // Prevent double init if the script is included twice (or with different query strings)
-  if (window.__DOACH_MENU_INIT__) return;
-  window.__DOACH_MENU_INIT__ = true;
+  if (window.__viason_MENU_INIT__) return;
+  window.__viason_MENU_INIT__ = true;
 
   // Minimal global prompt fallback for early pages (top-center banner)
   if (typeof window.showPrompt !== 'function') {
@@ -34,23 +34,23 @@
   if (typeof window.coachSpeak !== 'function') {
     window.coachSpeak = function (text) {
       if (!text) return;
-      if (typeof window.doachSpeak === 'function') { try { return window.doachSpeak(text); } catch {} }
-      if (typeof window.doachSpeak === 'function') {
-        try { window.doachSpeak(String(text)); } catch {}
+      if (typeof window.viasonSpeak === 'function') { try { return window.viasonSpeak(text); } catch {} }
+      if (typeof window.viasonSpeak === 'function') {
+        try { window.viasonSpeak(String(text)); } catch {}
       }
     };
   }
 
-  // Center CTA: Start Doach Session button
+  // Center CTA: Start viason Session button
   function showStartSessionCTA() {
     try {
-      if (document.getElementById('startDoachCTA')) return;
+      if (document.getElementById('startviasonCTA')) return;
       // Do not show if camera already active
       const v = document.getElementById('videoPlayer');
       if (v?.srcObject) return;
       const cta = document.createElement('button');
-      cta.id = 'startDoachCTA';
-      cta.textContent = 'Start Doach Session';
+      cta.id = 'startviasonCTA';
+      cta.textContent = 'Start viason Session';
       Object.assign(cta.style, {
         position:'fixed', left:'50%', top:'50%', transform:'translate(-50%,-50%)',
         zIndex:10070, padding:'16px 22px', borderRadius:'12px', border:'1px solid rgba(255,255,255,.25)',
@@ -74,62 +74,62 @@
     const css = document.createElement('style');
     css.id = 'ui-menu-css';
     css.textContent = `
-      .doach-hamburger {
+      .viason-hamburger {
         position: fixed; top: 12px; left: 12px; z-index: 10050;
         width: 38px; height: 38px; border-radius: 8px;
         display:flex; align-items:center; justify-content:center;
         background: rgba(0,0,0,.75); color:#fff; border:1px solid rgba(255,255,255,.15);
         cursor:pointer; user-select:none;
       }
-      .doach-hamburger:hover { background: rgba(0,0,0,.88); }
-      .doach-drawer {
+      .viason-hamburger:hover { background: rgba(0,0,0,.88); }
+      .viason-drawer {
         position: fixed; top:0; bottom:0; left:0; width: 300px; z-index:10040;
         background: rgba(12,12,14,.98); color:#fff; border-right:1px solid rgba(255,255,255,.12);
         transform: translateX(-110%); transition: transform .22s ease-out; padding: 12px;
         box-shadow: 0 10px 30px rgba(0,0,0,.35);
       }
-      .doach-drawer.open { transform: translateX(0); }
-      .doach-drawer h3 { margin: 4px 10px 10px; font: 600 14px/1.2 system-ui; opacity:.9; letter-spacing:.04em; }
-      .doach-menu { list-style:none; margin:0; padding:0; }
-      .doach-menu > li { margin: 4px 0; }
-      .doach-item {
+      .viason-drawer.open { transform: translateX(0); }
+      .viason-drawer h3 { margin: 4px 10px 10px; font: 600 14px/1.2 system-ui; opacity:.9; letter-spacing:.04em; }
+      .viason-menu { list-style:none; margin:0; padding:0; }
+      .viason-menu > li { margin: 4px 0; }
+      .viason-item {
         width:100%; text-align:left; background:transparent; border:0; color:#fff;
         padding:10px 12px; border-radius:8px; cursor:pointer; font:600 14px system-ui;
       }
-      .doach-submenu { list-style:none; margin:4px 0 0 16px; padding:0; display:flex; flex-direction:column; gap:4px; }
-      .doach-subitem { background:transparent; border:0; color:#cfd8e3; padding:6px 12px; border-radius:8px; font:500 12px system-ui; text-align:left; cursor:pointer; }
-      .doach-subitem:hover { background:rgba(255,255,255,.08); }
-      .doach-item:hover { background:rgba(255,255,255,.08); }
-      .doach-sidepanel {
+      .viason-submenu { list-style:none; margin:4px 0 0 16px; padding:0; display:flex; flex-direction:column; gap:4px; }
+      .viason-subitem { background:transparent; border:0; color:#cfd8e3; padding:6px 12px; border-radius:8px; font:500 12px system-ui; text-align:left; cursor:pointer; }
+      .viason-subitem:hover { background:rgba(255,255,255,.08); }
+      .viason-item:hover { background:rgba(255,255,255,.08); }
+      .viason-sidepanel {
         position: fixed; top:0; right:0; bottom:0; width:420px; z-index:10045;
         background: rgba(14,14,18,.98); color:#fff; transform: translateX(110%);
         transition: transform .22s ease-out; border-left:1px solid rgba(255,255,255,.12);
         box-shadow: -8px 0 28px rgba(0,0,0,.35);
       }
-      .doach-sidepanel.open { transform: translateX(0); }
-      .doach-panel-head { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); font: 600 14px system-ui; }
-      .doach-panel-body { padding:12px; overflow:auto; height: calc(100% - 48px); }
-      .doach-field { margin:10px 0; }
-      .doach-field label { display:block; font:600 12px system-ui; opacity:.8; margin-bottom:4px; }
-      .doach-field input[type="text"], .doach-field input[type="number"], .doach-field select {
+      .viason-sidepanel.open { transform: translateX(0); }
+      .viason-panel-head { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); font: 600 14px system-ui; }
+      .viason-panel-body { padding:12px; overflow:auto; height: calc(100% - 48px); }
+      .viason-field { margin:10px 0; }
+      .viason-field label { display:block; font:600 12px system-ui; opacity:.8; margin-bottom:4px; }
+      .viason-field input[type="text"], .viason-field input[type="number"], .viason-field select {
         width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.15);
         background:#101015; color:#fff;
       }
-      .doach-range { width:100%; }
-      .doach-row { display:flex; gap:10px; }
-      .doach-row .col { flex:1; }
-      .doach-btn { background:#2d6cff; color:#fff; border:0; padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600; }
-      .doach-btn.ghost { background:transparent; border:1px solid rgba(255,255,255,.22); }
-      .doach-actions { display:flex; gap:8px; flex-wrap:wrap; }
-      .doach-list { border:1px solid rgba(255,255,255,.12); border-radius:8px; overflow:hidden; }
-      .doach-list-item { padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between;}
-      .doach-list-item:last-child { border-bottom:none; }
-      .doach-floating-mydoach {
+      .viason-range { width:100%; }
+      .viason-row { display:flex; gap:10px; }
+      .viason-row .col { flex:1; }
+      .viason-btn { background:#2d6cff; color:#fff; border:0; padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600; }
+      .viason-btn.ghost { background:transparent; border:1px solid rgba(255,255,255,.22); }
+      .viason-actions { display:flex; gap:8px; flex-wrap:wrap; }
+      .viason-list { border:1px solid rgba(255,255,255,.12); border-radius:8px; overflow:hidden; }
+      .viason-list-item { padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between;}
+      .viason-list-item:last-child { border-bottom:none; }
+      .viason-floating-myviason {
         position: fixed; right: 16px; bottom: 88px; z-index: 10050;
         background: rgba(0,0,0,.78); color:#fff; border:1px solid rgba(255,255,255,.15);
         padding:10px 12px; border-radius: 999px; cursor:pointer; font:600 13px system-ui;
       }
-      .doach-floating-mydoach:hover { background: rgba(0,0,0,.9); }
+      .viason-floating-myviason:hover { background: rgba(0,0,0,.9); }
       .challenge-overlay {
         position:fixed; inset:0; z-index:10100; background:rgba(6,8,12,.82);
         display:none; align-items:center; justify-content:center; padding:24px;
@@ -165,14 +165,14 @@
   }
 
   // ——— Auto-close menu when the video becomes ready ———
-  let __doachAutoCloseWired = false;
+  let __viasonAutoCloseWired = false;
   function wireVideoAutoClose() {
     const video = getVideoEl();
     if (!video) return;
 
     // don't double-wire
-    if (__doachAutoCloseWired) return;
-    __doachAutoCloseWired = true;
+    if (__viasonAutoCloseWired) return;
+    __viasonAutoCloseWired = true;
 
     const READY = HTMLMediaElement.HAVE_CURRENT_DATA;
 
@@ -186,7 +186,7 @@
     const closeNow = (reason) => {
       closeAllMenus(reason);
       cleanup();
-      __doachAutoCloseWired = false; // allow future re-wire after src change
+      __viasonAutoCloseWired = false; // allow future re-wire after src change
     };
 
     const onReady = () => closeNow('video-ready');
@@ -204,7 +204,7 @@
     // Re-arm on src/srcObject change (file picker, programmatic loads)
     const obs = new MutationObserver(() => {
       cleanup();
-      __doachAutoCloseWired = false;
+      __viasonAutoCloseWired = false;
       setTimeout(wireVideoAutoClose, 0); // attach to the next load cycle
     });
     obs.observe(video, { attributes: true, attributeFilter: ['src', 'srcObject'] });
@@ -231,12 +231,12 @@
     node.__unesc = ()=> window.removeEventListener('keydown', onKey);
   }
   function makeSidePanel(title){
-    const panel = el('div', {class:'doach-sidepanel', role:'dialog', 'aria-label':title});
-    const head = el('div', {class:'doach-panel-head'},
+    const panel = el('div', {class:'viason-sidepanel', role:'dialog', 'aria-label':title});
+    const head = el('div', {class:'viason-panel-head'},
       el('div', {}, title),
-      el('button', {class:'doach-btn ghost', onclick:()=>{ panel.classList.remove('open'); panel.__unesc?.(); }}, 'Close')
+      el('button', {class:'viason-btn ghost', onclick:()=>{ panel.classList.remove('open'); panel.__unesc?.(); }}, 'Close')
     );
-    const body = el('div', {class:'doach-panel-body'});
+    const body = el('div', {class:'viason-panel-body'});
     panel.append(head, body);
     document.body.appendChild(panel);
     panel.open = ()=>{ panel.classList.add('open'); closeOnEsc(panel, panel.openClose); };
@@ -449,7 +449,7 @@ async function openDiagnosticsPanel(){
     const r = document.createElement('div'); btns.forEach(b => r.appendChild(b));
     d.append(l,r); return d;
   }
-  function mk(label, onclick){ const b=document.createElement('button'); b.className='doach-btn'; b.textContent=label; b.onclick=onclick; return b; }
+  function mk(label, onclick){ const b=document.createElement('button'); b.className='viason-btn'; b.textContent=label; b.onclick=onclick; return b; }
   function log(text){ const p=document.createElement('pre'); p.textContent=text; p.style.maxHeight='200px'; p.style.overflow='auto'; p.style.background='#0b0f14'; p.style.border='1px solid #1f2a36'; p.style.borderRadius='8px'; p.style.padding='6px'; return p; }
 
   const out = document.createElement('div');
@@ -463,12 +463,12 @@ async function openDiagnosticsPanel(){
       let snap = (typeof window.__getPoseSnapshot==='function') ? window.__getPoseSnapshot() : null;
       if (!snap && typeof window.__samplePoseSnapshotNow==='function') snap = await window.__samplePoseSnapshotNow();
       if (!snap) { out.appendChild(log('No snapshot available')); return; }
-      const body = { prompt: 'You are a concise basketball shooting coach. Using only these metrics, give 1-3 specific release cues (no fluff). Metrics: '+JSON.stringify(snap), model:(window.DOACH&&window.DOACH.model)||'gpt-4o-mini', lang:'en-US', shot:snap, profile:(localStorage.getItem('doachProfile')||'') };
+      const body = { prompt: 'You are a concise basketball shooting coach. Using only these metrics, give 1-3 specific release cues (no fluff). Metrics: '+JSON.stringify(snap), model:(window.viason&&window.viason.model)||'gpt-4o-mini', lang:'en-US', shot:snap, profile:(localStorage.getItem('viasonProfile')||'') };
       const r = await fetch('/api/coach', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-      const j = await r.json(); out.appendChild(log(JSON.stringify(j,null,2))); if (j?.text) (window.doachSpeak||window.coachSpeak||console.log)(j.text);
+      const j = await r.json(); out.appendChild(log(JSON.stringify(j,null,2))); if (j?.text) (window.viasonSpeak||window.coachSpeak||console.log)(j.text);
     } catch(e){ out.appendChild(log('AI test error: '+(e.message||e))); }
   });
-  const traceBtn = mk('Toggle Trace', ()=>{ window.DOACH_RELEASE_TRACE = !window.DOACH_RELEASE_TRACE; out.appendChild(log('Trace: '+window.DOACH_RELEASE_TRACE)); });
+  const traceBtn = mk('Toggle Trace', ()=>{ window.viason_RELEASE_TRACE = !window.viason_RELEASE_TRACE; out.appendChild(log('Trace: '+window.viason_RELEASE_TRACE)); });
   const startObs = mk('Start Observe', ()=>{ try { window.startObserverStreaming?.(2); out.appendChild(log('Observe start')); } catch(e){ out.appendChild(log('Observe start error: '+(e.message||e))); } });
   const stopObs  = mk('Stop Observe', ()=>{ try { window.stopObserverStreaming?.(); out.appendChild(log('Observe stop')); } catch(e){ out.appendChild(log('Observe stop error: '+(e.message||e))); } });
 
@@ -496,7 +496,7 @@ async function openContentPanel(){
   } catch {}
   if (!vidList.length) {
     try {
-      const loc = JSON.parse(localStorage.getItem('doachVideos') || '[]');
+      const loc = JSON.parse(localStorage.getItem('viasonVideos') || '[]');
       if (Array.isArray(loc)) vidList = loc;
     } catch {}
   }
@@ -515,22 +515,22 @@ async function openContentPanel(){
   }
 
   // render recent list
-  const list = el('div', { class:'doach-list' },
+  const list = el('div', { class:'viason-list' },
     ...(vidList.length ? vidList.map(v =>
-      el('div', { class:'doach-list-item' },
+      el('div', { class:'viason-list-item' },
         el('div', {}, v.name || v.filename || 'Untitled'),
         el('div', {},
-          el('button', { class:'doach-btn ghost', onclick:()=>loadViaURL(v.url||v.path) }, 'Use URL')
+          el('button', { class:'viason-btn ghost', onclick:()=>loadViaURL(v.url||v.path) }, 'Use URL')
         )
       )
-    ) : [ el('div', { class:'doach-list-item' }, 'No saved videos yet') ])
+    ) : [ el('div', { class:'viason-list-item' }, 'No saved videos yet') ])
   );
 
   body.append(
-    el('div', { class:'doach-field' }, el('label', {}, 'Recent'), list),
+    el('div', { class:'viason-field' }, el('label', {}, 'Recent'), list),
     el('div', { style:{ height:'10px' } }),
-    el('div', { class:'doach-actions' },
-      el('button', { class:'doach-btn', onclick:triggerFilePicker }, 'Upload / Load New')
+    el('div', { class:'viason-actions' },
+      el('button', { class:'viason-btn', onclick:triggerFilePicker }, 'Upload / Load New')
     )
   );
 
@@ -538,8 +538,8 @@ async function openContentPanel(){
   const sourceRow = document.createElement('div');
   sourceRow.style.cssText = 'display:flex; gap:8px; align-items:center; margin:10px 0;';
   sourceRow.innerHTML = `
-    <button id="contentUseCamBtn" class="doach-btn">Use camera</button>
-    <button id="contentStopCamBtn" class="doach-btn">Stop camera</button>
+    <button id="contentUseCamBtn" class="viason-btn">Use camera</button>
+    <button id="contentStopCamBtn" class="viason-btn">Stop camera</button>
     <span id="contentCamHint" style="margin-left:8px; opacity:.8;"></span>
   `;
   body.append(sourceRow); // ✅ append to body (setBody won't wipe it)
@@ -594,7 +594,7 @@ async function openContentPanel(){
 
 
 
-  function field(label, input){ return el('div', {class:'doach-field'}, el('label', {}, label), input); }
+  function field(label, input){ return el('div', {class:'viason-field'}, el('label', {}, label), input); }
   
 
 
@@ -841,7 +841,7 @@ async function openChallengesPanel(initialSlug) {
         target.append(el('div', { style: { font: '500 12px system-ui' } }, 'Enter your birthdate to be ranked in the right age group.'));
         const dobInput = el('input', { type: 'date', value: selectedStatus.dob || '', style: inputStyle });
         const actions = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } });
-        const registerBtn = el('button', { class: 'doach-btn' }, 'Sign Up');
+        const registerBtn = el('button', { class: 'viason-btn' }, 'Sign Up');
         registerBtn.addEventListener('click', async () => {
           registerBtn.disabled = true;
           try {
@@ -871,7 +871,7 @@ async function openChallengesPanel(initialSlug) {
         if (selectedStatus.registered_at) target.append(el('div', { style: { font: '500 12px system-ui', opacity: '.65' } }, 'Joined: ' + fmtDate(selectedStatus.registered_at)));
         const row = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' } });
         const dobInput = el('input', { type: 'date', value: selectedStatus.dob || '', style: inputStyle });
-        const updateBtn = el('button', { class: 'doach-btn ghost' }, 'Update DOB');
+        const updateBtn = el('button', { class: 'viason-btn ghost' }, 'Update DOB');
         updateBtn.addEventListener('click', async () => {
           updateBtn.disabled = true;
           try {
@@ -897,7 +897,7 @@ async function openChallengesPanel(initialSlug) {
         target.append(row);
         const quickCtx = { slug: state.selectedSlug, event, status: selectedStatus };
         const quickWrap = el('div', { style: { marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' } });
-        const quickBtn = el('button', { class: 'doach-btn' }, '');
+        const quickBtn = el('button', { class: 'viason-btn' }, '');
         const quickAction = configureChallengeButton(quickBtn, quickCtx, () => {
           setTimeout(() => refreshStatus(true), 300);
         });
@@ -964,7 +964,7 @@ async function openChallengesPanel(initialSlug) {
 
       const dailyCtx = { slug: state.selectedSlug, event, status: selectedStatus };
       const dailyWrap = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } });
-      const dailyBtn = el('button', { class: 'doach-btn' }, '');
+      const dailyBtn = el('button', { class: 'viason-btn' }, '');
       const dailyAction = configureChallengeButton(dailyBtn, dailyCtx, () => { setTimeout(() => refreshStatus(true), 300); });
       if (dailyAction.visible) {
         dailyWrap.append(dailyBtn);
@@ -1000,9 +1000,9 @@ async function openChallengesPanel(initialSlug) {
     cardsWrap.append(registrationCard, dailyCard, myRankCard);
 
     content.append(
-      el('div', { class: 'doach-field' }, el('label', {}, 'Event'), eventSel),
-      el('div', { class: 'doach-field' }, el('label', {}, 'Category'), catSel),
-      el('div', { class: 'doach-field' }, el('label', {}, 'Age Group'), ageSel),
+      el('div', { class: 'viason-field' }, el('label', {}, 'Event'), eventSel),
+      el('div', { class: 'viason-field' }, el('label', {}, 'Category'), catSel),
+      el('div', { class: 'viason-field' }, el('label', {}, 'Age Group'), ageSel),
       el('div', { style: { font: '500 12px system-ui', opacity: '.75' } }, infoLines.join(' · ')),
       descEl,
       cardsWrap,
@@ -1156,9 +1156,9 @@ async function openChallengesPanel(initialSlug) {
   }
 }
 
-async function openMyDoachPanel(){
-    const panel = (openMyDoachPanel.panel ||= makeSidePanel('My Doach'));
-    const prefs = (window.doachGetPrefs?.() || {voice:'alloy', tts:'openai', speed:1, pitch:1, volume:1, bassDb:0, trebleDb:0, lang:'en-US'});
+async function openMyviasonPanel(){
+    const panel = (openMyviasonPanel.panel ||= makeSidePanel('My viason'));
+    const prefs = (window.viasonGetPrefs?.() || {voice:'alloy', tts:'openai', speed:1, pitch:1, volume:1, bassDb:0, trebleDb:0, lang:'en-US'});
     const body = el('div');
     const normalizeEngine = (value) => {
       if (!value) return 'openai';
@@ -1183,9 +1183,9 @@ async function openMyDoachPanel(){
       ...ttsOptions.map(opt => el('option', { value: opt.value, selected: storedEngine === opt.value }, opt.label))
     );
     const voiceInp = el('input', {type:'text', value:(prefs.voice||'alloy')});
-    const speed    = el('input', {type:'range', class:'doach-range', min:'0.5', max:'1.5', step:'0.05', value: prefs.speed??1});
-    const pitch    = el('input', {type:'range', class:'doach-range', min:'0.5', max:'2.0', step:'0.05', value: prefs.pitch??1});
-    const volume   = el('input', {type:'range', class:'doach-range', min:'0',   max:'1.0', step:'0.05', value: prefs.volume??1});
+    const speed    = el('input', {type:'range', class:'viason-range', min:'0.5', max:'1.5', step:'0.05', value: prefs.speed??1});
+    const pitch    = el('input', {type:'range', class:'viason-range', min:'0.5', max:'2.0', step:'0.05', value: prefs.pitch??1});
+    const volume   = el('input', {type:'range', class:'viason-range', min:'0',   max:'1.0', step:'0.05', value: prefs.volume??1});
     const bassDb   = el('input', {type:'number', value: prefs.bassDb??0, step:'1'});
     const trebDb   = el('input', {type:'number', value: prefs.trebleDb??0, step:'1'});
     const langSel  = el('input', {type:'text', value: prefs.lang || 'en-US'});
@@ -1194,14 +1194,14 @@ async function openMyDoachPanel(){
     const nameInp   = el('input', {type:'text', placeholder:'Preset name'});
     async function refreshPresets(){
       presetSel.innerHTML = '';
-      const presets = (await window.doachLoadPresets?.()) || [];
+      const presets = (await window.viasonLoadPresets?.()) || [];
       presetSel.append(...[el('option',{value:''}, '— Select preset —'), ...presets.map(p => el('option', {value:p.name}, p.name))]);
     }
     await refreshPresets();
 
     presetSel.addEventListener('change', async ()=>{
       if (!presetSel.value) return;
-      const presets = (await window.doachLoadPresets?.()) || [];
+      const presets = (await window.viasonLoadPresets?.()) || [];
       const p = presets.find(x=>x.name===presetSel.value);
       if (!p) return;
       const engineFromPreset = normalizeEngine(p.tts || prefs.tts);
@@ -1219,16 +1219,16 @@ async function openMyDoachPanel(){
       langSel.value = p.lang || 'en-US';
     });
 
-    const rowEq = el('div', {class:'doach-row'},
+    const rowEq = el('div', {class:'viason-row'},
       el('div', {class:'col'}, field('Bass dB', bassDb)),
       el('div', {class:'col'}, field('Treble dB', trebDb))
     );
 
-    const actions = el('div', {class:'doach-actions'},
-      el('button', {class:'doach-btn', onclick:applyNow}, 'Apply to Session'),
-      el('button', {class:'doach-btn ghost', onclick:testVoice}, 'Test Voice'),
-      el('button', {class:'doach-btn', onclick:savePreset}, 'Save as Preset'),
-      el('button', {class:'doach-btn ghost', onclick:refreshPresets}, 'Reload Presets')
+    const actions = el('div', {class:'viason-actions'},
+      el('button', {class:'viason-btn', onclick:applyNow}, 'Apply to Session'),
+      el('button', {class:'viason-btn ghost', onclick:testVoice}, 'Test Voice'),
+      el('button', {class:'viason-btn', onclick:savePreset}, 'Save as Preset'),
+      el('button', {class:'viason-btn ghost', onclick:refreshPresets}, 'Reload Presets')
     );
 
     body.append(
@@ -1239,7 +1239,7 @@ async function openMyDoachPanel(){
       field('Pitch (Web TTS only)', pitch),
       field('Volume', volume),
       rowEq,
-      el('div', {class:'doach-field'}, el('label', {}, 'Presets'), el('div', {class:'doach-row'},
+      el('div', {class:'viason-field'}, el('label', {}, 'Presets'), el('div', {class:'viason-row'},
         el('div', {class:'col'}, presetSel),
         el('div', {class:'col'}, nameInp)
       )),
@@ -1271,7 +1271,7 @@ async function openMyDoachPanel(){
       try {
         if (window.__coachMuted) {
           window.__coachMuted = false;
-          try { localStorage.setItem('doach_muted', 'false'); } catch {}
+          try { localStorage.setItem('viason_muted', 'false'); } catch {}
         }
       } catch {}
 
@@ -1287,18 +1287,18 @@ async function openMyDoachPanel(){
       try { await window.CoachAudio?.unlock?.(); } catch {}
 
       try {
-        if (typeof window.doachSpeak === 'function') {
-          await window.doachSpeak(line);
+        if (typeof window.viasonSpeak === 'function') {
+          await window.viasonSpeak(line);
         }
       } catch {}
     }
 
     async function applyNow(){
       const p = readUI();
-      window.doachSetPrefs?.({ ...p, audioOn: true });
+      window.viasonSetPrefs?.({ ...p, audioOn: true });
       try {
         const engine = normalizeEngine(p.tts);
-        localStorage.setItem('doach_muted','false');
+        localStorage.setItem('viason_muted','false');
         window.__coachMuted = false;
         p.tts = engine;
         localStorage.setItem('tts_engine', engine);
@@ -1314,14 +1314,14 @@ async function openMyDoachPanel(){
           tts: p.tts,
           lang: p.lang
         };
-        localStorage.setItem('doach_tts', JSON.stringify(prefs));
-        localStorage.setItem('doach_voice_provider', prefs.provider);
-        localStorage.setItem('doach_voice', prefs.voice);
+        localStorage.setItem('viason_tts', JSON.stringify(prefs));
+        localStorage.setItem('viason_voice_provider', prefs.provider);
+        localStorage.setItem('viason_voice', prefs.voice);
       } catch {}
       if (window.PREF_ALLOW_MIC === true) {
         const ua = (navigator.userAgent || '').toLowerCase();
-        if (/android/.test(ua) && window.DOACH_ENABLE_ANDROID_SR !== true) {
-          console.warn('[Doach Voice] Voice enable skipped on Android');
+        if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) {
+          console.warn('[viason Voice] Voice enable skipped on Android');
         } else {
           try { await window.ensureMicPrimed?.(); } catch {}
           try { window.__startCoachVoiceRecognition?.(); } catch {}
@@ -1332,10 +1332,10 @@ async function openMyDoachPanel(){
     }
     async function testVoice(){
       const p = readUI();
-      window.doachSetPrefs?.({ ...p, audioOn: true });
+      window.viasonSetPrefs?.({ ...p, audioOn: true });
       try {
         const engine = normalizeEngine(p.tts);
-        localStorage.setItem('doach_muted','false');
+        localStorage.setItem('viason_muted','false');
         window.__coachMuted = false;
         p.tts = engine;
         localStorage.setItem('tts_engine', engine);
@@ -1351,26 +1351,26 @@ async function openMyDoachPanel(){
           tts: p.tts,
           lang: p.lang
         };
-        localStorage.setItem('doach_tts', JSON.stringify(prefs));
-        localStorage.setItem('doach_voice_provider', prefs.provider);
-        localStorage.setItem('doach_voice', prefs.voice);
+        localStorage.setItem('viason_tts', JSON.stringify(prefs));
+        localStorage.setItem('viason_voice_provider', prefs.provider);
+        localStorage.setItem('viason_voice', prefs.voice);
       } catch {}
       if (window.PREF_ALLOW_MIC === true) {
         const ua = (navigator.userAgent || '').toLowerCase();
-        if (/android/.test(ua) && window.DOACH_ENABLE_ANDROID_SR !== true) {
-          console.warn('[Doach Voice] Voice test skipped on Android');
+        if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) {
+          console.warn('[viason Voice] Voice test skipped on Android');
         } else {
           try { await window.ensureMicPrimed?.(); } catch {}
           try { window.__startCoachVoiceRecognition?.(); } catch {}
           try { window.dispatchEvent(new CustomEvent('coach:voice-rec-start', { detail: { via: 'prefs-test' } })); } catch {}
         }
       }
-      await speakWithUnlock("This is your Doach voice.");
+      await speakWithUnlock("This is your viason voice.");
     }
     async function savePreset(){
       const name = (nameInp.value||'').trim();
       if (!name) { alert('Enter a preset name'); return; }
-      const ok = await window.doachSavePreset?.({ name, ...readUI() });
+      const ok = await window.viasonSavePreset?.({ name, ...readUI() });
       if (ok) { nameInp.value=''; await refreshPresets(); alert('Preset saved.'); }
     }
   }
@@ -1385,40 +1385,40 @@ async function openMyDoachPanel(){
     status.style.opacity = '0.9';
 
     const nameRow = document.createElement('div');
-    nameRow.className = 'doach-field';
+    nameRow.className = 'viason-field';
     const nameLab = document.createElement('label'); nameLab.textContent = 'Name (for account creation)';
     const nameInp = document.createElement('input'); nameInp.type = 'text'; nameInp.placeholder = 'Jane Doe';
     nameRow.append(nameLab, nameInp);
 
     const emailRow = document.createElement('div');
-    emailRow.className = 'doach-field';
+    emailRow.className = 'viason-field';
     const emailLab = document.createElement('label'); emailLab.textContent = 'Email';
     const emailInp = document.createElement('input'); emailInp.type = 'text'; emailInp.placeholder = 'you@example.com';
     emailRow.append(emailLab, emailInp);
 
     const pwRow = document.createElement('div');
-    pwRow.className = 'doach-field';
+    pwRow.className = 'viason-field';
     const pwLab = document.createElement('label'); pwLab.textContent = 'Password';
     const pwInp = document.createElement('input'); pwInp.type = 'password'; pwInp.placeholder = '••••••••';
     pwRow.append(pwLab, pwInp);
 
-    const actions = document.createElement('div'); actions.className = 'doach-actions';
-    const btnLogin = document.createElement('button'); btnLogin.className = 'doach-btn'; btnLogin.textContent = 'Login';
-    const btnCreate = document.createElement('button'); btnCreate.className = 'doach-btn ghost'; btnCreate.textContent = 'Create Account';
-    const btnLogout = document.createElement('button'); btnLogout.className = 'doach-btn ghost'; btnLogout.textContent = 'Logout'; btnLogout.style.display = 'none';
-    const btnSessions = document.createElement('button'); btnSessions.className = 'doach-btn'; btnSessions.textContent = 'My Sessions';
+    const actions = document.createElement('div'); actions.className = 'viason-actions';
+    const btnLogin = document.createElement('button'); btnLogin.className = 'viason-btn'; btnLogin.textContent = 'Login';
+    const btnCreate = document.createElement('button'); btnCreate.className = 'viason-btn ghost'; btnCreate.textContent = 'Create Account';
+    const btnLogout = document.createElement('button'); btnLogout.className = 'viason-btn ghost'; btnLogout.textContent = 'Logout'; btnLogout.style.display = 'none';
+    const btnSessions = document.createElement('button'); btnSessions.className = 'viason-btn'; btnSessions.textContent = 'My Sessions';
     actions.append(btnLogin, btnCreate, btnLogout, btnSessions);
 
-    const faceSection = document.createElement('div'); faceSection.className = 'doach-face-lock'; faceSection.style.marginTop = '18px'; faceSection.style.borderTop = '1px solid rgba(255,255,255,0.06)'; faceSection.style.paddingTop = '12px';
+    const faceSection = document.createElement('div'); faceSection.className = 'viason-face-lock'; faceSection.style.marginTop = '18px'; faceSection.style.borderTop = '1px solid rgba(255,255,255,0.06)'; faceSection.style.paddingTop = '12px';
     const faceHeader = document.createElement('div'); faceHeader.textContent = 'Face Lock'; faceHeader.style.cssText = 'font:600 13px system-ui; letter-spacing:.02em; opacity:.88; margin-bottom:6px;';
-    const faceStatus = document.createElement('div'); faceStatus.className = 'doach-face-status'; faceStatus.style.cssText = 'font:500 12px system-ui; opacity:.8; margin-bottom:10px;'; faceStatus.textContent = 'Checking device support...';
+    const faceStatus = document.createElement('div'); faceStatus.className = 'viason-face-status'; faceStatus.style.cssText = 'font:500 12px system-ui; opacity:.8; margin-bottom:10px;'; faceStatus.textContent = 'Checking device support...';
 
-    const consentRow = document.createElement('div'); consentRow.className = 'doach-field';
+    const consentRow = document.createElement('div'); consentRow.className = 'viason-field';
     const consentLab = document.createElement('label'); consentLab.textContent = 'Enable face lock';
     const consentToggle = document.createElement('input'); consentToggle.type = 'checkbox'; consentToggle.disabled = true;
     consentRow.append(consentLab, consentToggle);
 
-    const strategyRow = document.createElement('div'); strategyRow.className = 'doach-field';
+    const strategyRow = document.createElement('div'); strategyRow.className = 'viason-field';
     const strategyLab = document.createElement('label'); strategyLab.textContent = 'Enrollment mode';
     const strategySel = document.createElement('select');
     [['server', 'Server (recommended)'], ['client', 'Client only']].forEach(([v, t]) => {
@@ -1426,9 +1426,9 @@ async function openMyDoachPanel(){
     });
     strategyRow.append(strategyLab, strategySel);
 
-    const faceActions = document.createElement('div'); faceActions.className = 'doach-actions';
-    const btnEnrollFace = document.createElement('button'); btnEnrollFace.className = 'doach-btn'; btnEnrollFace.textContent = 'Enroll / Refresh';
-    const btnClearFace = document.createElement('button'); btnClearFace.className = 'doach-btn ghost'; btnClearFace.textContent = 'Clear';
+    const faceActions = document.createElement('div'); faceActions.className = 'viason-actions';
+    const btnEnrollFace = document.createElement('button'); btnEnrollFace.className = 'viason-btn'; btnEnrollFace.textContent = 'Enroll / Refresh';
+    const btnClearFace = document.createElement('button'); btnClearFace.className = 'viason-btn ghost'; btnClearFace.textContent = 'Clear';
     faceActions.append(btnEnrollFace, btnClearFace);
 
     const faceHelp = document.createElement('div'); faceHelp.style.cssText = 'font:500 11px system-ui; opacity:.65; margin-top:6px;'; faceHelp.textContent = 'Keeps pose + ball tracking focused on you. Needs 5-10 clear face crops.';
@@ -1585,7 +1585,7 @@ async function openMyDoachPanel(){
         const mkBtn = (label, tone) => {
           const b = document.createElement('button');
           b.textContent = label;
-          b.className = 'doach-btn';
+          b.className = 'viason-btn';
           if (tone === 'ghost') b.className += ' ghost';
           if (tone === 'danger') {
             b.style.background = 'rgba(220,60,60,0.9)';
@@ -1776,28 +1776,28 @@ async function openMyDoachPanel(){
 
 // ---------- Mount Menu ----------
 function mountHamburgerMenu(){
-  if (document.getElementById('doach-menu-mounted')) return;
+  if (document.getElementById('viason-menu-mounted')) return;
   const marker = document.createElement('meta');
-  marker.id = 'doach-menu-mounted';
+  marker.id = 'viason-menu-mounted';
   document.head.appendChild(marker);
 
-  const drawer = el('div', {class:'doach-drawer'},
+  const drawer = el('div', {class:'viason-drawer'},
     el('h3', {}, 'Menu'),
-    el('ul', {class:'doach-menu'},
-      el('li', {}, el('button', {class:'doach-item', onclick:openContentPanel}, 'Content')),
-      el('li', {}, el('button', {class:'doach-item', onclick:openMyDoachPanel}, 'My Doach')),
-      el('li', {}, el('button', {class:'doach-item', onclick:openAuthPanel}, 'Login / Account')),
+    el('ul', {class:'viason-menu'},
+      el('li', {}, el('button', {class:'viason-item', onclick:openContentPanel}, 'Content')),
+      el('li', {}, el('button', {class:'viason-item', onclick:openMyviasonPanel}, 'My viason')),
+      el('li', {}, el('button', {class:'viason-item', onclick:openAuthPanel}, 'Login / Account')),
       el('li', {},
-        el('button', {class:'doach-item', onclick:openChallengesPanel}, 'Challenges'),
-        el('ul', {class:'doach-submenu'},
-          el('li', {}, el('button', {class:'doach-subitem', onclick:() => openChallengesPanel('cav-camps-2025')}, 'CAV Camps 2025'))
+        el('button', {class:'viason-item', onclick:openChallengesPanel}, 'Challenges'),
+        el('ul', {class:'viason-submenu'},
+          el('li', {}, el('button', {class:'viason-subitem', onclick:() => openChallengesPanel('cav-camps-2025')}, 'CAV Camps 2025'))
         )
       ),
-      el('li', {}, el('button', {class:'doach-item', onclick:() => window.open('/static/my_sessions.html','_blank')}, 'My Sessions')),
-      el('li', {}, el('button', {class:'doach-item', onclick:openDiagnosticsPanel}, 'Coach Diagnostics')),
+      el('li', {}, el('button', {class:'viason-item', onclick:() => window.open('/static/my_sessions.html','_blank')}, 'My Sessions')),
+      el('li', {}, el('button', {class:'viason-item', onclick:openDiagnosticsPanel}, 'Coach Diagnostics')),
       // ✅ one Preferences item only
       el('li', {}, el('button', {
-        class:'doach-item',
+        class:'viason-item',
         onclick: () => window.openPreferencesPanel?.()
       }, 'Preferences'))
     )
@@ -1805,12 +1805,12 @@ function mountHamburgerMenu(){
   document.body.appendChild(drawer);
   __drawer = drawer;
 
-  const btn = el('div', {class:'doach-hamburger', title:'Menu (M)', onclick:toggle}, '☰');
+  const btn = el('div', {class:'viason-hamburger', title:'Menu (M)', onclick:toggle}, '☰');
   document.body.appendChild(btn);
   window.addEventListener('keydown', (e)=>{ if ((e.key||'').toLowerCase()==='m') toggle(); });
   function toggle(){ drawer.classList.toggle('open'); }
 
-  const floater = el('button', {class:'doach-floating-mydoach', onclick:openMyDoachPanel}, 'MyDoach ⚙️');
+  const floater = el('button', {class:'viason-floating-myviason', onclick:openMyviasonPanel}, 'Myviason ⚙️');
   document.body.appendChild(floater);
 
   wireVideoAutoClose();
@@ -1830,11 +1830,11 @@ function mountHamburgerMenu(){
 
 
 // ---------- Preferences (pop-out) ----------
-function loadDoachPrefs() {
-  try { return JSON.parse(localStorage.getItem('doach_prefs')) || {}; } catch { return {}; }
+function loadviasonPrefs() {
+  try { return JSON.parse(localStorage.getItem('viason_prefs')) || {}; } catch { return {}; }
 }
-function saveDoachPrefs(p) {
-  localStorage.setItem('doach_prefs', JSON.stringify(p||{}));
+function saveviasonPrefs(p) {
+  localStorage.setItem('viason_prefs', JSON.stringify(p||{}));
 }
 
 // ---------- Preferences (pop-out) :: DEMO-LEAN ----------
@@ -1868,11 +1868,11 @@ function getDefaults() {
   };
 }
 
-function loadDoachPrefs() {
-  try { return JSON.parse(localStorage.getItem('doach_prefs')) || {}; } catch { return {}; }
+function loadviasonPrefs() {
+  try { return JSON.parse(localStorage.getItem('viason_prefs')) || {}; } catch { return {}; }
 }
-function saveDoachPrefs(p) {
-  localStorage.setItem('doach_prefs', JSON.stringify(p||{}));
+function saveviasonPrefs(p) {
+  localStorage.setItem('viason_prefs', JSON.stringify(p||{}));
 }
 
 // 2) Apply prefs to globals (ties SHOW_POSE_LINES + SHOW_RELEASE_GATE)
@@ -1897,7 +1897,7 @@ function applyPrefs(p) {
   window.PREF_FACE_LOCK     = p.faceLock !== false;
   p.allowMic = !!window.PREF_ALLOW_MIC;
 
-  saveDoachPrefs(p);
+  saveviasonPrefs(p);
 
   // let overlays react immediately
   try { window.dispatchEvent(new CustomEvent('prefs:changed', { detail: { prefs: p } })); } catch {}
@@ -1913,19 +1913,19 @@ async function openPreferencesPanel() {
   const factory = window.__makeSidePanel || (title => {
     // tiny fallback panel if someone forgets to export makeSidePanel
     const wrap = document.createElement('div');
-    wrap.className = 'doach-sidepanel open';
+    wrap.className = 'viason-sidepanel open';
     wrap.style.cssText = 'position:fixed;top:0;right:0;bottom:0;width:420px;z-index:10045;background:rgba(14,14,18,.98);color:#fff;border-left:1px solid rgba(255,255,255,.12);';
     const head = document.createElement('div');
-    head.className = 'doach-panel-head';
+    head.className = 'viason-panel-head';
     head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.12);font:600 14px system-ui;';
     head.innerHTML = `<div>${title||'Preferences'}</div>`;
     const close = document.createElement('button');
-    close.className = 'doach-btn ghost';
+    close.className = 'viason-btn ghost';
     close.textContent = 'Close';
     close.onclick = () => document.body.removeChild(wrap);
     head.appendChild(close);
     const body = document.createElement('div');
-    body.className = 'doach-panel-body';
+    body.className = 'viason-panel-body';
     body.style.cssText = 'padding:12px;overflow:auto;height:calc(100% - 48px);';
     wrap.append(head, body);
     document.body.appendChild(wrap);
@@ -1940,7 +1940,7 @@ async function openPreferencesPanel() {
   const body  = document.createElement('div');
 
   const defs  = getDefaults();
-  const saved = loadDoachPrefs();
+  const saved = loadviasonPrefs();
   const prefs = {
     ...defs,
     ...saved,
@@ -1949,7 +1949,7 @@ async function openPreferencesPanel() {
 
   // simple helpers
   const field = (label, input) => {
-    const row = document.createElement('div'); row.className = 'doach-field';
+    const row = document.createElement('div'); row.className = 'viason-field';
     const lab = document.createElement('label'); lab.textContent = label;
     row.append(lab, input); return row;
   };
@@ -1963,9 +1963,9 @@ async function openPreferencesPanel() {
     return field(label, s);
   };
   const rng = (id, label, min, max, step, val, hint='') => {
-    const wrap=document.createElement('div'); wrap.className='doach-field';
+    const wrap=document.createElement('div'); wrap.className='viason-field';
     const lab=document.createElement('label'); lab.textContent=label; if (hint) lab.title=hint;
-    const r=document.createElement('input'); r.type='range'; r.className='doach-range';
+    const r=document.createElement('input'); r.type='range'; r.className='viason-range';
     r.min=min; r.max=max; r.step=step; r.value=val;
     const out=document.createElement('output'); out.value=val; r.oninput=()=> out.value=r.value;
     r.id=id; wrap.append(lab, r, out); return wrap;
@@ -2001,9 +2001,9 @@ async function openPreferencesPanel() {
   body.append(chk('pf_face_lock','Enable face lock', prefs.faceLock !== false));
 
   // Actions
-  const actions = document.createElement('div'); actions.className='doach-actions';
-  const applyBtn = document.createElement('button'); applyBtn.className='doach-btn'; applyBtn.textContent='Apply';
-  const resetBtn = document.createElement('button'); resetBtn.className='doach-btn ghost'; resetBtn.textContent='Reset defaults';
+  const actions = document.createElement('div'); actions.className='viason-actions';
+  const applyBtn = document.createElement('button'); applyBtn.className='viason-btn'; applyBtn.textContent='Apply';
+  const resetBtn = document.createElement('button'); resetBtn.className='viason-btn ghost'; resetBtn.textContent='Reset defaults';
   actions.append(applyBtn, resetBtn);
   body.append(actions);
 
@@ -2037,7 +2037,7 @@ async function openPreferencesPanel() {
   }
 
   applyBtn.onclick = () => { applyPrefs(readPrefsFromUI()); panel.openClose?.(); };
-  resetBtn.onclick = () => { const d=getDefaults(); saveDoachPrefs(d); applyPrefs(d); panel.openClose?.(); };
+  resetBtn.onclick = () => { const d=getDefaults(); saveviasonPrefs(d); applyPrefs(d); panel.openClose?.(); };
 
   panel.setBody(body);
   panel.open();

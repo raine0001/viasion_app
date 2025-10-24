@@ -4,7 +4,7 @@
 // Emits:  hud:start-session (on explicit start), hud:end-session (on end)
 // Does NOT: generate releases, record clips, enforce UI, open tables automatically.
 
-import { doachSpeak, primeCoachAudio, listenForEndSession } from '/static/js/coach_voice.js';
+import { viasonSpeak, primeCoachAudio, listenForEndSession } from '/static/js/coach_voice.js';
 
 /* ------------------------ tiny helpers ------------------------ */
 async function postJSON(url, body) {
@@ -26,11 +26,11 @@ function setSessionCap(n) {
         if (v) {
             window.__SESSION_CAP = v;
             window.SESSION_SIZE = v;               // UI reads this to show N/Cap
-            localStorage.setItem('doach.sessionCap', String(v));
+            localStorage.setItem('viason.sessionCap', String(v));
         } else {
             window.__SESSION_CAP = undefined;
             window.SESSION_SIZE = undefined;
-            localStorage.removeItem('doach.sessionCap');
+            localStorage.removeItem('viason.sessionCap');
         }
     } catch { }
 }
@@ -38,7 +38,7 @@ function getSessionCap() {
     try {
         if (Number.isFinite(window.__SESSION_CAP)) return Number(window.__SESSION_CAP);
         if (Number.isFinite(window.SESSION_SIZE)) return Number(window.SESSION_SIZE);
-        const ls = Number(localStorage.getItem('doach.sessionCap'));
+        const ls = Number(localStorage.getItem('viason.sessionCap'));
         if (Number.isFinite(ls) && ls > 0) return ls;
     } catch { }
     return 10;
@@ -123,8 +123,8 @@ async function startSession() {
     let muted = false;
     try { window.__coachMuted = false; } catch { }
     try {
-        localStorage.setItem('doach_muted', 'false');
-        muted = localStorage.getItem('doach_muted') === 'true';
+        localStorage.setItem('viason_muted', 'false');
+        muted = localStorage.getItem('viason_muted') === 'true';
     } catch {
         muted = false;
     }
@@ -154,9 +154,9 @@ async function startSession() {
         const greeting = `${name}, let's get started. Tap the hoop area, then get into position to take your first shot.`;
         try { await primeCoachAudio?.(); } catch { }
         try {
-            if (typeof doachSpeak === 'function') {
+            if (typeof viasonSpeak === 'function') {
                 try {
-                    const job = doachSpeak(greeting);
+                    const job = viasonSpeak(greeting);
                     if (job && typeof job.then === 'function') {
                         try { window.__GREETING_PROMISE = greetingPromise || job; } catch { }
                         const ok = await job;
@@ -169,7 +169,7 @@ async function startSession() {
                     throw err;
                 }
             } else {
-                console.warn('[coach:greeting] doachSpeak not available');
+                console.warn('[coach:greeting] viasonSpeak not available');
             }
         } catch { }
         finally {
@@ -399,15 +399,15 @@ async function endSession(reason = 'normal') {
 
     // optional voice cue
     try {
-        try { localStorage.setItem('doach_muted', 'false'); window.__coachMuted = false; } catch { }
-        if (localStorage.getItem('doach_muted') !== 'true') {
+        try { localStorage.setItem('viason_muted', 'false'); window.__coachMuted = false; } catch { }
+        if (localStorage.getItem('viason_muted') !== 'true') {
             const line = 'Session ended.';
             try { await primeCoachAudio?.(); } catch { }
             try {
-                if (typeof doachSpeak === 'function') {
-                    await doachSpeak(line);
+                if (typeof viasonSpeak === 'function') {
+                    await viasonSpeak(line);
                 } else {
-                    console.warn('[coach:end-session] doachSpeak not available');
+                    console.warn('[coach:end-session] viasonSpeak not available');
                 }
             } catch {
                 console.warn('[coach:end-session] TTS failed');
@@ -456,13 +456,13 @@ function resetSessionForNewStart() {
 
     // Voice exit (optional; ignores if voice isn’t available)
     try {
-        const stopListen = listenForEndSession?.('hey doach, end the session', async () => { await endSession('voice'); });
+        const stopListen = listenForEndSession?.('hey viason, end the session', async () => { await endSession('voice'); });
         window.__voiceEndHandle = stopListen;
     } catch { }
 })();
 
 /* ------------------------ exports (optional) ------------------------ */
-window.doachSession = {
+window.viasonSession = {
     start: startSession,
     end: endSession,
     reset: resetSessionForNewStart,

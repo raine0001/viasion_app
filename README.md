@@ -1,4 +1,4 @@
-# DOACH Web App
+# viason Web App
 
 Cross-platform app for basketball shot analysis and coaching.
 
@@ -7,7 +7,7 @@ Cross-platform app for basketball shot analysis and coaching.
 Create an ONNX model from a trained YOLO run:
 
 ```
-yolo export model=runs\detect\doach_20250823_134837\weights\best.pt format=onnx opset=12 imgsz=640 simplify=True dynamic=True
+yolo export model=runs\detect\viason_20250823_134837\weights\best.pt format=onnx opset=12 imgsz=640 simplify=True dynamic=True
 ```
 
 Copy the exported model to `static/models/best.onnx` (optionally keep a backup at `static/models/backup_best.onnx`).

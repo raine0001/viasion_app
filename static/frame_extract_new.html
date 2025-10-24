@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>DOACH • Frame Extractor + YOLO Labeler</title>
+  <title>viason • Frame Extractor + YOLO Labeler</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
   <link rel="icon" href="/static/favicon.ico" />
@@ -70,8 +70,8 @@
 <body>
   <div class="wrap">
     <div class="row" style="margin-bottom:8px">
-      <h1>🎥 DOACH Frame Extractor + YOLO Labeler</h1>
-      <span class="small muted" style="margin-left:auto">dataset: <code>doach_seg</code></span>
+      <h1>🎥 viason Frame Extractor + YOLO Labeler</h1>
+      <span class="small muted" style="margin-left:auto">dataset: <code>viason_seg</code></span>
     </div>
 
     <!-- Toolbar -->
@@ -406,7 +406,7 @@ async function loadLabels(useModel = false) {
     try {
       let res = await fetch(`/load_yolo_label/${folderName}/${txtName}`);
       if (!res.ok) {
-        res = await fetch(`/datasets/doach_seg/labels/train/${txtName}`);
+        res = await fetch(`/datasets/viason_seg/labels/train/${txtName}`);
         if (!res.ok) throw new Error('no label');
       }
       labelText = await res.text();

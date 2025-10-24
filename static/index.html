@@ -8,7 +8,7 @@
     <link rel="icon" href="/static/favicon.ico">
     <script>
         // Lightweight defaults; enable extras via ?debug=1 or ?releaseTrace=1
-        (function configureDoachFlags() {
+        (function configureviasonFlags() {
             const search = new URLSearchParams(location.search || '');
             const flag = (key) => ['1', 'true', 'yes', 'on'].includes((search.get(key) || '').toLowerCase());
             const enableDebug = flag('debug');
@@ -28,7 +28,7 @@
             window.DEBUG_FORCE_HOOP_LOCKED = enableDebug;
             window.DEBUG_FORCE_SESSION_ACTIVE = enableDebug;
             window.POSE_DEBUG = enableDebug;
-            window.DOACH_RELEASE_TRACE = enableTrace;
+            window.viason_RELEASE_TRACE = enableTrace;
 
             if (enableDebug && !window.REL_SCORE_THRESH) {
                 window.REL_SCORE_THRESH = 0.55;
@@ -257,7 +257,7 @@
         <div id="authCard" style="
       width:min(92%, 520px); background: rgba(0,0,0,.88); color:#fff; border:1px solid rgba(255,255,255,.12);
       border-radius:16px; padding:18px 18px 16px; box-shadow:0 10px 40px rgba(0,0,0,.45);">
-            <div id="authTitle" style="font:700 18px system-ui; margin-bottom:10px; text-align:center;">Welcome to Doach
+            <div id="authTitle" style="font:700 18px system-ui; margin-bottom:10px; text-align:center;">Welcome to viason
             </div>
             <div id="authBody"></div>
         </div>
@@ -282,7 +282,7 @@
     max-width: 520px; background: rgba(0,0,0,0.7); color: #fff;
     padding: 10px 14px; border-radius: 8px; text-align: center;
     font-size: 14px; line-height: 1.4; z-index: 900; pointer-events: none;">
-        <strong>Doach Feedback</strong><br>
+        <strong>viason Feedback</strong><br>
         <span style="color:gray;">(No shot yet)</span>
     </div>
 
@@ -337,10 +337,10 @@
 
     <script>
         function startNativeVoice() {
-            window.webkit?.messageHandlers?.doach?.postMessage({ action: 'startVoice' });
+            window.webkit?.messageHandlers?.viason?.postMessage({ action: 'startVoice' });
         }
         function stopNativeVoice() {
-            window.webkit?.messageHandlers?.doach?.postMessage({ action: 'stopVoice' });
+            window.webkit?.messageHandlers?.viason?.postMessage({ action: 'stopVoice' });
         }
     </script>
 
@@ -418,7 +418,7 @@
 
             // Login form
             function renderLogin() {
-                setAuthTitle('Login to Doach');
+                setAuthTitle('Login to viason');
                 setAuthBody(`
           <div style="display:grid; gap:10px">
             <input id="lg_email" type="email" placeholder="Email" style="padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#111;color:#fff">
@@ -490,7 +490,7 @@
                     try {
                         const r = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, email, password }) });
                         const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Register failed');
-                        localStorage.setItem('doachProfile', JSON.stringify(profile));
+                        localStorage.setItem('viasonProfile', JSON.stringify(profile));
                         localStorage.setItem('firstname', profile.name || 'player');
                         hideAuth(); showStart();
                     } catch (e) { document.getElementById('authMsg').textContent = e.message || 'Register failed'; }
@@ -531,17 +531,17 @@
                     }
                     try { window.__AWAITING_NEW_SESSION_CONFIRM = false; } catch { }
                     try { window.__NEW_SESSION_PROMPTED = false; } catch { }
-                    try { window.doachSession?.reset?.(); } catch { }
+                    try { window.viasonSession?.reset?.(); } catch { }
                     try { window.__shotList = []; window.__finalizedShotIds?.clear?.(); } catch { }
                     try { window.__shots = new Map(); window.__SHOT_ID = 0; window.__sessionTotals = { attempts: 0, made: 0 }; } catch { }
                     try { window.__SESSION_SHOT_COUNT = 0; } catch { }
                     try { window.__SESSION_ACTIVE = false; } catch { }
 
                     try { hideStart(); } catch { }
-                    try { window.dispatchEvent(new CustomEvent('doach:new-session-requested', { detail })); } catch { }
+                    try { window.dispatchEvent(new CustomEvent('viason:new-session-requested', { detail })); } catch { }
 
                     try {
-                        const started = await window.doachSession?.start?.();
+                        const started = await window.viasonSession?.start?.();
                         if (started && !window.__SESSION_ID) window.__SESSION_ID = started;
                         window.__SHOT_IDX = window.__SHOT_IDX || 0;
                     } catch (err) {
@@ -558,16 +558,16 @@
                         try { console.warn('[media] initial access failed', err); } catch { }
                     }
                     if (wantMic) {
-            if (!/android/i.test(navigator.userAgent || '') || window.DOACH_ENABLE_ANDROID_SR === true) {
+            if (!/android/i.test(navigator.userAgent || '') || window.viason_ENABLE_ANDROID_SR === true) {
               try { await window.ensureMicPrimed?.({ audio: true }); } catch { }
             }
                         try { window.__startCoachVoiceRecognition?.(); } catch { }
                         try { window.dispatchEvent(new CustomEvent('coach:voice-rec-start', { detail })); } catch { }
-                        try { window.doachVoice?.on?.(); } catch { }
+                        try { window.viasonVoice?.on?.(); } catch { }
                     }
-                    try { localStorage.setItem('doach_muted', 'false'); window.__coachMuted = false; } catch { }
+                    try { localStorage.setItem('viason_muted', 'false'); window.__coachMuted = false; } catch { }
                     if (wantMic) {
-                        try { window.doachVoice?.on?.(); } catch { }
+                        try { window.viasonVoice?.on?.(); } catch { }
                     }
                     try { await window.primeCoachAudio?.(); } catch { }
                     try {
@@ -582,7 +582,7 @@
                                 if (!window.__greetedOnce && window.__coachMuted === false) {
                                     window.__greetedOnce = true;
                                     window.CoachAudio?.unlock?.();
-                                    // window.doachSpeak?.(`I’m Doach, I'm listening and I'm ready.`);
+                                    // window.viasonSpeak?.(`I’m viason, I'm listening and I'm ready.`);
                                 }
                             } catch { }
 
@@ -614,7 +614,7 @@
             const micAllowed = (typeof window.PREF_ALLOW_MIC !== 'undefined') ? !!window.PREF_ALLOW_MIC : false;
 
             // We want summary TTS too, not just realtime
-            try { window.DOACH_ONLY_REALTIME = false; } catch { }
+            try { window.viason_ONLY_REALTIME = false; } catch { }
 
             if (isIOS && !micAllowed) btn.style.display = 'inline-flex';
 
@@ -622,13 +622,13 @@
                 try {
                     // 0) Flip the stored preference
                     window.PREF_ALLOW_MIC = true;
-                    const p = (window.doachGetPrefs?.() || {});
-                    window.doachSetPrefs?.({ ...p, allowMic: true });
+                    const p = (window.viasonGetPrefs?.() || {});
+                    window.viasonSetPrefs?.({ ...p, allowMic: true });
 
                     // Ensure unmute so TTS can speak per-shot lines
                     try {
                         window.__coachMuted = false;
-                        localStorage.setItem('doach_muted', 'false');
+                        localStorage.setItem('viason_muted', 'false');
                         window.dispatchEvent(new CustomEvent('hud:mute-toggle', { detail: { muted: false, via: 'enable-mic-cta' } }));
                     } catch { }
 
@@ -642,10 +642,10 @@
                     // 3) Start recognition + wake voice
                     try { window.__startCoachVoiceRecognition?.(); } catch { }
                     try { window.dispatchEvent(new CustomEvent('coach:voice-rec-start', { detail: { via: 'enable-mic-cta' } })); } catch { }
-                    try { window.doachVoice?.on?.(); } catch { }
+                    try { window.viasonVoice?.on?.(); } catch { }
 
                     // 4) Small confirmation so humans feel less cursed
-                    try { (window.doachSpeak || window.coachSpeak)?.("Voice enabled."); } catch { }
+                    try { (window.viasonSpeak || window.coachSpeak)?.("Voice enabled."); } catch { }
 
                     btn.style.display = 'none';
                 } catch { }

@@ -8,11 +8,12 @@ services:
       - .:/app
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - VIASION_MAX_ITERS=${VIASION_MAX_ITERS:-5}
       - DOACH_MAX_ITERS=${DOACH_MAX_ITERS:-5}
       - PYTHONUNBUFFERED=1
     command: python app.py
     networks:
-      - doach_net
+      - viason_net
   playwright:
     build: 
       context: .
@@ -20,7 +21,7 @@ services:
     depends_on:
       - web
     networks:
-      - doach_net
+      - viason_net
 networks:
-  doach_net:
+  viason_net:
   

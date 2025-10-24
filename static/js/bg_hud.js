@@ -289,7 +289,7 @@
     if (window.__BG_DIAG_ACTIVE) return true;
     window.__BG_DIAG_ACTIVE = true;
     logState.notedLive = false;
-    try { window.DOACH_OVERLAY_TRACE = true; window.FORCE_POSE_DRAW = true; window.ARC_TRIM_TOP = false; } catch {}
+    try { window.viason_OVERLAY_TRACE = true; window.FORCE_POSE_DRAW = true; window.ARC_TRIM_TOP = false; } catch {}
     try { window.setOverlayMode?.('debug'); } catch {}
     try { window.startBgSampler?.({ fps: Number(window.__BG_FPS) || 10 }); } catch {}
     const v = document.getElementById('videoPlayer');
@@ -313,7 +313,7 @@
     if (!window.__BG_DIAG_ACTIVE) return false;
     window.__BG_DIAG_ACTIVE = false;
     diagStepLoopStop();
-    try { window.DOACH_OVERLAY_TRACE = false; window.FORCE_POSE_DRAW = false; } catch {}
+    try { window.viason_OVERLAY_TRACE = false; window.FORCE_POSE_DRAW = false; } catch {}
     const mode = window.__SESSION_ACTIVE ? 'coach' : 'live';
     try { window.setOverlayMode?.(mode); } catch {}
     const v = document.getElementById('videoPlayer');
@@ -346,7 +346,7 @@
 
   bind('overlay-live', () => { try { window.setOverlayMode?.('live'); } catch {} });
   bind('overlay-coach', () => { try { window.setOverlayMode?.('coach'); } catch {} });
-  bind('overlay-debug', () => { try { window.setOverlayMode?.('debug'); window.DOACH_OVERLAY_TRACE = true; } catch {} });
+  bind('overlay-debug', () => { try { window.setOverlayMode?.('debug'); window.viason_OVERLAY_TRACE = true; } catch {} });
   bind('overlay-arc', () => { try { window.setOverlayMode?.('arc-only'); } catch {} });
 
   bind('bg-start', () => { try { window.startBgSampler?.({}); } catch {} });

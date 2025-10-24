@@ -714,7 +714,7 @@ class FaceLockManager {
     } else {
       message = `${name}, step into frame so I can lock on to you.`;
     }
-    try { (window.doachSpeak || window.coachSpeak)?.(message); } catch { }
+    try { (window.viasonSpeak || window.coachSpeak)?.(message); } catch { }
     try { window.showPrompt?.(message, 4500); } catch { }
     this._emit('face:lock-needed', { reason, message });
   }

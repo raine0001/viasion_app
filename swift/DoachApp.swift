@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct DoachApp: App {
+struct ViasonApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     @State private var isRegistered = false

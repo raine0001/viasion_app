@@ -659,7 +659,7 @@ async function stepOnce(videoEl, canvasEl, frameIdx, buf, bctx) {
     let obs = pickBallCenter(objects, playerState, hoopLocked);
     const last = window.ballState?.trail?.at?.(-1 );
     const ballPt = obs || last;
-    if (window.DOACH_SHOT_DEBUG) {
+    if (window.viason_SHOT_DEBUG) {
       const poseReady = !!(window.playerState?.keypoints?.length >= 33);
       const hasBall  = !!(ballPt && Number.isFinite(ballPt.x));
       console.log('[fbf:tick] arcTick', { frame: frameIdx, poseReady, hasBall });
@@ -709,7 +709,7 @@ async function stepOnce(videoEl, canvasEl, frameIdx, buf, bctx) {
             const r = maxStep / (dist || 1);
             const cx = last.x + (cand.x - last.x) * r;
             const cy = last.y + (cand.y - last.y) * r;
-            if (window.DOACH_SHOT_DEBUG) console.log('[fbf] clamp ghost ball', { dist, maxStep, to: { x: cx, y: cy } });
+            if (window.viason_SHOT_DEBUG) console.log('[fbf] clamp ghost ball', { dist, maxStep, to: { x: cx, y: cy } });
             updateBall?.({ x: cx, y: cy }, frameIdx); updatedThisTick = true;
           }
         } else { updateBall?.({ x: cand.x, y: cand.y }, frameIdx); updatedThisTick = true; }
@@ -906,8 +906,8 @@ async function stepOnce(videoEl, canvasEl, frameIdx, buf, bctx) {
     if (hoopLocked && (updatedThisTick || hasTrail)) {
       scoringTick?.(frameIdx);
       checkShotConditions?.(window.ballState, hoopLocked, frameIdx);
-      if (window.DOACH_SHOT_DEBUG) {
-        if (window.DOACH_VERBOSE === true) console.log('[score:fbf]', frameIdx, { rel: window.ballState?.releaseFrame, enter: window.ballState?.proxEnterFrame, exit: window.ballState?.proxExitFrame, state: window.ballState?.state, shots: (window.shotLog?.length || 0) });
+      if (window.viason_SHOT_DEBUG) {
+        if (window.viason_VERBOSE === true) console.log('[score:fbf]', frameIdx, { rel: window.ballState?.releaseFrame, enter: window.ballState?.proxEnterFrame, exit: window.ballState?.proxExitFrame, state: window.ballState?.state, shots: (window.shotLog?.length || 0) });
       }
       if (!window.__lastSummary && Array.isArray(window.shotLog) && window.shotLog.length > 0) { window.__lastSummary = window.shotLog.at(-1); }
     }
@@ -1154,7 +1154,7 @@ export function analyzeVideoFrameByFrame(videoEl, canvasEl) {
               const ab = (window.__abTracker ||= (function makeAlphaBeta(a=alpha,b=beta,step=dt){ let x=NaN,y=NaN,vx=0,vy=0; return { update(m){ if(!Number.isFinite(x)){ x=m.x; y=m.y; vx=vy=0; return {x,y}; } const px=x+vx*step, py=y+vy*step; const rx=m.x-px, ry=m.y-py; x=px+a*rx; y=py+a*ry; vx=vx+(b/step)*rx; vy=vy+(b/step)*ry; return {x,y}; } }; })());
               ballCanvas = ab.update({ x: cx, y: cy });
             } catch { ballCanvas = { x: cx, y: cy }; }
-          } else if (window.DOACH_SHOT_DEBUG) {
+          } else if (window.viason_SHOT_DEBUG) {
             // Clamp big jumps instead of dropping sample to keep continuity
             const r = maxStep / (dist || 1);
             const cx2 = last.x + (cx - last.x) * r;
@@ -1173,7 +1173,7 @@ export function analyzeVideoFrameByFrame(videoEl, canvasEl) {
         let raw = null; try { if (pick) { const [x1,y1,x2,y2] = pick.o.box; raw = { x:(x1+x2)/2, y:(y1+y2)/2 }; } } catch {}
         const lastPt = window.ballState?.trail?.at?.(-1 );
         const ballPt = ballCanvas || raw || lastPt;
-        if (window.DOACH_SHOT_DEBUG) { const poseReady = !!(window.playerState?.keypoints?.length >= 33); const hasBall  = !!(ballPt && Number.isFinite(ballPt.x)); console.log('[rvfc:tick] arcTick', { frame: fidx, poseReady, hasBall }); }
+        if (window.viason_SHOT_DEBUG) { const poseReady = !!(window.playerState?.keypoints?.length >= 33); const hasBall  = !!(ballPt && Number.isFinite(ballPt.x)); console.log('[rvfc:tick] arcTick', { frame: fidx, poseReady, hasBall }); }
         if (hoopLocked && ballPt) {
           const st = _arcTick?.({ frame: frameIdx, pose: playerState, ballPt, hoopBox: hoopLocked }) || {};
           try {
@@ -1254,7 +1254,7 @@ export function analyzeVideoFrameByFrame(videoEl, canvasEl) {
             window.__SCORE_SHOT_COUNT = (window.__SCORE_SHOT_COUNT || 0) + 1;
             window.__SCORE_FLASH_UNTIL = performance.now() + Math.max(400, Number(window.SCORE_FLASH_MS || 1200));
             try { window.dispatchEvent(new CustomEvent('hud:score-trip', { detail: { frame: frameIdx, score: sc } })); } catch {}
-            if (window.DOACH_RELEASE_TRACE === true) console.log('[score:pulse:an]', { frame: frameIdx, score: sc, th });
+            if (window.viason_RELEASE_TRACE === true) console.log('[score:pulse:an]', { frame: frameIdx, score: sc, th });
           }
         }
       } catch {}

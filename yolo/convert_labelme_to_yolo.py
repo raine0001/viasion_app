@@ -6,9 +6,9 @@ import cv2
 
 LABELS = ['backboard', 'ball', 'hoop', 'net']  # Ensure order is consistent
 
-input_dir = 'datasets/doach_seg/images/train'
-output_images = 'datasets/doach_seg/images/train'  # Stays same
-output_labels = 'datasets/doach_seg/labels/train'
+input_dir = 'datasets/viason_seg/images/train'
+output_images = 'datasets/viason_seg/images/train'  # Stays same
+output_labels = 'datasets/viason_seg/labels/train'
 
 os.makedirs(output_labels, exist_ok=True)
 

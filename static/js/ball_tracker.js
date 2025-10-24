@@ -332,7 +332,7 @@ export function drawBallArc(ctx, opts={}) {
   let full = [];
   if (window.ballArc && Array.isArray(window.ballArc.refinedTrail) && window.ballArc.refinedTrail.length >= 3) {
     full = window.ballArc.refinedTrail;
-    if (window.DOACH_SHOT_DEBUG) console.log('[drawBallArc] using refined trail', full.length, 'points');
+    if (window.viason_SHOT_DEBUG) console.log('[drawBallArc] using refined trail', full.length, 'points');
   } else if (window.ballArc && Array.isArray(window.ballArc.trail)) {
     full = window.ballArc.trail;
   }

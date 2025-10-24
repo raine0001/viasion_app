@@ -17,7 +17,7 @@ struct WebAppView: UIViewRepresentable {
         config.mediaTypesRequiringUserActionForPlayback = []
 
         let controller = WKUserContentController()
-        controller.add(context.coordinator, name: "doach")
+        controller.add(context.coordinator, name: "viason")
         config.userContentController = controller
 
         let webView = WKWebView(frame: .zero, configuration: config)
@@ -60,7 +60,7 @@ struct WebAppView: UIViewRepresentable {
 
         func userContentController(_ userContentController: WKUserContentController,
                                    didReceive message: WKScriptMessage) {
-            guard message.name == "doach",
+            guard message.name == "viason",
                   let body = message.body as? [String: Any],
                   let action = body["action"] as? String else { return }
             switch action {

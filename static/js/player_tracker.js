@@ -152,7 +152,7 @@ export function updatePlayerTracker(landmarks, __frameIdx) {
     }
     const df = playerState.lastFrame - frameNum;
     frameNum = playerState.lastFrame + 1; // monotonic forward
-    try { if (window.DOACH_VERBOSE === true && window.POSE_DEBUG === true) console.log('[pose:clamp-regress]', { was: __frameIdx, clampTo: frameNum, delta: df }); } catch (e) {}
+    try { if (window.viason_VERBOSE === true && window.POSE_DEBUG === true) console.log('[pose:clamp-regress]', { was: __frameIdx, clampTo: frameNum, delta: df }); } catch (e) {}
   }
 
   const visibility = getPoseVisibilityScore(scaledKeypoints);
@@ -201,7 +201,7 @@ export function updatePlayerTracker(landmarks, __frameIdx) {
   playerState.frameHistory.push({ frame: frameNum, keypoints: scaledKeypoints, visibility, rectRaw, ts: historyTs, tMs: historyTs, timestamp: historyTs });
   
   // Pose debug logging
-  if (window.DOACH_VERBOSE === true && window.POSE_DEBUG === true) {
+  if (window.viason_VERBOSE === true && window.POSE_DEBUG === true) {
     const w = scaledKeypoints[16];
     console.log('[pose:update]', { frame: __frameIdx, n: scaledKeypoints.length, wrist: w ? { x: Math.round(w.x), y: Math.round(w.y), v: (w.visibility??w.score??1) } : null, norm: looksNormalized });
   }
@@ -434,13 +434,13 @@ export function markRelease(frameIndex, opts = {}) {
     if (requirePose) {
       const kps = (playerState && Array.isArray(playerState.keypoints) && playerState.keypoints.length >= 33) ? playerState.keypoints : null;
       if (!kps) {
-        if (window.DOACH_SHOT_DEBUG) console.warn('[player_tracker] markRelease skipped - requirePose but no keypoints', { via, frame: lastFrame });
+        if (window.viason_SHOT_DEBUG) console.warn('[player_tracker] markRelease skipped - requirePose but no keypoints', { via, frame: lastFrame });
         return false;
       }
     }
   } catch (e) {}
 
-  if (window.DOACH_SHOT_DEBUG) {
+  if (window.viason_SHOT_DEBUG) {
     console.log('[player_tracker] markRelease', { frame: lastFrame, via: opts?.via || 'unknown', fromSafe });
   }
 

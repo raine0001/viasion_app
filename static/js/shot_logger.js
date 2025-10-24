@@ -61,9 +61,9 @@ try { window.updateBottomStats?.(); } catch {}
   window.__lastAnnouncedShotId = window.__lastAnnouncedShotId || 0;
 
   // If a global coach hook exists, wrap it once so it can't repeat
-  if (typeof window.doachOnShot === 'function' && !window.doachOnShot.__wrapped) {
-    const orig = window.doachOnShot;
-    window.doachOnShot = function(rec) {
+  if (typeof window.viasonOnShot === 'function' && !window.viasonOnShot.__wrapped) {
+    const orig = window.viasonOnShot;
+    window.viasonOnShot = function(rec) {
       try {
         if (!rec) return;
         const id = rec.id ?? rec?.shotId ?? rec?.frameEnd ?? 0; // tolerate shapes
@@ -72,7 +72,7 @@ try { window.updateBottomStats?.(); } catch {}
         return orig(rec);                                        // speak once
       } catch (e) { console.warn('[coach TTS] suppressed/failed:', e); }
     };
-    window.doachOnShot.__wrapped = true;
+    window.viasonOnShot.__wrapped = true;
   }
 })();
 
@@ -132,8 +132,8 @@ window.SHOT_SCORER_MODE ??= 'weighted';   // 'weighted' | 'hybrid'
 
 
 // ===== Scorer preferences =====
-window.SHOT_SCORER_MODE ??= (localStorage.getItem('doach_scorer_mode') || 'weighted');
-window.WEIGHTED_THRESH  ??= Number(localStorage.getItem('doach_weighted_thresh')) || WEIGHTED_THRESH;
+window.SHOT_SCORER_MODE ??= (localStorage.getItem('viason_scorer_mode') || 'weighted');
+window.WEIGHTED_THRESH  ??= Number(localStorage.getItem('viason_weighted_thresh')) || WEIGHTED_THRESH;
 
 export function getShotScoreForSummary(shot) {
   try {
@@ -158,7 +158,7 @@ export function getScorerMode() {
 export function setScorerMode(mode = 'weighted') {
   const m = String(mode).toLowerCase();
   window.SHOT_SCORER_MODE = m;
-  localStorage.setItem('doach_scorer_mode', m);
+  localStorage.setItem('viason_scorer_mode', m);
   console.log('[scorer] mode =', m);
 }
 window.setScorerMode = setScorerMode; // also available from console
@@ -166,7 +166,7 @@ window.setScorerMode = setScorerMode; // also available from console
 export function setWeightedThresh(v) {
   const n = Math.max(0.5, Math.min(0.95, Number(v) || 0.75));
   window.WEIGHTED_THRESH = n;
-  localStorage.setItem('doach_weighted_thresh', String(n));
+  localStorage.setItem('viason_weighted_thresh', String(n));
   console.log('[scorer] threshold =', n);
 }
 window.setWeightedThresh = setWeightedThresh;
@@ -666,7 +666,7 @@ export function isBallInProximityZone(ballPt, hoopBox = null, opts = {}) {
 
   const inside = (ballPt.x >= x1 && ballPt.x <= x2 && ballPt.y >= yT && ballPt.y <= yB);
 
-  if (window.DOACH_PROX_TRACE) {
+  if (window.viason_PROX_TRACE) {
     console.log('[prox:box]', {
       // hoop center & rim line used
       cx: PB.H.cx, rimY: PB.H.rimTop, w: PB.H.w, h: PB.H.h,
@@ -739,7 +739,7 @@ function getMissReason(trail, hoopBox) {
 }
 
 
-// --- Doach Correction API (user-initiated) ---
+// --- viason Correction API (user-initiated) ---
 export function applyShotCorrection({ id = null, made, reason = 'User correction', confidence = null }) {
   if (!Array.isArray(shotLog) || !shotLog.length) return null;
 
@@ -808,7 +808,7 @@ export function applyShotCorrection({ id = null, made, reason = 'User correction
 window.applyShotCorrection = applyShotCorrection;
 
 
-// Doach interaction for shot corrections
+// viason interaction for shot corrections
 
 export async function reviewShotWithAI({ id = null } = {}) {
   const rec = (id != null) ? shotLog[id - 1] : shotLog.at(-1);
@@ -828,7 +828,7 @@ export async function reviewShotWithAI({ id = null } = {}) {
   };
 
   try {
-    const res = await fetch('/doach/review_shot', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const res = await fetch('/viason/review_shot', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
     if (!res.ok) throw new Error('review failed');
     const out = await res.json(); // { made:boolean, confidence:number(0..1), reason?:string }
     // Apply only if model proposes a change OR user asked for “accept suggestion”
@@ -837,7 +837,7 @@ export async function reviewShotWithAI({ id = null } = {}) {
     }
     return out;
   } catch (e) {
-    console.warn('[doach/review] error', e);
+    console.warn('[viason/review] error', e);
     return null;
   }
 }
@@ -1101,7 +1101,7 @@ export function results(trail, frameIndex, hoopBox, opts = {}) {
   window.__lastAnnouncedShotId = window.__lastAnnouncedShotId || 0;
   if (rec && window.__lastAnnouncedShotId !== rec.id) {
     window.__lastAnnouncedShotId = rec.id;
-    try { window.doachOnShot?.(rec); } catch (e) { console.warn('[doach] feedback failed:', e); }
+    try { window.viasonOnShot?.(rec); } catch (e) { console.warn('[viason] feedback failed:', e); }
   }
 
   return rec;
@@ -1126,7 +1126,7 @@ function normHoop(hoop) {
 
 // ---------------- Weighted Scorer (clean, top-left convention) ----------------
 
-// Tunables (kept modest; tweak as needed - goal to tie to Doach model for optimization)
+// Tunables (kept modest; tweak as needed - goal to tie to viason model for optimization)
 const WEIGHTS = {
   hoop: 0.15,
   net: 0.20,
@@ -1466,7 +1466,7 @@ export function drawShotStatsTable() {
       <td>${shot.entryAngle}°</td>
       <td>${shot.releaseAngle}°</td>
       <td>${shot.made ? '' : (shot.missReason ?? '-')}</td>
-      <td class="coach" title="${esc(shot.doach)}">${esc(shot.doach)}</td>`;
+      <td class="coach" title="${esc(shot.viason)}">${esc(shot.viason)}</td>`;
     tbody.appendChild(row);
   });
 

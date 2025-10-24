@@ -6,7 +6,7 @@ let __coachSpeechTail = Promise.resolve(false);
 let __coachSpeechActive = false;
 
 function webTtsAllowed() {
-    try { return window.DOACH_ALLOW_WEB_TTS === true; }
+    try { return window.viason_ALLOW_WEB_TTS === true; }
     catch { return false; }
 }
 
@@ -172,7 +172,7 @@ const name = getDisplayName();
 
     try { await window.CoachAudio?.unlock(); } catch {}
 
-    const ok = await (window.doachSpeak?.(text, { engine: isIOS() ? 'openai' : undefined }) || Promise.resolve(false));
+    const ok = await (window.viasonSpeak?.(text, { engine: isIOS() ? 'openai' : undefined }) || Promise.resolve(false));
     if (ok !== false) {
       greeted = true;
       return true;
@@ -438,25 +438,25 @@ const SILENT_PRIME_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEA
 
 function getPreferredVoice() {
     try {
-        const prefs = JSON.parse(localStorage.getItem('doach_tts') || '{}');
+        const prefs = JSON.parse(localStorage.getItem('viason_tts') || '{}');
         if (prefs.voice) return prefs.voice;
         if (prefs.provider && prefs.provider !== 'server' && !webTtsAllowed()) {
-            const voice = prefs.voice || (window.DOACH && window.DOACH.voice) || 'alloy';
+            const voice = prefs.voice || (window.viason && window.viason.voice) || 'alloy';
             const next = { provider: 'server', voice };
-            localStorage.setItem('doach_tts', JSON.stringify(next));
+            localStorage.setItem('viason_tts', JSON.stringify(next));
             return next.voice;
         }
     } catch { }
     try {
-        const stored = localStorage.getItem('doach_voice');
+        const stored = localStorage.getItem('viason_voice');
         if (stored) return stored;
     } catch { }
-    return (window.DOACH && window.DOACH.voice) || 'alloy';
+    return (window.viason && window.viason.voice) || 'alloy';
 }
 
 function getTtsEngine() {
     try {
-        if (window.DOACH_FORCE_WEB_TTS === true && webTtsAllowed()) {
+        if (window.viason_FORCE_WEB_TTS === true && webTtsAllowed()) {
             window.TTS_ENGINE = 'webspeech';
             return 'webspeech';
         }
@@ -553,7 +553,7 @@ async function speakViaWebSpeech(text) {
     }
 }
 
-async function doachSpeakOnce(text, opts = {}) {
+async function viasonSpeakOnce(text, opts = {}) {
     // 1) iOS demands the ritual. Do this before choosing engines.
     try { await window.CoachAudio?.unlock(); } catch { }
 
@@ -571,7 +571,7 @@ async function doachSpeakOnce(text, opts = {}) {
             const ok = await speakViaOpenAI(spoken, opts);
             if (ok) return true;
         } catch (err) {
-            try { console.warn('[coach] doachSpeak openai failed', err); } catch { }
+            try { console.warn('[coach] viasonSpeak openai failed', err); } catch { }
         }
         return false;
     };
@@ -581,7 +581,7 @@ async function doachSpeakOnce(text, opts = {}) {
             const ok = await speakViaWebSpeech(spoken);
             if (ok) return true;
         } catch (err) {
-            try { console.warn('[coach] doachSpeak webspeech failed', err); } catch { }
+            try { console.warn('[coach] viasonSpeak webspeech failed', err); } catch { }
         }
         return false;
     };
@@ -601,7 +601,7 @@ async function doachSpeakOnce(text, opts = {}) {
             }
         }
     } catch (err) {
-        try { console.warn('[coach] doachSpeak engine error', err); } catch { }
+        try { console.warn('[coach] viasonSpeak engine error', err); } catch { }
     }
 
     // Final cross-check: if preferred engine failed, attempt the other one once.
@@ -611,7 +611,7 @@ async function doachSpeakOnce(text, opts = {}) {
     return false;
 }
 
-function logDoachSpeakEvent(event, payload) {
+function logviasonSpeakEvent(event, payload) {
     try {
         if (window.reportClientEvent) {
             window.reportClientEvent(`tts:${event}`, payload);
@@ -621,25 +621,25 @@ function logDoachSpeakEvent(event, payload) {
     } catch {}
 }
 
-export function doachSpeak(text, opts = {}) {
+export function viasonSpeak(text, opts = {}) {
     if (!text) {
-        logDoachSpeakEvent('skip-empty', {});
+        logviasonSpeakEvent('skip-empty', {});
         return Promise.resolve(false);
     }
     try {
         if (window.__coachMuted) {
-            logDoachSpeakEvent('skip-muted', { text });
+            logviasonSpeakEvent('skip-muted', { text });
             return Promise.resolve(false);
         }
     } catch { }
-    logDoachSpeakEvent('queue', { text, engine: opts.engine || getTtsEngine(), label: opts.label });
-    return queueCoachSpeech(() => doachSpeakOnce(text, opts)
+    logviasonSpeakEvent('queue', { text, engine: opts.engine || getTtsEngine(), label: opts.label });
+    return queueCoachSpeech(() => viasonSpeakOnce(text, opts)
         .then((result) => {
-            logDoachSpeakEvent(result ? 'success' : 'fallback', { text, engine: getTtsEngine(), label: opts.label });
+            logviasonSpeakEvent(result ? 'success' : 'fallback', { text, engine: getTtsEngine(), label: opts.label });
             return result;
         })
         .catch((err) => {
-            logDoachSpeakEvent('error', { text, message: err?.message || String(err) });
+            logviasonSpeakEvent('error', { text, message: err?.message || String(err) });
             return false;
         }));
 }
@@ -686,13 +686,13 @@ let __micPriming = null;
 
 export async function ensureMicPrimed(constraints = { audio: true }) {
     if (!__micPrimed) {
-        try { __micPrimed = localStorage.getItem('doach_voice_mic_allowed') === '1'; } catch { }
+        try { __micPrimed = localStorage.getItem('viason_voice_mic_allowed') === '1'; } catch { }
     }
     if (__micPrimed) return true;
     if (__micPriming) return __micPriming;
 
     const ua = (navigator.userAgent || '').toLowerCase();
-    if (/android/.test(ua) && window.DOACH_ENABLE_ANDROID_SR !== true) {
+    if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) {
         return false;
     }
 
@@ -702,13 +702,13 @@ export async function ensureMicPrimed(constraints = { audio: true }) {
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             try { stream.getTracks().forEach((t) => t.stop()); } catch { }
             __micPrimed = true;
-            try { localStorage.setItem('doach_voice_mic_allowed', '1'); } catch { }
-            try { window.__doachMicPrimed = true; } catch { }
+            try { localStorage.setItem('viason_voice_mic_allowed', '1'); } catch { }
+            try { window.__viasonMicPrimed = true; } catch { }
             return true;
         } catch (err) {
             __micPrimed = false;
-            try { localStorage.removeItem('doach_voice_mic_allowed'); } catch { }
-            try { window.__doachMicPrimed = false; } catch { }
+            try { localStorage.removeItem('viason_voice_mic_allowed'); } catch { }
+            try { window.__viasonMicPrimed = false; } catch { }
             try { console.warn('[coach] mic prime failed', err); } catch { }
             return false;
         }
@@ -723,10 +723,10 @@ export async function ensureMicPrimed(constraints = { audio: true }) {
 
 try { window.ensureMicPrimed = ensureMicPrimed; } catch { }
 
-export function listenForEndSession(wakePhrase = 'hey doach, end the session', onEnd) {
+export function listenForEndSession(wakePhrase = 'hey viason, end the session', onEnd) {
     try {
         const ua = (navigator.userAgent || '').toLowerCase();
-        if (/android/.test(ua) && window.DOACH_ENABLE_ANDROID_SR !== true) {
+        if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) {
             try { window.__startCoachVoiceRecognition = () => false; } catch { }
             return () => { };
         }
@@ -858,7 +858,7 @@ export function listenForEndSession(wakePhrase = 'hey doach, end the session', o
                 const i = e.resultIndex;
                 const raw = (e.results[i][0].transcript || '').toLowerCase();
                 const t = raw.replace(/\s+/g, ' ').trim();
-                const wakePhrases = ['hey doach', 'hey coach'];
+                const wakePhrases = ['hey viason', 'hey coach'];
                 const hasWake = wakePhrases.some((phrase) => t.includes(phrase));
                 const awaiting = (() => { try { return window.__AWAITING_NEW_SESSION_CONFIRM === true; } catch { return false; } })();
                 const isAffirmative = matchesPhrase(t, affirmativePhrases);
@@ -925,7 +925,7 @@ export function listenForEndSession(wakePhrase = 'hey doach, end the session', o
 }
 
 
-// Simple speak wrapper: use your existing doachSpeak if present, fallback to Web Speech
+// Simple speak wrapper: use your existing viasonSpeak if present, fallback to Web Speech
 function coachSpeak(text) {
     if (window.__coachMuted) return;
     if (!text) return;
@@ -937,8 +937,8 @@ function coachSpeak(text) {
         window.__lastSpeak = { text: String(text), at: now };
     } catch { }
 
-    if (typeof doachSpeak === 'function') {
-        try { doachSpeak(text); return; } catch (e) { console.warn('[coach] doachSpeak fail, fallback TTS', e); }
+    if (typeof viasonSpeak === 'function') {
+        try { viasonSpeak(text); return; } catch (e) { console.warn('[coach] viasonSpeak fail, fallback TTS', e); }
     }
 
     // Fallback browser TTS
@@ -950,6 +950,6 @@ function coachSpeak(text) {
     } catch { }
 }
 
-try { window.doachSpeak = doachSpeak; } catch { }
-try { window.coachSpeak = doachSpeak; } catch { }
+try { window.viasonSpeak = viasonSpeak; } catch { }
+try { window.coachSpeak = viasonSpeak; } catch { }
 try { window.primeCoachAudio = primeCoachAudio; } catch { }

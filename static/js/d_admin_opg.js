@@ -1,4 +1,4 @@
-/* doach admin one-page debug (refactored) */
+/* viason admin one-page debug (refactored) */
 (function onePageDebug(){
   if (window.__opgInstalled) return;
   window.__opgInstalled = true;
@@ -66,7 +66,7 @@
     const blob = new Blob([JSON.stringify({ records: sink.buf, frames: [...ledger.values()] }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `doach-onepage-debug-${Date.now()}.json`;
+    a.download = `viason-onepage-debug-${Date.now()}.json`;
     a.click();
   };
 

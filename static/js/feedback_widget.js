@@ -55,7 +55,7 @@ function niceTime(ts) {
 
 function getActiveSessionId() {
   try { if (window.__SESSION_ID) return window.__SESSION_ID; } catch {}
-  try { return sessionStorage.getItem('doach_active_session') || null; } catch {}
+  try { return sessionStorage.getItem('viason_active_session') || null; } catch {}
   return null;
 }
 
@@ -96,12 +96,12 @@ const feedbackStore = {
 };
 
 function saveLogs() {
-  try { localStorage.setItem('doachFeedbackLogs', JSON.stringify(feedbackStore.logs)); } catch {}
+  try { localStorage.setItem('viasonFeedbackLogs', JSON.stringify(feedbackStore.logs)); } catch {}
 }
 
 function loadLogs() {
   try {
-    const raw = JSON.parse(localStorage.getItem('doachFeedbackLogs') || '[]');
+    const raw = JSON.parse(localStorage.getItem('viasonFeedbackLogs') || '[]');
     if (Array.isArray(raw)) feedbackStore.logs = raw;
   } catch { feedbackStore.logs = []; }
 }
@@ -176,18 +176,18 @@ let panel,
     fabButton;
 
 function ensureSupportCSS() {
-  if (document.getElementById('doach-support-css')) return;
+  if (document.getElementById('viason-support-css')) return;
   const css = document.createElement('style');
-  css.id = 'doach-support-css';
+  css.id = 'viason-support-css';
   css.textContent = `
-  .doach-fb-fab {
+  .viason-fb-fab {
     position: fixed; right: 16px; bottom: 16px; z-index: 10060;
     width: 48px; height: 48px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     background: #2d6cff; color: #fff; font-size: 20px;
     border: 0; cursor: pointer; box-shadow: 0 12px 28px rgba(0,0,0,.35);
   }
-  .doach-fb-panel {
+  .viason-fb-panel {
     position: fixed; right: 0; top: 0; bottom: 0; width: 460px;
     background: rgba(15,16,22,.96); color: #fff; z-index: 10055;
     transform: translateX(110%); transition: transform .22s ease;
@@ -195,79 +195,79 @@ function ensureSupportCSS() {
     box-shadow: -10px 0 24px rgba(0,0,0,.45);
     display: flex; flex-direction: column;
   }
-  .doach-fb-panel.open { transform: translateX(0); }
-  .doach-fb-fab.hidden { opacity: 0; pointer-events: none; transform: scale(0.92); }
-  .doach-fb-head {
+  .viason-fb-panel.open { transform: translateX(0); }
+  .viason-fb-fab.hidden { opacity: 0; pointer-events: none; transform: scale(0.92); }
+  .viason-fb-head {
     padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
     border-bottom: 1px solid rgba(255,255,255,.08);
   }
-  .doach-fb-title { font: 600 16px/1 system-ui, -apple-system, Segoe UI, sans-serif; }
-  .doach-fb-tabs {
+  .viason-fb-title { font: 600 16px/1 system-ui, -apple-system, Segoe UI, sans-serif; }
+  .viason-fb-tabs {
     display: flex; padding: 6px 14px; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.08);
   }
-  .doach-fb-tab {
+  .viason-fb-tab {
     border: 0; background: rgba(255,255,255,.08); color: #fff;
     padding: 6px 12px; border-radius: 999px; font: 600 13px system-ui;
     cursor: pointer; transition: background .15s;
   }
-  .doach-fb-tab.active { background: #2d6cff; }
-  .doach-fb-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-  .doach-support-view, .doach-logs-view { flex: 1; display: none; overflow: hidden; }
-  .doach-support-view.active, .doach-logs-view.active { display: flex; flex-direction: column; }
-  .doach-support-thread {
+  .viason-fb-tab.active { background: #2d6cff; }
+  .viason-fb-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .viason-support-view, .viason-logs-view { flex: 1; display: none; overflow: hidden; }
+  .viason-support-view.active, .viason-logs-view.active { display: flex; flex-direction: column; }
+  .viason-support-thread {
     flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px;
   }
-  .doach-support-msg {
+  .viason-support-msg {
     max-width: 92%; padding: 10px 14px; border-radius: 14px; font: 14px/1.5 system-ui;
     background: rgba(255,255,255,.08); position: relative; word-break: break-word;
   }
-  .doach-support-msg.user { margin-left: auto; background: #2d6cff; color: #fff; }
-  .doach-support-msg.doach { background: rgba(26,28,34,.95); border: 1px solid rgba(255,255,255,.08); }
-  .doach-support-msg .meta {
+  .viason-support-msg.user { margin-left: auto; background: #2d6cff; color: #fff; }
+  .viason-support-msg.viason { background: rgba(26,28,34,.95); border: 1px solid rgba(255,255,255,.08); }
+  .viason-support-msg .meta {
     display: block; margin-top: 6px; font: 11px/1 system-ui; opacity: .65;
   }
-  .doach-support-quick {
+  .viason-support-quick {
     padding: 10px 16px 0; display: flex; gap: 8px; flex-wrap: wrap;
   }
-  .doach-support-chip {
+  .viason-support-chip {
     background: rgba(255,255,255,.08); border: 0; color:#fff;
     border-radius: 999px; padding: 6px 12px; font: 600 12px system-ui;
     cursor: pointer; transition: background .15s;
   }
-  .doach-support-chip:hover { background: rgba(255,255,255,.18); }
-  .doach-support-input {
+  .viason-support-chip:hover { background: rgba(255,255,255,.18); }
+  .viason-support-input {
     padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.08);
     display: flex; flex-direction: column; gap: 8px;
   }
-  .doach-support-input textarea {
+  .viason-support-input textarea {
     width: 100%; min-height: 72px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12);
     background: rgba(12,13,18,.92); color: #fff; padding: 10px 12px; resize: vertical;
     font: 14px/1.4 system-ui;
   }
-  .doach-support-actions {
+  .viason-support-actions {
     display: flex; gap: 8px; justify-content: space-between; align-items: center;
   }
-  .doach-support-actions .left {
+  .viason-support-actions .left {
     display: flex; align-items: center; gap: 10px; font: 12px system-ui;
     color: rgba(255,255,255,.65);
   }
-  .doach-support-send {
+  .viason-support-send {
     background: #2d6cff; color: #fff; border: 0; padding: 8px 18px; border-radius: 999px;
     font: 600 14px system-ui; cursor: pointer; transition: opacity .15s;
   }
-  .doach-support-send[disabled] { opacity: .6; cursor: progress; }
-  .doach-support-status { font: 12px system-ui; color: rgba(255,255,255,.65); min-height: 16px; }
-  .doach-logs-view { padding: 16px; gap: 12px; overflow: hidden; }
-  .doach-logs-controls { display: flex; gap: 8px; align-items: center; }
-  .doach-logs-box {
+  .viason-support-send[disabled] { opacity: .6; cursor: progress; }
+  .viason-support-status { font: 12px system-ui; color: rgba(255,255,255,.65); min-height: 16px; }
+  .viason-logs-view { padding: 16px; gap: 12px; overflow: hidden; }
+  .viason-logs-controls { display: flex; gap: 8px; align-items: center; }
+  .viason-logs-box {
     flex: 1; overflow-y: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
     padding: 10px;
     background: rgba(12,13,18,.92); font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace;
   }
-  .doach-log-row { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); white-space: pre-wrap; }
-  .doach-log-row:last-child { border-bottom: 0; }
-  .doach-checkbox { display:flex; align-items:center; gap:6px; cursor:pointer; }
-  .doach-close-btn {
+  .viason-log-row { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); white-space: pre-wrap; }
+  .viason-log-row:last-child { border-bottom: 0; }
+  .viason-checkbox { display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .viason-close-btn {
     border: 0; background: rgba(255,255,255,.1); color: #fff; padding: 6px 10px; border-radius: 8px; cursor: pointer;
   }
   `;
@@ -280,33 +280,33 @@ function createPanel() {
   loadLogs();
   installGlobalLogCatcher();
 
-  panel = mk('div', { class: 'doach-fb-panel', id: 'doachSupportPanel' });
+  panel = mk('div', { class: 'viason-fb-panel', id: 'viasonSupportPanel' });
 
-  const head = mk('div', { class: 'doach-fb-head' },
-    mk('div', { class: 'doach-fb-title' }, 'Help & Support'),
-    mk('button', { class: 'doach-close-btn', onclick: closeSupportPanel }, 'Close')
+  const head = mk('div', { class: 'viason-fb-head' },
+    mk('div', { class: 'viason-fb-title' }, 'Help & Support'),
+    mk('button', { class: 'viason-close-btn', onclick: closeSupportPanel }, 'Close')
   );
 
   tabs = {
-    support: mk('button', { class: 'doach-fb-tab active', dataset: { tab: 'support' } }, 'Support'),
-    logs: mk('button', { class: 'doach-fb-tab', dataset: { tab: 'logs' } }, 'Diagnostics'),
+    support: mk('button', { class: 'viason-fb-tab active', dataset: { tab: 'support' } }, 'Support'),
+    logs: mk('button', { class: 'viason-fb-tab', dataset: { tab: 'logs' } }, 'Diagnostics'),
   };
-  const tabRow = mk('div', { class: 'doach-fb-tabs' }, tabs.support, tabs.logs);
+  const tabRow = mk('div', { class: 'viason-fb-tabs' }, tabs.support, tabs.logs);
   tabs.support.addEventListener('click', () => showTab('support'));
   tabs.logs.addEventListener('click', () => showTab('logs'));
 
-  const body = mk('div', { class: 'doach-fb-body' });
+  const body = mk('div', { class: 'viason-fb-body' });
 
   // Support view
-  const supportView = mk('div', { class: 'doach-support-view active' });
-  threadBox = mk('div', { class: 'doach-support-thread', id: 'doachSupportThread' });
-  quickRow = mk('div', { class: 'doach-support-quick' });
+  const supportView = mk('div', { class: 'viason-support-view active' });
+  threadBox = mk('div', { class: 'viason-support-thread', id: 'viasonSupportThread' });
+  quickRow = mk('div', { class: 'viason-support-quick' });
   renderQuickActions();
 
-  supportStatus = mk('div', { class: 'doach-support-status' });
+  supportStatus = mk('div', { class: 'viason-support-status' });
 
-  supportInput = mk('textarea', { placeholder: "Tell Doach what's going on…" });
-  supportSendButton = mk('button', { class: 'doach-support-send' }, 'Send');
+  supportInput = mk('textarea', { placeholder: "Tell viason what's going on…" });
+  supportSendButton = mk('button', { class: 'viason-support-send' }, 'Send');
   supportSendButton.addEventListener('click', handleSupportSend);
   supportInput.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && !ev.shiftKey) {
@@ -318,15 +318,15 @@ function createPanel() {
   includeLogsCheckbox = mk('input', { type: 'checkbox', checked: true });
   includeStateCheckbox = mk('input', { type: 'checkbox', checked: true });
 
-  const actionsRow = mk('div', { class: 'doach-support-actions' },
+  const actionsRow = mk('div', { class: 'viason-support-actions' },
     mk('div', { class: 'left' },
-      mk('label', { class: 'doach-checkbox' }, includeLogsCheckbox, 'Attach recent diagnostics'),
-      mk('label', { class: 'doach-checkbox' }, includeStateCheckbox, 'Attach session snapshot')
+      mk('label', { class: 'viason-checkbox' }, includeLogsCheckbox, 'Attach recent diagnostics'),
+      mk('label', { class: 'viason-checkbox' }, includeStateCheckbox, 'Attach session snapshot')
     ),
     supportSendButton
   );
 
-  const inputWrap = mk('div', { class: 'doach-support-input' },
+  const inputWrap = mk('div', { class: 'viason-support-input' },
     supportInput,
     actionsRow,
     supportStatus
@@ -335,12 +335,12 @@ function createPanel() {
   supportView.append(threadBox, quickRow, inputWrap);
 
   // Logs view
-  const logsView = mk('div', { class: 'doach-logs-view' });
-  logsBox = mk('div', { class: 'doach-logs-box' });
-  const logsControls = mk('div', { class: 'doach-logs-controls' },
-    mk('button', { class: 'doach-support-send', onclick: () => feedbackStore.clear() }, 'Clear log'),
+  const logsView = mk('div', { class: 'viason-logs-view' });
+  logsBox = mk('div', { class: 'viason-logs-box' });
+  const logsControls = mk('div', { class: 'viason-logs-controls' },
+    mk('button', { class: 'viason-support-send', onclick: () => feedbackStore.clear() }, 'Clear log'),
     mk('button', {
-      class: 'doach-close-btn',
+      class: 'viason-close-btn',
       onclick: () => navigator.clipboard?.writeText(logsBox.innerText || '').catch(() => {}),
     }, 'Copy')
   );
@@ -361,7 +361,7 @@ function renderQuickActions() {
   if (!quickRow) return;
   quickRow.innerHTML = '';
   SUPPORT_QUICK_ACTIONS.forEach((action) => {
-    const btn = mk('button', { class: 'doach-support-chip' }, action.label);
+    const btn = mk('button', { class: 'viason-support-chip' }, action.label);
     btn.addEventListener('click', () => {
       const text = typeof action.message === 'function' ? action.message() : action.message;
       if (action.autosend) {
@@ -377,8 +377,8 @@ function renderQuickActions() {
 }
 
 function showTab(tabName) {
-  const supportView = q('.doach-support-view', panel);
-  const logsView = q('.doach-logs-view', panel);
+  const supportView = q('.viason-support-view', panel);
+  const logsView = q('.viason-logs-view', panel);
   if (!supportView || !logsView) return;
 
   if (tabName === 'logs') {
@@ -401,13 +401,13 @@ function renderLogs() {
   logsBox.innerHTML = '';
   const rows = feedbackStore.logs.slice(-LOG_HISTORY_LIMIT);
   if (!rows.length) {
-    logsBox.append(mk('div', { class: 'doach-log-row' }, 'No diagnostics captured yet.'));
+    logsBox.append(mk('div', { class: 'viason-log-row' }, 'No diagnostics captured yet.'));
     return;
   }
   rows.forEach((row) => {
     const t = new Date(row.time).toLocaleTimeString();
     const body = `[${t}] ${row.type}: ${row.message || ''}${row.stack ? '\n' + row.stack : ''}`;
-    logsBox.append(mk('div', { class: 'doach-log-row' }, body));
+    logsBox.append(mk('div', { class: 'viason-log-row' }, body));
   });
 }
 
@@ -415,11 +415,11 @@ function renderSupportThread() {
   if (!threadBox) return;
   threadBox.innerHTML = '';
   if (supportState.loading) {
-    threadBox.append(mk('div', { class: 'doach-support-msg doach' }, 'Loading conversation…'));
+    threadBox.append(mk('div', { class: 'viason-support-msg viason' }, 'Loading conversation…'));
     return;
   }
   if (supportState.thread.length === 0) {
-    threadBox.append(mk('div', { class: 'doach-support-msg doach' }, 'Need a hand? Ask me anything about your session, setup, or account.'));
+    threadBox.append(mk('div', { class: 'viason-support-msg viason' }, 'Need a hand? Ask me anything about your session, setup, or account.'));
     return;
   }
   supportState.thread.sort((a, b) => {
@@ -429,7 +429,7 @@ function renderSupportThread() {
   });
   supportState.thread.forEach((msg) => {
     const role = (msg.role || '').toLowerCase();
-    const bubble = mk('div', { class: `doach-support-msg ${role === 'user' ? 'user' : 'doach'}` },
+    const bubble = mk('div', { class: `viason-support-msg ${role === 'user' ? 'user' : 'viason'}` },
       msg.message || '(no message)'
     );
     const metaParts = [];
@@ -518,7 +518,7 @@ async function handleSupportSend() {
           snapshot: {
             shots: (window.__shotList || []).slice(-12),
             totals: (window.__shotList || []).length,
-            prefs: window.doachGetPrefs?.(),
+            prefs: window.viasonGetPrefs?.(),
           },
         };
       } catch {}
@@ -556,12 +556,12 @@ async function handleSupportSend() {
 // --------------------------------------------------------------------------- //
 
 export function installFeedbackWidget() {
-  if (window.__DOACH_SUPPORT_WIDGET_READY) return;
+  if (window.__viason_SUPPORT_WIDGET_READY) return;
   const root = createPanel();
-  fabButton = mk('button', { class: 'doach-fb-fab', title: 'Help & Support' }, '💬');
+  fabButton = mk('button', { class: 'viason-fb-fab', title: 'Help & Support' }, '💬');
   fabButton.addEventListener('click', () => openSupportPanel());
   document.body.appendChild(fabButton);
-  window.__DOACH_SUPPORT_WIDGET_READY = true;
+  window.__viason_SUPPORT_WIDGET_READY = true;
 
   // attempt to hydrate history quietly in the background
   setTimeout(() => loadSupportHistory(), 1200);

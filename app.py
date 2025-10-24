@@ -1,4 +1,4 @@
-# Unified DOACH app.py — optimized for dual model use, cleaned init, and removed /detect_video_init
+# Unified viason app.py — optimized for dual model use, cleaned init, and removed /detect_video_init
 
 from flask import (
     Flask,
@@ -115,9 +115,13 @@ ALLOW_STUB_AUTH = _truthy(
     os.getenv("ALLOW_STUB_AUTH", _default_stub), default=(_default_stub == "1")
 )
 
-# Simple trace flag (enable with DOACH_TRACE=1)
+# Simple trace flag (enable with VIASION_TRACE=1; legacy DOACH_TRACE still honored)
 try:
-    _TRACE = os.getenv("DOACH_TRACE", "1")
+    _TRACE = (
+        os.getenv("VIASION_TRACE")
+        or os.getenv("DOACH_TRACE")
+        or "1"
+    )
     TRACE_ON = _TRACE.lower() not in ("0", "false", "no", "off", "")
 except Exception:
     TRACE_ON = True
@@ -2299,9 +2303,9 @@ def api_face_clear():
     return jsonify({"status": result})
 
 
-@app.route("/my_doach")
-def my_doach():
-    return send_from_directory("static", "my_doach.html")
+@app.route("/my_viason")
+def my_viason():
+    return send_from_directory("static", "my_viason.html")
 
 
 @app.route("/dashboard")
@@ -2505,7 +2509,7 @@ def api_coach():
     )
 
     system = (
-        "You are Doach, a concise basketball shooting coach. "
+        "You are viason, a concise basketball shooting coach. "
         "Be supportive and specific; give 1–3 concrete cues (e.g., 'elbow under ball', "
         "'hold follow-through', 'higher arc' , 'feet placement', 'snap wrist', 'release point'). Keep it under ~6 sentences."
         + lang_hint
@@ -3887,7 +3891,7 @@ def compile_dataset(folder):
     data = request.get_json()
     yaml_text = data.get("yaml", "")
 
-    base_path = os.path.join("datasets", "doach_seg")
+    base_path = os.path.join("datasets", "viason_seg")
     img_dir = os.path.join(base_path, "images", "train")
     label_dir = os.path.join(base_path, "labels", "train")
     os.makedirs(img_dir, exist_ok=True)
@@ -3925,8 +3929,8 @@ def compile_dataset(folder):
 # replaces start_training - initiate training Yolo model
 def _kickoff_training():
     try:
-        yaml_path = os.path.join("datasets", "doach_seg", "data.yaml")
-        run_name = f"doach_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        yaml_path = os.path.join("datasets", "viason_seg", "data.yaml")
+        run_name = f"viason_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         epochs = 120
         imgsz = 640
         batch = 16
@@ -4183,8 +4187,8 @@ def rotate_frame():
             print("⚠️ label rotate failed:", e)
 
     # Invalidate dataset copies (if they exist) to prevent stale training
-    ds_lbl = os.path.join("datasets", "doach_seg", "labels", "train", label_name)
-    ds_img = os.path.join("datasets", "doach_seg", "images", "train", filename)
+    ds_lbl = os.path.join("datasets", "viason_seg", "labels", "train", label_name)
+    ds_img = os.path.join("datasets", "viason_seg", "images", "train", filename)
     for p in (ds_lbl, ds_img):
         if os.path.exists(p):
             try:
@@ -4203,7 +4207,7 @@ def load_yolo_label(folder, filename):
     """
     Search order:
       1) frames/<folder>/<filename>
-      2) datasets/doach_seg/labels/train/<filename>  (fallback)
+      2) datasets/viason_seg/labels/train/<filename>  (fallback)
     Returns text/plain if found; otherwise 204 (no content).
     """
     # primary: frames/<folder>/<filename>
@@ -4214,7 +4218,7 @@ def load_yolo_label(folder, filename):
 
     # fallback: dataset label copy
     ds_root = os.path.abspath(
-        os.path.join(app.root_path, "datasets", "doach_seg", "labels", "train")
+        os.path.join(app.root_path, "datasets", "viason_seg", "labels", "train")
     )
     ds_cand = os.path.abspath(os.path.join(ds_root, filename))
     if ds_cand.startswith(ds_root) and os.path.exists(ds_cand):
@@ -4315,8 +4319,8 @@ def label_frame():
         # ✅ Save label and return
         yolo_path = save_yolo_labels(abs_path, high_conf_boxes)
         # 🟡 Also copy label + image to YOLO training dataset
-        train_label_dir = "datasets/doach_seg/labels/train"
-        train_image_dir = "datasets/doach_seg/images/train"
+        train_label_dir = "datasets/viason_seg/labels/train"
+        train_image_dir = "datasets/viason_seg/images/train"
         os.makedirs(train_label_dir, exist_ok=True)
         os.makedirs(train_image_dir, exist_ok=True)
 
@@ -4587,7 +4591,7 @@ def fix_label_swap():
                     w.write("\n".join(new_lines) + ("\n" if new_lines else ""))
                 changed += 1
                 # also update dataset copy if exists
-                ds_path = os.path.join("datasets", "doach_seg", "labels", "train", fn)
+                ds_path = os.path.join("datasets", "viason_seg", "labels", "train", fn)
                 if os.path.exists(ds_path):
                     with open(ds_path, "w") as w:
                         w.write("\n".join(new_lines) + ("\n" if new_lines else ""))
@@ -4838,9 +4842,9 @@ def set_detector_model():
 
 
 # route to serve training labels
-@app.route("/datasets/doach_seg/labels/train/<filename>")
+@app.route("/datasets/viason_seg/labels/train/<filename>")
 def serve_dataset_label(filename):
-    return send_from_directory("datasets/doach_seg/labels/train", filename)
+    return send_from_directory("datasets/viason_seg/labels/train", filename)
 
 
 # list_frame_folders route to populate dropdown on extraction page
@@ -5993,7 +5997,7 @@ def admin_delete_event(event_id):
 #  Support API (skeleton for in-app help interactions)
 # ----------------------------------------------------------
 
-SUPPORT_ALLOWED_ROLES = {"user", "doach", "admin"}
+SUPPORT_ALLOWED_ROLES = {"user", "viason", "admin"}
 SUPPORT_RESULT_STATUSES = {
     "pending_user",
     "resolved",
@@ -6096,7 +6100,7 @@ def api_support_ingest():
 
     detected_intent = base_intent or "general"
     handler_result = None
-    doach_reply_dict = None
+    viason_reply_dict = None
 
     if role == "user":
         if not base_intent:
@@ -6139,7 +6143,7 @@ def api_support_ingest():
                     user_id=user_id,
                     session_id=payload.get("session_id"),
                     shot_id=payload.get("shot_id"),
-                    role="doach",
+                    role="viason",
                     message=handler_result.reply,
                     intent=detected_intent,
                     action_taken=handler_result.action_taken,
@@ -6150,7 +6154,7 @@ def api_support_ingest():
                 s.add(reply_row)
                 s.commit()
                 s.refresh(reply_row)
-                doach_reply_dict = reply_row.to_dict()
+                viason_reply_dict = reply_row.to_dict()
 
     response_body = {
         "ok": True,
@@ -6159,8 +6163,8 @@ def api_support_ingest():
     }
     if handler_result:
         response_body["handler"] = handler_result.to_dict()
-    if doach_reply_dict:
-        response_body["response"] = doach_reply_dict
+    if viason_reply_dict:
+        response_body["response"] = viason_reply_dict
     return jsonify(response_body), 201
 
 
@@ -6368,7 +6372,7 @@ if __name__ == "__main__":
         port = int(os.getenv("PORT", "5001"))
     except Exception:
         port = 5001
-    print(f"Starting Doach server on http://{host}:{port}")
+    print(f"Starting viason server on http://{host}:{port}")
     try:
         app.run(host=host, port=port, debug=True, use_reloader=False, threaded=False)
     except OSError as e:

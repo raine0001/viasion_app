@@ -4,7 +4,7 @@ from pathlib import Path
 from app import application 
 
 BASE = str(Path(__file__).resolve().parent.parent)
-APPDIR = os.path.join(BASE, "doach")             
+APPDIR = os.path.join(BASE, "viason")             
 if APPDIR not in sys.path:
     sys.path.insert(0, APPDIR)
 

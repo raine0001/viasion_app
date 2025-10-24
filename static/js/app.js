@@ -29,7 +29,7 @@ function computePoseScoreFallback(snapshot, baseWeighted = null, debugTag = null
         try { return fn(); } catch { return fallback; }
     };
 
-    const golden = safeGet(() => window.DOACH_MEM?.golden?.() ?? window.DOACH_MEM?.get?.()?.golden ?? null, null);
+    const golden = safeGet(() => window.viason_MEM?.golden?.() ?? window.viason_MEM?.get?.()?.golden ?? null, null);
     const goldenTargets = golden?.targets || null;
 
     const targetOverrideSources = [];
@@ -49,13 +49,13 @@ function computePoseScoreFallback(snapshot, baseWeighted = null, debugTag = null
         if (window.POSE_TARGET_OVERRIDES) targetOverrideSources.push(window.POSE_TARGET_OVERRIDES);
         if (window.POSE_SCORE_TARGETS) targetOverrideSources.push(window.POSE_SCORE_TARGETS);
         if (window.POSE_TARGETS) targetOverrideSources.push(window.POSE_TARGETS);
-        if (window.DOACH_POSE_TARGETS) targetOverrideSources.push(window.DOACH_POSE_TARGETS);
+        if (window.viason_POSE_TARGETS) targetOverrideSources.push(window.viason_POSE_TARGETS);
         if (window.POSE_SCORE_SIGMAS) sigmaOverrideSources.push(window.POSE_SCORE_SIGMAS);
         if (window.POSE_SIGMA_OVERRIDES) sigmaOverrideSources.push(window.POSE_SIGMA_OVERRIDES);
-        if (window.DOACH_POSE_SIGMAS) sigmaOverrideSources.push(window.DOACH_POSE_SIGMAS);
-        if (window.DOACH_POSE_SIGMA) sigmaOverrideSources.push(window.DOACH_POSE_SIGMA);
+        if (window.viason_POSE_SIGMAS) sigmaOverrideSources.push(window.viason_POSE_SIGMAS);
+        if (window.viason_POSE_SIGMA) sigmaOverrideSources.push(window.viason_POSE_SIGMA);
         if (window.POSE_SCORE_WEIGHTS) weightOverrideSources.push(window.POSE_SCORE_WEIGHTS);
-        if (window.DOACH_POSE_WEIGHTS) weightOverrideSources.push(window.DOACH_POSE_WEIGHTS);
+        if (window.viason_POSE_WEIGHTS) weightOverrideSources.push(window.viason_POSE_WEIGHTS);
     });
 
     const pickOverride = (sources, key) => {
@@ -519,7 +519,7 @@ function callOverlay(objects, playerState) {
 
 
 // ---------- Ownership contract ----------
-window.DOACH_OWNER = Object.freeze({
+window.viason_OWNER = Object.freeze({
     releaseOwner: 'app',
     clipOwner: 'app',
     // endOwner and capOwner intentionally not here; other modules own them
@@ -533,7 +533,7 @@ window.USE_MICROCLIP = window.USE_MICROCLIP ?? true;
 window.__MICROCLIP_MS = window.__MICROCLIP_MS ?? 3000;  // 3s clip
 
 window.NEXT_SHOT_UNLOCK_MS = 800;     // UI unlock sooner
-window.DOACH_RELEASE_TRACE = true;    // logs snapshots and forced summaries
+window.viason_RELEASE_TRACE = true;    // logs snapshots and forced summaries
 window.ENTRY_ARM_COOLDOWN_MS = window.ENTRY_ARM_COOLDOWN_MS ?? 1500; // ms cooldown after arming before release allowed
 
 // set some sane release gate defaults
@@ -578,7 +578,7 @@ function showPromptCompat(text, duration = 4000, opts = {}) {
     const voice = opts.voice !== false;
     if (voice) {
         try {
-            if (typeof window.doachSpeak === 'function') window.doachSpeak(text);
+            if (typeof window.viasonSpeak === 'function') window.viasonSpeak(text);
         } catch { }
     }
     if (typeof uiShowPromptMessage === 'function') uiShowPromptMessage(text, duration);
@@ -1986,7 +1986,7 @@ function setPoseIfMissing(shotId, snap) {
             };
             attemptsStore.push(entry);
             if (attemptsStore.length > 250) attemptsStore.splice(0, attemptsStore.length - 250);
-            if (window.DOACH_RELEASE_TRACE === true) {
+            if (window.viason_RELEASE_TRACE === true) {
                 try { console.log('[release:test]', entry); } catch { }
             }
             attemptEntry = null;
@@ -2219,7 +2219,7 @@ function setPoseIfMissing(shotId, snap) {
                 try {
                     if (!window.__SESSION_ID) {
                         try {
-                            const started = await window.doachSession?.start?.();
+                            const started = await window.viasonSession?.start?.();
                             if (!window.__SESSION_ID && started) window.__SESSION_ID = started;
                         } catch {
                             console.warn('[pose:release] unable to start session for release mark', { shotId, label });
@@ -2299,7 +2299,7 @@ function setPoseIfMissing(shotId, snap) {
                 console.log('[shot:update] release snapshot set', { shotId, snapshot: summarizePose(canonicalSnapshot) });
             }
 
-            if (window.DOACH_RELEASE_TRACE === true || !poseCaptureOk) {
+            if (window.viason_RELEASE_TRACE === true || !poseCaptureOk) {
                 const payload = {
                     shotId,
                     frame: fnum,
@@ -2353,7 +2353,7 @@ function setPoseIfMissing(shotId, snap) {
                 snapNowStatus = 'error';
                 console.warn('[pose:brutal] immediate capture error', { shotId, frame: fnum, error: String(err) });
             }
-            if (window.DOACH_RELEASE_TRACE === true || snapNowStatus !== 'captured') {
+            if (window.viason_RELEASE_TRACE === true || snapNowStatus !== 'captured') {
                 const payload = { shotId, frame: fnum, snapNowStatus, snapshot: snapNowSummary || null };
                 if (!payload.snapshot) delete payload.snapshot;
                 console.log('[pose:brutal] immediate capture status', payload)
@@ -2383,7 +2383,7 @@ function setPoseIfMissing(shotId, snap) {
                     snapLaterStatus = 'error';
                     console.warn('[pose:brutal] delayed capture error', { shotId, frame: fnum, error: String(err) });
                 } finally {
-                    if (window.DOACH_RELEASE_TRACE === true || snapLaterStatus !== 'captured') {
+                    if (window.viason_RELEASE_TRACE === true || snapLaterStatus !== 'captured') {
                         const payload = { shotId, frame: fnum, snapLaterStatus, snapshot: snapLaterSummary || null };
                         if (!payload.snapshot) delete payload.snapshot;
                         console.log('[pose:brutal] delayed capture status', payload)
@@ -2569,8 +2569,8 @@ export function enableHoopPickOnce() {
         window.__hoopConfirmed = true;
         clearHoopReminders();
         // Say a clean confirmation and avoid the goofy rectangle if we?re hiding it
-        if (typeof window.doachSpeak === 'function') {
-            try { window.doachSpeak('Target hoop selected'); } catch { }
+        if (typeof window.viasonSpeak === 'function') {
+            try { window.viasonSpeak('Target hoop selected'); } catch { }
         }
         resumeHoopTrackingLoops();
     };
@@ -3212,21 +3212,21 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.setObserverAutoStreaming = function (enabled = true, fps = 2) {
-        try { localStorage.setItem('doach_observer_auto', enabled ? '1' : '0'); } catch { }
-        try { localStorage.setItem('doach_observer_fps', String(fps)); } catch { }
+        try { localStorage.setItem('viason_observer_auto', enabled ? '1' : '0'); } catch { }
+        try { localStorage.setItem('viason_observer_fps', String(fps)); } catch { }
         if (enabled) return window.startObserverStreaming(fps);
         window.stopObserverStreaming();
         return true;
     };
 
     window.getObserverAutoStreaming = function () {
-        try { return localStorage.getItem('doach_observer_auto') === '1'; } catch { return false; }
+        try { return localStorage.getItem('viason_observer_auto') === '1'; } catch { return false; }
     };
 
     window.addEventListener('hud:start-session', () => {
         try {
             if (window.getObserverAutoStreaming?.()) {
-                const fps = Number(localStorage.getItem('doach_observer_fps')) || 2;
+                const fps = Number(localStorage.getItem('viason_observer_fps')) || 2;
                 window.startObserverStreaming?.(fps);
             }
         } catch { }

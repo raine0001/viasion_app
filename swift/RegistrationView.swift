@@ -27,7 +27,7 @@ struct RegistrationView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     VStack(spacing: 8) {
-                        Text("Welcome to Doach")
+                        Text("Welcome to viason")
                             .font(.largeTitle)
                             .fontWeight(.bold)
                         Text("Create an account to sync your shot sessions across devices.")

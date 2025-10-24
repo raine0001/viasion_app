@@ -18,7 +18,7 @@
 +            attempt.accepted = !!accepted;
 +            if (extra && typeof extra === 'object') Object.assign(attempt, extra);
 +            attemptsLog.push(attempt);
-+            if (window.DOACH_RELEASE_TRACE === true) {
++            if (window.viason_RELEASE_TRACE === true) {
 +                try { console.log('[release:attempt]', attempt); } catch { }
 +            }
 +        };

@@ -300,7 +300,7 @@ function drawPoseMathHUD(ctx, playerState, vw, vh, sx, sy) {
     const explicit  = (typeof window.SHOW_RELEASE_GATE === 'boolean') ? window.SHOW_RELEASE_GATE : null;
     const wantHud   = (explicit === false) ? false
                     : (explicit === true)  ? true
-                    : ((window.SHOW_POSE_MATH === true) || (window.DOACH_RELEASE_TRACE === true));
+                    : ((window.SHOW_POSE_MATH === true) || (window.viason_RELEASE_TRACE === true));
     if (!wantLines && !wantHud) return;
     if (playerState?.poseVisible === false) return;
 
@@ -860,10 +860,10 @@ export function setOverlayInteractive(on) {
 
 /* ----------------------------- Compact debug HUD ----------------------------- */
 function ensureDebugHudBox() {
-  let box = window.__debugBox || document.getElementById('doachDebugHud');
+  let box = window.__debugBox || document.getElementById('viasonDebugHud');
   if (!box) {
     box = document.createElement('div');
-    box.id = 'doachDebugHud';
+    box.id = 'viasonDebugHud';
     (document.querySelector('.video-frame') || document.body).appendChild(box);
     window.__debugBox = box;
   }
