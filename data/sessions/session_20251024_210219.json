@@ -1,0 +1,92 @@
+{
+  "config": {
+    "session_id": "session_20251024_210219",
+    "domain": "general",
+    "user_id": null,
+    "exercise_name": null,
+    "save_data": true,
+    "data_directory": "./data/sessions"
+  },
+  "domain_config": {
+    "name": "General Training",
+    "description": "Multi-purpose movement analysis and training",
+    "key_metrics": [
+      "movement_quality",
+      "consistency",
+      "awareness"
+    ]
+  },
+  "analytics": {
+    "session_id": "session_20251024_210219",
+    "duration": 0.7078962326049805,
+    "metrics": {
+      "frame_rate": {
+        "name": "Frame Rate",
+        "value": 7.063174965099263,
+        "unit": "fps",
+        "optimal_range": [
+          25,
+          60
+        ],
+        "status": "poor"
+      },
+      "interactions": {
+        "name": "Object Interactions",
+        "value": 0,
+        "unit": "count",
+        "optimal_range": null,
+        "status": "neutral"
+      }
+    },
+    "insights": [],
+    "score": 50.0,
+    "improvement_areas": [
+      "Frame Rate"
+    ]
+  },
+  "frame_analyses": [
+    {
+      "frame_number": 0,
+      "timestamp": 0.0002002716064453125,
+      "pose_detected": false,
+      "objects_detected": 0,
+      "joint_angles": {},
+      "new_insights": 0
+    },
+    {
+      "frame_number": 1,
+      "timestamp": 0.1854085922241211,
+      "pose_detected": false,
+      "objects_detected": 0,
+      "joint_angles": {},
+      "new_insights": 0
+    },
+    {
+      "frame_number": 2,
+      "timestamp": 0.3161451816558838,
+      "pose_detected": false,
+      "objects_detected": 0,
+      "joint_angles": {},
+      "new_insights": 0
+    },
+    {
+      "frame_number": 3,
+      "timestamp": 0.4471776485443115,
+      "pose_detected": false,
+      "objects_detected": 0,
+      "joint_angles": {},
+      "new_insights": 0
+    },
+    {
+      "frame_number": 4,
+      "timestamp": 0.5781304836273193,
+      "pose_detected": false,
+      "objects_detected": 0,
+      "joint_angles": {},
+      "new_insights": 0
+    }
+  ],
+  "recommendations": [
+    "Keep up the good work! Continue practicing to maintain performance."
+  ]
+}
