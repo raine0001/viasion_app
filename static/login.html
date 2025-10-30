@@ -58,8 +58,40 @@
     <script>
       async function post(url, body){ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!r.ok) throw new Error(await r.text()); return await r.json(); }
       function setMsg(t){ document.getElementById('msg').textContent = t; }
-      async function login(){ try{ const name=document.getElementById('name').value.trim(); const email=document.getElementById('email').value.trim(); const password=document.getElementById('password').value; const j=await post('/api/auth/login',{email,password}); if(name) localStorage.setItem('firstname',name); location.href='/'; }catch(e){ setMsg('Login failed'); } }
-      async function register(){ try{ const name=document.getElementById('name').value.trim(); const email=document.getElementById('email').value.trim(); const password=document.getElementById('password').value; const j=await post('/api/auth/register',{name,email,password}); if(name) localStorage.setItem('firstname',name); location.href='/'; }catch(e){ setMsg('Register failed'); } }
+      function rememberName(source){
+        const first = (source || '').split(/\s+/)[0];
+        if (!first) return;
+        try { localStorage.setItem('firstname', first); } catch {}
+      }
+      async function login(){
+        try{
+          const name=document.getElementById('name').value.trim();
+          const email=document.getElementById('email').value.trim();
+          const password=document.getElementById('password').value;
+          const j=await post('/api/auth/login',{email,password});
+          if(name) rememberName(name);
+          else rememberName(j?.name);
+          if (j?.name) sessionStorage.setItem('viason_login_greeting', `Welcome back, ${j.name.split(/\s+/)[0] || j.name}!`);
+          else sessionStorage.setItem('viason_login_greeting', 'Welcome back!');
+          location.href='/static/my_sessions.html';
+        }catch(e){
+          setMsg('Login failed');
+        }
+      }
+      async function register(){
+        try{
+          const name=document.getElementById('name').value.trim();
+          const email=document.getElementById('email').value.trim();
+          const password=document.getElementById('password').value;
+          const j=await post('/api/auth/register',{name,email,password});
+          if(name) rememberName(name);
+          else rememberName(j?.name);
+          sessionStorage.setItem('viason_login_greeting', `Welcome to viason${name ? ', ' + name.split(/\s+/)[0] : ''}!`);
+          location.href='/static/my_sessions.html';
+        }catch(e){
+          setMsg('Register failed');
+        }
+      }
       document.getElementById('btnLogin').onclick=login; document.getElementById('btnRegister').onclick=register;
     </script>
   </body>

@@ -1474,6 +1474,23 @@
 
 
 
+      function consumeLoginGreeting() {
+        let message = null;
+        try {
+          message = sessionStorage.getItem('viason_login_greeting');
+          if (message) sessionStorage.removeItem('viason_login_greeting');
+        } catch (err) {
+          message = null;
+        }
+        if (!message) return;
+        showToast(message, 'success', 3600);
+        if (typeof window.viasonSpeak === 'function') {
+          try { window.viasonSpeak(message); } catch {}
+        }
+      }
+
+
+
       function average(values) {
 
         const data = values.filter(Number.isFinite);
@@ -2204,6 +2221,7 @@
 
         }
 
+        try { window.__USER_NAME = name || null; } catch { window.__USER_NAME = name || null; }
         el.textContent = name ? `Hi, ${name}!` : 'Hi, Athlete!';
 
       }
@@ -3626,7 +3644,12 @@
 
         try {
 
-          const res = await fetch('/api/sessions');
+          const res = await fetch('/api/sessions', { credentials: 'include' });
+
+          if (res.status === 401) {
+            window.location.href = '/static/login.html';
+            return;
+          }
 
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -3744,7 +3767,7 @@
 
         };
 
-
+        consumeLoginGreeting();
 
         document.getElementById('btnRefresh').onclick = () => {
 

@@ -1735,11 +1735,46 @@ async function openMyviasonPanel(){
       if (!r.ok) throw new Error(j?.error || ('HTTP '+r.status));
       return j;
     }
+    function extractFirstName(nameLike) {
+      if (!nameLike) return '';
+      return String(nameLike).trim().split(/\s+/)[0] || '';
+    }
+    function applyUserProfile(profile) {
+      if (!profile || typeof profile !== 'object') return null;
+      const name = (profile.name || profile.displayName || profile.fullName || '').trim();
+      const email = (profile.email || profile.user_email || '').trim();
+      const label = name || email;
+      if (label) {
+        try { window.__USER_NAME = label; } catch { window.__USER_NAME = label; }
+        const first = extractFirstName(name || label);
+        if (first) {
+          try { localStorage.setItem('firstname', first); } catch {}
+        }
+      }
+      if (email) {
+        try { window.__USER_EMAIL = email; } catch { window.__USER_EMAIL = email; }
+      }
+      return label;
+    }
+    function stageLoginGreeting(prefix, profile) {
+      const label = applyUserProfile(profile) || '';
+      const first = extractFirstName(label);
+      const message = first ? `${prefix}, ${first}!` : `${prefix}!`;
+      try { sessionStorage.setItem('viason_login_greeting', message); } catch {}
+      return message;
+    }
+    function goToSessions() {
+      try { window.location.href = '/static/my_sessions.html'; }
+      catch { window.open('/static/my_sessions.html', '_self'); }
+    }
     async function me(){
       try {
         const u = await fetchJSON('/api/auth/me');
         if (u?.user) {
+          stageLoginGreeting('Welcome back', u.user);
           status.textContent = `Signed in as ${u.user.name || u.user.email}`;
+          // Remove staged greeting so we only greet when explicitly logging in
+          try { sessionStorage.removeItem('viason_login_greeting'); } catch {}
           btnLogout.style.display = '';
           nameRow.style.display = 'none';
           try { faceLockMgr()?.setUser?.(u.user); } catch {}
@@ -1755,6 +1790,7 @@ async function openMyviasonPanel(){
         status.textContent = 'Not signed in';
         btnLogout.style.display = 'none';
         nameRow.style.display = '';
+        try { delete window.__USER_NAME; } catch { window.__USER_NAME = null; }
         try { faceLockMgr()?.setUser?.(null); } catch {}
         await updateFaceStatus();
       }
@@ -1763,33 +1799,33 @@ async function openMyviasonPanel(){
     btnLogin.onclick = async ()=>{
       try {
         const j = await fetchJSON('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email: emailInp.value.trim(), password: pwInp.value }) });
-        status.textContent = `Welcome, ${j.name || j.email}`;
-        try { localStorage.setItem('firstname', (j.name||'').split(' ')[0] || 'player'); } catch {}
+        const message = stageLoginGreeting('Welcome back', j.user || j);
+        status.textContent = message;
         btnLogout.style.display = '';
         nameRow.style.display = 'none';
-        // Defer greeting until camera (or video) actually starts
         window.__welcomePending = true; window.showStartSessionCTA?.();
         try { window.enableHoopPickOnce?.(); } catch {}
         try { await window.prefetchChallengeState?.(); } catch {}
-        try { faceLockMgr()?.setUser?.(j); } catch {}
+        try { faceLockMgr()?.setUser?.(j.user || j); } catch {}
         try { await updateFaceStatus(); } catch {}
         try { await maybeOfferFaceLock('login'); } catch {}
+        setTimeout(goToSessions, 200);
       } catch (e) { alert('Login failed: ' + e.message); }
     };
     btnCreate.onclick = async ()=>{
       try {
         const j = await fetchJSON('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name: nameInp.value.trim(), email: emailInp.value.trim(), password: pwInp.value }) });
-        status.textContent = `Account created: ${j.name || j.email}`;
-        try { localStorage.setItem('firstname', (j.name||'').split(' ')[0] || 'player'); } catch {}
+        const message = stageLoginGreeting('Welcome to viason', j.user || j);
+        status.textContent = message;
         btnLogout.style.display = '';
         nameRow.style.display = 'none';
-        // Defer greeting until camera (or video) actually starts
         window.__welcomePending = true; window.showStartSessionCTA?.();
         try { window.enableHoopPickOnce?.(); } catch {}
         try { await window.prefetchChallengeState?.(); } catch {}
-        try { faceLockMgr()?.setUser?.(j); } catch {}
+        try { faceLockMgr()?.setUser?.(j.user || j); } catch {}
         try { await updateFaceStatus(); } catch {}
         try { await maybeOfferFaceLock('register'); } catch {}
+        setTimeout(goToSessions, 200);
       } catch (e) { alert('Create failed: ' + e.message); }
     };
     btnLogout.onclick = async ()=>{
@@ -1797,6 +1833,7 @@ async function openMyviasonPanel(){
       status.textContent = 'Signed out';
       btnLogout.style.display = 'none';
       nameRow.style.display = '';
+      try { delete window.__USER_NAME; } catch { window.__USER_NAME = null; }
       try { window.__challengeState = null; window.syncChallengeCTA?.(); } catch {}
       try { faceLockMgr()?.setUser?.(null); } catch {}
       try { await updateFaceStatus(); } catch {}

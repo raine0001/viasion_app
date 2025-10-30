@@ -569,6 +569,8 @@ window.__POSE_ONLY_MODE = true;                           // allow fallback summ
 window.USE_MICROCLIP = window.USE_MICROCLIP ?? true;
 window.__MICROCLIP_MS = window.__MICROCLIP_MS ?? 3000;  // 3s clip
 
+window.__MICROCLIP_PRE_MS = window.__MICROCLIP_PRE_MS ?? 360;  // pre-roll
+
 window.NEXT_SHOT_UNLOCK_MS = 800;     // UI unlock sooner
 window.viason_RELEASE_TRACE = true;    // logs snapshots and forced summaries
 window.ENTRY_ARM_COOLDOWN_MS = window.ENTRY_ARM_COOLDOWN_MS ?? 1500; // ms cooldown after arming before release allowed
@@ -944,23 +946,63 @@ window.poseDetectSerial = poseDetectSerial;
 
         const v = document.getElementById('videoPlayer');
 
-        // Prefer the landscape canvas compositor
         let comp = window.__landscapeRecController;
         if (!comp && typeof window.startLandscapeRecorder === 'function') {
             try {
                 comp = await window.startLandscapeRecorder(v, { width: 1280, height: 720, fps: 30 });
                 window.__landscapeRecController = comp;
-            } catch { }
+            } catch { /* ignore */ }
         }
 
-        // Fall back if compositor isn?t available
-        const stream = comp?.stream || v?.captureStream?.() || v?.srcObject;
-        if (!stream || !stream.getVideoTracks?.().length) {
-            window.updateShot?.(shotId, { clip: { status: stream ? 'no-video-track' : 'no-stream' } });
-            emitMicroclipSummary(shotId);
+        const totalMs = Number(window.__MICROCLIP_MS) || 3000;
+        const preSetting = Number(window.__MICROCLIP_PRE_MS);
+        const preMs = Math.max(0, Math.min(Number.isFinite(preSetting) ? preSetting : 360, totalMs - 120));
+
+        async function persistClipBlob(blob) {
+            if (!blob || !blob.size) {
+                window.updateShot?.(shotId, { clip: { status: 'error', reason: 'empty' } });
+                return false;
+            }
+            const fd = new FormData();
+            fd.append('sessionId', window.__SESSION_ID || (`sess_${Date.now()}`));
+            fd.append('shotId', String(shotId));
+            fd.append('clip', blob, `shot-${shotId}.webm`);
+            try {
+                const r = await fetch('/api/microclip/upload', { method: 'POST', body: fd });
+                const j = await r.json().catch(() => null);
+                const sid = window.__SESSION_ID || null;
+                const file = sid ? `/sessions/${sid}/clips/shot-${shotId}.webm` : null;
+                window.updateShot?.(shotId, {
+                    clip: {
+                        status: r.ok ? 'saved' : 'error',
+                        path: j?.path || file,
+                        bytes: blob.size,
+                        frame: releaseFrame,
+                        ms: totalMs
+                    }
+                });
+                return r.ok;
+            } catch (err) {
+                window.updateShot?.(shotId, { clip: { status: 'error', reason: String(err) } });
+                return false;
+            }
+        }
+
+        if (comp && typeof comp.captureClip === 'function') {
+            window.updateShot?.(shotId, { clip: { status: 'recording', ms: totalMs, frame: releaseFrame } });
+            try {
+                const blob = await comp.captureClip({ preMs, totalMs });
+                await persistClipBlob(blob);
+            } catch (err) {
+                window.updateShot?.(shotId, { clip: { status: 'error', reason: String(err) } });
+            } finally {
+                emitMicroclipSummary(shotId);
+            }
+            if (window.__sessionTotals) window.__sessionTotals.attempts = (window.__sessionTotals.attempts || 0) + 1;
             return;
         }
 
+        const stream = comp?.stream || v?.captureStream?.() || v?.srcObject;
         if (!stream || !stream.getVideoTracks?.().length) {
             window.updateShot?.(shotId, { clip: { status: stream ? 'no-video-track' : 'no-stream' } });
             emitMicroclipSummary(shotId);
@@ -982,37 +1024,19 @@ window.poseDetectSerial = poseDetectSerial;
                 return;
             }
             const blob = new Blob(chunks, { type: mime || 'video/webm' });
-            const fd = new FormData();
-            fd.append('sessionId', window.__SESSION_ID || (`sess_${Date.now()}`));
-            fd.append('shotId', String(shotId));
-            fd.append('clip', blob, `shot-${shotId}.webm`);
-
-            try {
-                const r = await fetch('/api/microclip/upload', { method: 'POST', body: fd });
-                const j = await r.json().catch(() => null);
-                const sid = window.__SESSION_ID || null;
-                const file = sid ? `/sessions/${sid}/clips/shot-${shotId}.webm` : null;
-                window.updateShot?.(shotId, {
-                    clip: { status: r.ok ? 'saved' : 'error', path: j?.path || file, bytes: blob.size, frame: releaseFrame, ms: window.__MICROCLIP_MS }
-                });
-            } catch (err) {
-                window.updateShot?.(shotId, { clip: { status: 'error', reason: String(err) } });
-            } finally {
-                emitMicroclipSummary(shotId);
-            }
+            await persistClipBlob(blob);
+            emitMicroclipSummary(shotId);
         };
 
         try { if (v?.paused) await v.play(); } catch { }
         rec.start();
-        const ms = Number(window.__MICROCLIP_MS) || 3000;
-        setTimeout(() => { try { rec.requestData?.(); } catch { } }, Math.max(0, ms - 50));
-        setTimeout(() => { try { rec.state !== 'inactive' && rec.stop(); } catch { } }, ms);
+        setTimeout(() => { try { rec.requestData?.(); } catch { } }, Math.max(0, totalMs - 50));
+        setTimeout(() => { try { rec.state !== 'inactive' && rec.stop(); } catch { } }, totalMs);
 
-        window.updateShot?.(shotId, { clip: { status: 'recording', ms, frame: releaseFrame } });
+        window.updateShot?.(shotId, { clip: { status: 'recording', ms: totalMs, frame: releaseFrame } });
         if (window.__sessionTotals) window.__sessionTotals.attempts = (window.__sessionTotals.attempts || 0) + 1;
     }
-
-    window.__startMicroClip = startMicroClip;
+window.__startMicroClip = startMicroClip;
 })();
 
 
