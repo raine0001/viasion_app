@@ -3461,15 +3461,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const seconds = Number.isFinite(secondsRaw) && secondsRaw > 0 ? secondsRaw : 5;
         const cue = getWorkflowReadyPrompt();
         try { window.__sessionCountdownDone = false; } catch { }
-        let started = false;
         try {
-            if (typeof window.startShotTrackingCountdown === 'function') {
-                started = window.startShotTrackingCountdown(seconds, cue, { force: true }) === true;
-            }
+            window.startShotTrackingCountdown?.(seconds, cue, { force: true });
         } catch (err) {
             console.warn('[hud] countdown failed', err);
         }
-        if (!started) return;
         const delayMs = Math.max(0, Math.round(seconds * 1000) + 60);
         setTimeout(() => scheduleArmWhenReady(0), delayMs);
     };

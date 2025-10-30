@@ -1631,15 +1631,11 @@ function handleHudStartSession(event) {
         try { window.__hoopConfirmed = true; } catch { }
         try { window.resumeHoopTracking?.(); } catch {}
         setTimeout(() => {
-            let started = false;
             try {
-                if (typeof window.startShotTrackingCountdown === 'function') {
-                    started = window.startShotTrackingCountdown(countdownSec, readyPrompt) === true;
-                }
+                window.startShotTrackingCountdown?.(countdownSec, readyPrompt);
             } catch (err) {
                 console.warn('[hud] countdown failed', err);
             }
-            if (!started) return;
             const delayMs = Math.max(0, countdownSec * 1000 + 60);
             setTimeout(() => {
                 try { window.scheduleArmWhenReady?.(0); } catch { }
@@ -1839,15 +1835,11 @@ function kickoffCountdownArmFromHoop() {
     const sec = Number(window.__sessionCountdownSecs || getCountdownSeconds());
     const prompt = window.__sessionReadyPrompt || getReadyPrompt();
     try { window.__sessionCountdownDone = false; } catch { }
-    let started = false;
     try {
-        if (typeof window.startShotTrackingCountdown === 'function') {
-            started = window.startShotTrackingCountdown(sec, prompt, { force: true }) === true;
-        }
+        window.startShotTrackingCountdown?.(sec, prompt, { force: true });
     } catch (err) {
         console.warn('[hud] countdown failed', err);
     }
-    if (!started) return;
     const delayMs = Math.max(0, (Number.isFinite(sec) ? sec : 5) * 1000 + 60);
     setTimeout(() => {
         try { window.scheduleArmWhenReady?.(0); } catch { }
