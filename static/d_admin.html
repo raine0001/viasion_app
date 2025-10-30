@@ -139,6 +139,10 @@
 
 
 
+    .btn-mini { padding:4px 8px; font-size:11px; border-radius:6px; }
+
+
+
     .toolbar { display:flex; gap:8px; align-items:center; }
 
 
@@ -386,6 +390,46 @@
 .challenge-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; margin-top:10px; }
 #challengeStatus { font-size:12px; color:#94a3b8; min-height:16px; }
 #challengePane { grid-column: span 2; }
+
+.subscription-wrap { display:grid; grid-template-columns:260px minmax(280px,1fr) minmax(240px,0.85fr); gap:12px; padding:12px; flex:1 1 auto; overflow:auto; }
+.subscription-plans, .subscription-form, .subscription-users { background:#101721; border:1px solid #1f2a36; border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:12px; min-height:0; }
+.subscription-plan-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.subscription-plan-header h3 { margin:0; font-size:13px; }
+.subscription-plan-list { border:1px solid #1b2735; border-radius:8px; background:#0b0f14; flex:1 1 auto; overflow:auto; }
+.subscription-plan-item { padding:8px 10px; border-bottom:1px solid #1b2735; cursor:pointer; display:flex; flex-direction:column; gap:4px; transition:background .18s ease; }
+.subscription-plan-item:hover { background:#101c2a; }
+.subscription-plan-item.selected { background:#132946; border-left:4px solid #2563eb; }
+.subscription-plan-item.inactive { opacity:.65; }
+.subscription-plan-item .plan-title { font-weight:600; font-size:13px; color:#e6edf3; }
+.subscription-plan-item .plan-meta { font-size:12px; color:#94a3b8; display:flex; flex-wrap:wrap; gap:8px; }
+.subscription-plan-item .plan-pill { display:inline-flex; align-items:center; padding:2px 6px; border-radius:999px; border:1px solid #1f2a36; background:#121c2a; color:#a5b4c8; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+.subscription-plan-item .plan-pill.active { background:#10251a; border-color:#1f5236; color:#4ade80; }
+.subscription-form form { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
+.subscription-form label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:#94a3b8; }
+.subscription-form input, .subscription-form select, .subscription-form textarea { background:#0b0f14; color:#e6edf3; border:1px solid #1f2a36; border-radius:8px; padding:6px 8px; font:600 13px/1.4 system-ui, -apple-system, Segoe UI, Arial; }
+.subscription-form textarea { resize:vertical; min-height:72px; grid-column:1 / -1; }
+.subscription-checkbox { flex-direction:row !important; align-items:center; gap:8px; }
+.subscription-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
+.subscription-status { font-size:12px; min-height:16px; color:#94a3b8; }
+.subscription-status.success { color:#4ade80; }
+.subscription-status.error { color:#f87171; }
+.subscription-status.warn { color:#facc15; }
+.subscription-user-list { border:1px solid #1b2735; border-radius:8px; background:#0b0f14; flex:1 1 auto; overflow:auto; }
+.subscription-user-item { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 8px; border-bottom:1px solid #16202b; font-size:12px; }
+.subscription-user-item:last-child { border-bottom:none; }
+.subscription-assign { display:flex; gap:8px; }
+.subscription-assign input { flex:1 1 auto; }
+.subscription-users h3, .subscription-form h3, .subscription-plans h3 { margin:0; font-size:13px; }
+.subscription-empty { padding:8px; font-size:12px; color:#94a3b8; }
+.subscription-users button { align-self:flex-start; }
+
+@media (max-width:1250px) {
+  .subscription-wrap { grid-template-columns:minmax(240px,1fr) minmax(280px,1fr); }
+}
+
+@media (max-width:980px) {
+  .subscription-wrap { grid-template-columns:1fr; }
+}
 
 
 
@@ -677,7 +721,7 @@
 
 
 
-    <textarea id="supportReplyInput" placeholder="Reply as admin…" disabled></textarea>
+    <textarea id="supportReplyInput" placeholder="Reply as adminâ€¦" disabled></textarea>
 
 
 
@@ -755,6 +799,72 @@
       <button class="btn" type="button" id="challengeNewBtn">New</button>
       <button class="btn" type="button" id="challengeDeleteBtn" disabled>Delete</button>
       <button class="btn primary" type="button" id="challengeSaveBtn">Save</button>
+    </div>
+  </div>
+</section>
+
+<section id="subscriptionPane">
+  <h2>Subscriptions</h2>
+  <div class="subscription-wrap">
+    <div class="subscription-plans">
+      <div class="subscription-plan-header">
+        <h3>Plans</h3>
+        <button class="btn" id="subscriptionNewBtn" type="button">New Plan</button>
+      </div>
+      <div class="subscription-plan-list" id="subscriptionPlanList">
+        <div class="subscription-empty">No plans loaded.</div>
+      </div>
+    </div>
+    <div class="subscription-form">
+      <h3>Plan Details</h3>
+      <form id="subscriptionPlanForm">
+        <label>Plan ID
+          <input id="subscriptionPlanId" type="text" placeholder="golf_range_monthly" required />
+        </label>
+        <label>Name
+          <input id="subscriptionPlanName" type="text" placeholder="Golf Range Analyzer" />
+        </label>
+        <label>Dataset
+          <input id="subscriptionPlanDataset" type="text" placeholder="g_pose" required />
+        </label>
+        <label>Price
+          <input id="subscriptionPlanPrice" type="number" step="0.01" min="0" />
+        </label>
+        <label>Period
+          <select id="subscriptionPlanPeriod">
+            <option value="monthly">Monthly</option>
+            <option value="annual">Annual</option>
+            <option value="weekly">Weekly</option>
+            <option value="lifetime">Lifetime</option>
+          </select>
+        </label>
+        <label>Trial Days
+          <input id="subscriptionPlanTrial" type="number" min="0" />
+        </label>
+        <label class="subscription-checkbox">
+          <input id="subscriptionPlanActive" type="checkbox" checked />
+          Active
+        </label>
+        <label>Description
+          <textarea id="subscriptionPlanDescription" rows="3" placeholder="Describe included access"></textarea>
+        </label>
+      </form>
+      <div class="subscription-actions">
+        <button class="btn" type="button" id="subscriptionSaveBtn">Save Plan</button>
+        <button class="btn" type="button" id="subscriptionDeactivateBtn">Deactivate</button>
+      </div>
+      <div class="subscription-status" id="subscriptionStatus"></div>
+    </div>
+    <div class="subscription-users">
+      <h3>Assigned Users</h3>
+      <div class="subscription-user-list" id="subscriptionUserList">
+        <div class="subscription-empty">Select a plan to view assignments.</div>
+      </div>
+      <div class="subscription-assign">
+        <input id="subscriptionAssignUser" type="text" placeholder="user id or email" />
+        <button class="btn" type="button" id="subscriptionAssignBtn">Assign</button>
+      </div>
+      <button class="btn" type="button" id="subscriptionReloadBtn">Reload</button>
     </div>
   </div>
 </section>

@@ -1,1 +1,18 @@
-{ "model_url": "/static/models/best.onnx", "imgsz": 640 }
+{
+    "model_url":  "/static/models/golf_best.onnx",
+    "fallback_url":  "/static/models/backup_best.onnx",
+    "labels":  [
+                   "player",
+                   "club",
+                   "ball",
+                   "tee",
+                   "flag",
+                   "hole",
+                   "iron",
+                   "wedge",
+                   "driver"
+               ],
+    "imgsz":  640,
+    "profile":  "golf",
+    "updated_at":  "2025-10-29T15:23:39Z"
+}

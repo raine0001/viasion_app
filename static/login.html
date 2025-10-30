@@ -5,6 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Login • viason</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <script>
+      (function redirectIfAuthenticated() {
+        const params = new URLSearchParams(location.search || '');
+        if (params.get('stay') === '1') return;
+        try {
+          fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((payload) => {
+              if (payload?.user) {
+                location.replace('/static/my_sessions.html');
+              }
+            })
+            .catch((err) => console.warn('[login] auth check failed', err));
+        } catch (err) {
+          console.warn('[login] auth redirect setup failed', err);
+        }
+      })();
+    </script>
     <style>
       :root { color-scheme: light dark; }
       body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:40px;display:flex;min-height:100vh;align-items:center;justify-content:center;background:#f6f6f8;}

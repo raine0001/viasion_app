@@ -36,6 +36,49 @@
         })();
     </script>
     <script>
+        (function enforceLandingRoute() {
+            const path = location.pathname || '';
+            const isIndex = !path || path === '/' || /\/index\.html$/i.test(path);
+            if (!isIndex) return;
+            const params = new URLSearchParams(location.search || '');
+            if (params.get('stay') === '1') return;
+            try {
+                fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' })
+                    .then((res) => (res.ok ? res.json() : null))
+                    .then((payload) => {
+                        if (!payload) return;
+                        if (payload.user) {
+                            if (!/\/static\/my_sessions\.html$/i.test(location.pathname)) {
+                                location.replace('/static/my_sessions.html');
+                            }
+                        } else {
+                            location.replace('/static/login.html');
+                        }
+                    })
+                    .catch((err) => console.warn('[index] auth redirect check failed', err));
+            } catch (err) {
+                console.warn('[index] auth redirect setup failed', err);
+            }
+        })();
+    </script>
+    <script>
+        (function seedProjectOverrides() {
+            try {
+                const params = new URLSearchParams(location.search || '');
+                const project = params.get('project');
+                const dataset = params.get('dataset');
+                if (project && typeof sessionStorage !== 'undefined') sessionStorage.setItem('viason.activeProject', project);
+                if (dataset && typeof sessionStorage !== 'undefined') sessionStorage.setItem('viason.activeDataset', dataset);
+                const storedProject = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('viason.activeProject') : null;
+                const storedDataset = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('viason.activeDataset') : null;
+                window.__VIASON_PROJECT_OVERRIDE = project || storedProject || null;
+                window.__VIASON_DATASET_OVERRIDE = dataset || storedDataset || null;
+            } catch (err) {
+                try { console.warn('[index] project override setup failed', err); } catch { }
+            }
+        })();
+    </script>
+    <script>
         (function setIOSMicDefault() {
             const ua = (navigator.userAgent || '').toLowerCase();
             const isIOS = /iphone|ipad|ipod/.test(ua);
@@ -68,6 +111,21 @@
 
     <!-- Early global guard: swallow pre-hoop or unstable pose releases -->
     <script>
+        (function preloadDetectorConfig() {
+            try {
+                fetch('/static/config/detector.json', { cache: 'no-store' })
+                    .then(res => res.ok ? res.json() : null)
+                    .then(cfg => {
+                        if (!cfg || typeof cfg !== 'object') return;
+                        if (cfg.model_url) window.DETECTOR_MODEL_URL = cfg.model_url;
+                        if (cfg.fallback_url) window.DETECTOR_FALLBACK_MODEL_URL = cfg.fallback_url;
+                        if (Array.isArray(cfg.labels) && cfg.labels.length) window.DETECTOR_LABELS = cfg.labels.slice();
+                    })
+                    .catch(() => { /* ignore */ });
+            } catch { /* ignore */ }
+        })();
+    </script>
+    <script>
         (function installEarlyReleaseGuard() {
             try {
                 if (window.__earlyRelGuard) return; window.__earlyRelGuard = true;
@@ -88,8 +146,62 @@
     <script type="module" src="/static/js/app.js"></script>
     <script type="module" src="/static/js/video_ui.js"></script>
     <script type="module" src="/static/js/session_manager.js"></script>
+    <script src="/static/js/projectManager.js"></script>
+    <script type="module" src="/static/js/golf/swing-metrics.js"></script>
     <script type="module" src="/static/js/coach_voice.js"></script>
     <script type="module" src="/static/js/coachAssistant.js"></script>
+    <script>
+        (function applyProjectOverride() {
+            const projectPref = window.__VIASON_PROJECT_OVERRIDE;
+            const datasetPref = window.__VIASON_DATASET_OVERRIDE;
+            if (!projectPref && !datasetPref) return;
+
+            const selectProject = (manifest) => {
+                const mgr = window.viasonProjectManager;
+                if (!mgr) return;
+                const manifestProjects = manifest?.projects || {};
+                let target = projectPref && manifestProjects[projectPref] ? projectPref : null;
+                if (!target && datasetPref) {
+                    for (const [slug, meta] of Object.entries(manifestProjects)) {
+                        const datasets = Array.isArray(meta?.datasets) ? meta.datasets : [];
+                        if (datasets.some((ds) => ds?.slug === datasetPref)) {
+                            target = slug;
+                            break;
+                        }
+                    }
+                }
+                if (!target && projectPref) {
+                    target = projectPref;
+                }
+                if (target) {
+                    try { mgr.setActiveProject(target); } catch (err) { console.warn('[index] setActiveProject failed', err); }
+                }
+            };
+
+            const attempt = () => {
+                const mgr = window.viasonProjectManager;
+                if (!mgr) return false;
+                const ready = mgr.ready;
+                if (ready && typeof ready.then === 'function') {
+                    ready
+                        .then((manifest) => selectProject(manifest || mgr.getManifest?.()))
+                        .catch((err) => console.warn('[index] project override ready failed', err));
+                } else {
+                    selectProject(mgr.getManifest?.());
+                }
+                return true;
+            };
+
+            if (!attempt()) {
+                let tries = 0;
+                const timer = setInterval(() => {
+                    if (attempt() || ++tries > 40) {
+                        clearInterval(timer);
+                    }
+                }, 150);
+            }
+        })();
+    </script>
 
     <script>
         // Conditionally load auto probe tools via query param ?probe=release

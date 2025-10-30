@@ -1,6 +1,37 @@
-const DETECTOR_MODEL_URL = '/static/models/best.onnx';
-const DETECTOR_FALLBACK_URL = '/static/models/backup_best.onnx';
-const DETECTOR_LABELS = ['basketball', 'hoop', 'net', 'backboard', 'player'];
+const DETECTOR_CONFIG_ENDPOINT = '/static/config/detector.json';
+let DETECTOR_MODEL_URL = '/static/models/best.onnx';
+let DETECTOR_FALLBACK_URL = '/static/models/backup_best.onnx';
+let DETECTOR_LABELS = ['player', 'club', 'ball', 'tee', 'flag', 'hole', 'iron', 'wedge', 'driver', 'basketball', 'hoop', 'net', 'backboard'];
+let detectorConfigPromise = null;
+
+function loadDetectorConfig() {
+  if (detectorConfigPromise) return detectorConfigPromise;
+  detectorConfigPromise = (async () => {
+    try {
+      const res = await fetch(DETECTOR_CONFIG_ENDPOINT, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const cfg = await res.json();
+      if (cfg && typeof cfg === 'object') {
+        if (cfg.model_url) DETECTOR_MODEL_URL = cfg.model_url;
+        if (cfg.fallback_url) DETECTOR_FALLBACK_URL = cfg.fallback_url;
+        if (Array.isArray(cfg.labels) && cfg.labels.length) DETECTOR_LABELS = cfg.labels.slice();
+        try {
+          window.DETECTOR_MODEL_URL = DETECTOR_MODEL_URL;
+          window.DETECTOR_FALLBACK_MODEL_URL = DETECTOR_FALLBACK_URL;
+          window.DETECTOR_LABELS = DETECTOR_LABELS.slice();
+        } catch {}
+      }
+      return cfg || {};
+    } catch (err) {
+      console.warn('[microclip] detector config load failed', err);
+      return {};
+    }
+  })();
+  return detectorConfigPromise;
+}
+
+loadDetectorConfig().catch(() => {});
+
 
 function isBallLabel(label) {
   try {
@@ -45,11 +76,20 @@ function ensureDetectorWorker() {
       return;
     }
 
-    detectorWorker.postMessage({
-      type: 'init',
-      modelUrl: DETECTOR_MODEL_URL,
-      fbUrl: DETECTOR_FALLBACK_URL,
-      labels: DETECTOR_LABELS
+    loadDetectorConfig().then(() => {
+      detectorWorker.postMessage({
+        type: 'init',
+        modelUrl: DETECTOR_MODEL_URL,
+        fbUrl: DETECTOR_FALLBACK_URL,
+        labels: DETECTOR_LABELS
+      });
+    }).catch(() => {
+      detectorWorker.postMessage({
+        type: 'init',
+        modelUrl: DETECTOR_MODEL_URL,
+        fbUrl: DETECTOR_FALLBACK_URL,
+        labels: DETECTOR_LABELS
+      });
     });
   });
 

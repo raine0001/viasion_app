@@ -51,10 +51,10 @@ async function createSession(modelUrl, extraOpts = {}, { report = true } = {}) {
 // ──────────────────────────────────────────────────────────────
 const DETECTOR_CFG_URL = '/static/config/detector.json';
 let MODEL_URL  = '/static/models/best.onnx';
+let FB_MODEL_URL = '/static/models/backup_best.onnx';
 let MODEL_SIZE = 640;
-
 // **4-class fallback**; main thread may override via init.labels
-let LABELS = ['basketball', 'hoop', 'net','backboard', 'player'];
+let LABELS = ['player','club','ball','tee','flag','hole','iron','wedge','driver','basketball','hoop','net','backboard'];
 let FB_LABELS = null;  // optional for fallback model
 
 // Normalization aliases
@@ -84,7 +84,9 @@ async function loadDetectorConfig() {
     if (!res.ok) return;
     const cfg = await res.json();
     if (cfg.model_url) MODEL_URL = cfg.model_url;
+    if (cfg.fallback_url) FB_MODEL_URL = cfg.fallback_url;
     if (cfg.imgsz)     MODEL_SIZE = cfg.imgsz;
+    if (Array.isArray(cfg.labels) && cfg.labels.length) LABELS = cfg.labels;
   } catch {}
 }
 
@@ -271,8 +273,9 @@ self.onmessage = async (e) => {
       MODEL_W = inputShape[3] || MODEL_SIZE;
 
       // optional fallback
-      if (msg.fbUrl) {
-        const fbCreated = await createSession(msg.fbUrl, {
+      const fbUrl = msg.fbUrl || FB_MODEL_URL;
+      if (fbUrl) {
+        const fbCreated = await createSession(fbUrl, {
           graphOptimizationLevel: 'all'
         }, { report: false });
         sessionFB = fbCreated.session;

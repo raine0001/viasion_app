@@ -19,6 +19,22 @@ const OPT = {
   RING_SPACING:     Number(window.BALL_RING_SPACING || 22),  // sample step for dense trails
 };
 
+const ACTIVE_PROJECT_SLUG = 'basketball';
+
+function isBasketballProjectActive() {
+  try {
+    const project =
+      window.__VIASON_ACTIVE_PROJECT ||
+      (typeof window.viasonProjectManager?.getActiveProject === 'function'
+        ? window.viasonProjectManager.getActiveProject()
+        : null);
+    const slug = project?.slug;
+    return !slug || slug === ACTIVE_PROJECT_SLUG;
+  } catch (err) {
+    return true;
+  }
+}
+
 export function setBallOptions(o={}) {
   Object.assign(OPT, o || {});
 }
@@ -125,6 +141,7 @@ export function setBallActive(on=true){ state.active = !!on; }
 
 // Host calls this once per analyzed frame when a detection for the ball exists.
 export function updateBall(arg1, arg2, arg3) {
+  if (!isBasketballProjectActive()) return false;
   if (!state.active) return false;
 
   let point = null;
@@ -305,6 +322,7 @@ export function getBallLast(){ return state.trail.at?.(-1) || null; }
 
 // ---- Renderer ----
 export function drawBallTrail(ctx, opts={}){
+  if (!isBasketballProjectActive()) return;
   if (!ctx) return; const t = state.trail; if (!t?.length) return;
   const radius = Number(opts.radius ?? OPT.RING_RADIUS);
   const spacing = Number(opts.spacing ?? OPT.RING_SPACING);
@@ -326,6 +344,7 @@ export function drawBallTrails(ctx, opts={}) {
 }
 
 export function drawBallArc(ctx, opts={}) {
+  if (!isBasketballProjectActive()) return;
   if (!ctx) return;
   
   // NEW: Use refined trail if available, fallback to original
@@ -509,6 +528,7 @@ function ensureArc() {
 }
 
 export function markRelease(frameIndex, opts = {}) {
+  if (!isBasketballProjectActive()) return;
   // Delegate strictly to the canonical pose-aware handler in player_tracker.js
   try {
     if (typeof window.__markReleasePose === 'function') {
@@ -520,6 +540,7 @@ export function markRelease(frameIndex, opts = {}) {
 }
 
 export function resetAll() {
+  if (!isBasketballProjectActive()) return;
   // tracker internals
   resetBallTrail();
   // public state seen by other modules
@@ -533,6 +554,7 @@ export function resetAll() {
 
 // Minimal FBF arc helpers used by app.js; keep them lightweight and safe
 export function stepFBFArc(pt, proxRect, frameIndex) {
+  if (!isBasketballProjectActive()) return;
   if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return;
   const arc = ensureArc();
   if (proxRect) arc.prox = proxRect;
@@ -571,6 +593,7 @@ export function stepFBFArc(pt, proxRect, frameIndex) {
 }
 
 export function fillArcGaps(maxGap = 2) {
+  if (!isBasketballProjectActive()) return;
   const arc = ensureArc();
   const t = arc.trail;
   if (!t || t.length < 2) return;
@@ -589,10 +612,25 @@ export function fillArcGaps(maxGap = 2) {
 }
 
 export function freezeShot(tag = null) {
+  if (!isBasketballProjectActive()) return;
   // Snapshot the current live trail as a shot record; do not mutate live trail
   const trailSrc = Array.isArray(ballState.trail) ? ballState.trail : [];
   const copy = trailSrc.map(p => ({ x: p.x, y: p.y, frame: p.frame }));
   ballState.shots.push({ trail: copy, tag: tag || undefined, release: ballState.releaseFrame });
   ballState.state = 'FROZEN';
   try { ballState.showFrozen = true; } catch {}
+}
+
+try {
+  const mgr = window?.viasonProjectManager;
+  if (mgr?.registerModule) {
+    mgr.registerModule('basketball/ball-tracker', {
+      project: ACTIVE_PROJECT_SLUG,
+      init() {
+        // No-op initializer — module exports are used directly via ES imports.
+      }
+    });
+  }
+} catch {
+  // ignore registration failures in non-browser contexts
 }

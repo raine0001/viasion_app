@@ -608,7 +608,261 @@
 
     }
 
+    .subscriptions-grid{
 
+      display:grid;
+
+      gap:var(--gap-md);
+
+      grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+
+    }
+
+    .subscription-list{
+
+      display:flex;
+
+      flex-direction:column;
+
+      gap:var(--gap-sm);
+
+      margin-top:var(--gap-sm);
+
+    }
+
+    .subscription-item{
+
+      background:var(--surface-alt);
+
+      border:1px solid var(--border-color);
+
+      border-radius:var(--radius-md);
+
+      padding:var(--gap-sm);
+
+      display:flex;
+
+      flex-direction:column;
+
+      gap:8px;
+
+    }
+
+    .subscription-header{
+
+      display:flex;
+
+      align-items:baseline;
+
+      justify-content:space-between;
+
+      gap:var(--gap-xs);
+
+      flex-wrap:wrap;
+
+    }
+
+    .subscription-item h3{
+
+      margin:0;
+
+      font-size:clamp(16px,2vw,18px);
+
+    }
+
+    .subscription-price{
+
+      font-size:13px;
+
+      color:var(--text-muted);
+
+    }
+
+    .subscription-meta{
+
+      font-size:12px;
+
+      color:var(--text-soft);
+
+    }
+
+    .subscription-description{
+
+      font-size:13px;
+
+      color:var(--text-muted);
+
+    }
+
+    .subscription-actions{
+
+      display:flex;
+
+      flex-wrap:wrap;
+
+      gap:8px;
+
+    }
+
+    .subscription-empty{
+
+      padding:var(--gap-sm);
+
+      border:1px dashed var(--border-color);
+
+      border-radius:var(--radius-md);
+
+      font-size:13px;
+
+      color:var(--text-muted);
+
+      background:var(--surface-alt);
+
+    }
+
+    #toastBar{
+
+      position:fixed;
+
+      top:18px;
+
+      left:50%;
+
+      transform:translateX(-50%);
+
+      background:rgba(15,17,24,.92);
+
+      border:1px solid rgba(255,255,255,.12);
+
+      padding:10px 16px;
+
+      border-radius:999px;
+
+      font:600 13px 'Inter',system-ui,sans-serif;
+
+      color:var(--text-primary);
+
+      z-index:9999;
+
+      opacity:0;
+
+      pointer-events:none;
+
+      transition:opacity .2s ease, transform .2s ease;
+
+    }
+
+    #toastBar.show{
+
+      opacity:1;
+
+      transform:translate(-50%, -4px);
+
+    }
+
+    #toastBar.success{ background:rgba(34,197,94,.92); color:#041b0e; }
+
+    #toastBar.error{ background:rgba(239,68,68,.92); color:#ffe9e9; }
+
+    #toastBar.warn{ background:rgba(250,204,21,.92); color:#2e1f04; }
+
+    .plan-picker-overlay{
+
+      position:fixed;
+
+      inset:0;
+
+      background:rgba(10,12,18,.66);
+
+      backdrop-filter:blur(6px);
+
+      display:flex;
+
+      align-items:center;
+
+      justify-content:center;
+
+      z-index:10030;
+
+      padding:16px;
+
+    }
+
+    .plan-picker{
+
+      background:var(--surface-bg);
+
+      border:1px solid var(--border-color);
+
+      border-radius:var(--radius-lg);
+
+      width:min(440px,92vw);
+
+      padding:22px clamp(20px,4vw,28px);
+
+      box-shadow:0 22px 48px rgba(0,0,0,.45);
+
+      display:flex;
+
+      flex-direction:column;
+
+      gap:16px;
+
+    }
+
+    .plan-picker h3{
+
+      margin:0;
+
+      font-size:clamp(20px,3vw,22px);
+
+    }
+
+    .plan-picker p{
+
+      margin:0;
+
+      color:var(--text-muted);
+
+      font-size:13px;
+
+      line-height:1.5;
+
+    }
+
+    .plan-picker-list{
+
+      display:flex;
+
+      flex-direction:column;
+
+      gap:10px;
+
+    }
+
+    .plan-picker-option{
+
+      display:flex;
+
+      align-items:center;
+
+      width:100%;
+
+      text-align:left;
+
+      justify-content:space-between;
+
+    }
+
+    .plan-picker-footer{
+
+      display:flex;
+
+      justify-content:flex-end;
+
+      gap:8px;
+
+    }
 
     .assessment-row{
 
@@ -1033,6 +1287,23 @@
       let __INITIAL_SESSION = INITIAL_SESSION_ID;
 
       let DOM = {};
+      let USER_PROFILE = null;
+
+      const subscriptionState = {
+        plans: new Map(),
+        planOrder: [],
+        userPlanIds: new Set(),
+        userId: null,
+        loading: false,
+        errorMessage: null,
+      };
+
+      const projectDirectory = {
+        promise: null,
+        manifest: null,
+        byDataset: new Map(),
+      };
+
 
       function fmtNumber(value, decimals = 0) {
 
@@ -1087,21 +1358,92 @@
 
 
       function formatDuration(minutes) {
-
         if (!Number.isFinite(minutes)) return '-';
-
         const total = Math.max(0, Math.round(minutes));
-
         const hours = Math.floor(total / 60);
-
         const mins = total % 60;
-
         if (hours && mins) return `${hours}h ${mins}m`;
-
         if (hours) return `${hours}h`;
-
         return `${mins}m`;
+      }
 
+      function humanizeDataset(slug) {
+        if (!slug) return 'Unassigned dataset';
+        return String(slug).replace(/[_-]+/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase());
+      }
+
+      function formatPlanPrice(plan) {
+        const periodRaw = (plan && plan.period ? String(plan.period) : 'monthly').toLowerCase();
+        const price = Number(plan && plan.price);
+        if (Number.isFinite(price)) {
+          let suffix = 'month';
+          if (periodRaw.startsWith('annual') || periodRaw === 'yearly') suffix = 'year';
+          else if (periodRaw === 'weekly' || periodRaw === 'week') suffix = 'week';
+          else if (periodRaw && !['month', 'monthly'].includes(periodRaw)) suffix = periodRaw;
+          return `${price.toLocaleString(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 })} / ${suffix}`;
+        }
+        return periodRaw ? periodRaw.charAt(0).toUpperCase() + periodRaw.slice(1) : 'Custom';
+      }
+
+      async function ensureProjectDirectory() {
+        if (projectDirectory.promise) return projectDirectory.promise;
+        projectDirectory.promise = (async () => {
+          try {
+            const res = await fetch('/api/projects', { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const manifest = await res.json();
+            projectDirectory.manifest = manifest || {};
+            const map = new Map();
+            const projects = manifest?.projects && typeof manifest.projects === 'object' ? manifest.projects : {};
+            Object.entries(projects).forEach(([slug, meta]) => {
+              const datasets = Array.isArray(meta?.datasets) ? meta.datasets : [];
+              datasets.forEach((ds) => { if (ds && ds.slug && !map.has(ds.slug)) map.set(ds.slug, slug); });
+            });
+            projectDirectory.byDataset = map;
+          } catch (err) {
+            console.warn('[my_sessions] project directory load failed', err);
+          }
+          return projectDirectory.manifest;
+        })();
+        return projectDirectory.promise;
+      }
+
+      async function loadUserProfile() {
+        if (USER_PROFILE) return USER_PROFILE;
+        try {
+          const res = await fetch('/api/auth/me', { credentials: 'include' });
+          if (!res.ok) return null;
+          const payload = await res.json();
+          const user = payload?.user;
+          if (user && typeof user === 'object') {
+            USER_PROFILE = user;
+            if (user.user_id) subscriptionState.userId = user.user_id;
+            return user;
+          }
+        } catch (err) {
+          console.warn('[my_sessions] unable to load profile', err);
+        }
+        return null;
+      }
+
+      function resolveSubscriptionUserId() {
+        return subscriptionState.userId || USER_PROFILE?.user_id || USER_PROFILE?.id || 'demo';
+      }
+
+      function showToast(message, variant = 'info', duration = 2800) {
+        const bar = DOM.toastBar || document.getElementById('toastBar');
+        if (!bar) { if (message) alert(String(message)); return; }
+        const text = message == null ? '' : String(message);
+        bar.textContent = text;
+        bar.classList.remove('success', 'error', 'warn', 'show');
+        if (variant && variant !== 'info') bar.classList.add(variant);
+        void bar.offsetWidth;
+        bar.classList.add('show');
+        if (bar._timeout) clearTimeout(bar._timeout);
+        bar._timeout = setTimeout(() => {
+          bar.classList.remove('show');
+          bar.classList.remove('success', 'error', 'warn');
+        }, Math.max(1200, Number(duration) || 0));
       }
 
 
@@ -1836,7 +2178,7 @@
 
         }
 
-        el.textContent = name ? `Hi, ${name}!` : 'Hi, Hooper!';
+        el.textContent = name ? `Hi, ${name}!` : 'Hi, Athlete!';
 
       }
 
@@ -2192,6 +2534,330 @@
 
         return el;
 
+      }
+
+
+
+      function setSubscriptionMessage(listEl, message) {
+        if (!listEl) return;
+        listEl.replaceChildren(createEl('div', { class: 'subscription-empty', text: message }));
+      }
+
+      function makePlanCard(plan, subscribed) {
+        const safePlan = plan || {};
+        const item = createEl('div', { class: 'subscription-item', dataset: { plan: safePlan.id || '' } });
+        item.appendChild(createEl('div', { class: 'subscription-header' }, [
+          createEl('h3', { text: safePlan.name || safePlan.id || 'Subscription' }),
+          createEl('div', { class: 'subscription-price', text: formatPlanPrice(safePlan) }),
+        ]));
+        if (safePlan.description) {
+          item.appendChild(createEl('div', { class: 'subscription-description', text: safePlan.description }));
+        }
+        const meta = [];
+        if (safePlan.dataset) meta.push(`Dataset: ${humanizeDataset(safePlan.dataset)}`);
+        if (safePlan.trial_days) meta.push(`${safePlan.trial_days}-day trial`);
+        if (safePlan.active === false) meta.push('Inactive');
+        if (meta.length) {
+          item.appendChild(createEl('div', { class: 'subscription-meta', text: meta.join(' | ') }));
+        }
+        const actions = createEl('div', { class: 'subscription-actions' });
+        if (subscribed) {
+          actions.appendChild(createEl('button', {
+            type: 'button',
+            class: 'btn btn-primary btn-inline',
+            text: 'Start Session',
+            onclick: () => startSessionForPlan(safePlan.id),
+          }));
+          const cancelBtn = createEl('button', {
+            type: 'button',
+            class: 'btn btn-tonal btn-inline',
+            text: 'Cancel Plan',
+            onclick: () => { if (!subscriptionState.loading) unsubscribeFromPlan(safePlan.id); },
+          });
+          actions.appendChild(cancelBtn);
+        } else {
+          const subscribeBtn = createEl('button', {
+            type: 'button',
+            class: 'btn btn-inline',
+            text: safePlan.active === false ? 'Unavailable' : 'Subscribe',
+            disabled: safePlan.active === false || !safePlan.id,
+          });
+          if (safePlan.active !== false && safePlan.id) {
+            subscribeBtn.onclick = () => { if (!subscriptionState.loading) subscribeToPlan(safePlan.id); };
+          }
+          actions.appendChild(subscribeBtn);
+        }
+        item.appendChild(actions);
+        return item;
+      }
+
+      function renderSubscriptionLists() {
+        const subscribedList = DOM.subscribedPlansList;
+        const availableList = DOM.availablePlansList;
+        if (!subscribedList || !availableList) return;
+        if (subscriptionState.loading) {
+          setSubscriptionMessage(subscribedList, 'Loading subscriptions...');
+          setSubscriptionMessage(availableList, 'Loading plans...');
+          return;
+        }
+        if (subscriptionState.errorMessage) {
+          setSubscriptionMessage(subscribedList, subscriptionState.errorMessage);
+          setSubscriptionMessage(availableList, subscriptionState.errorMessage);
+          return;
+        }
+        const userPlanIds = Array.from(subscriptionState.userPlanIds);
+        if (userPlanIds.length) {
+          const nodes = userPlanIds.map((id) => makePlanCard(subscriptionState.plans.get(id) || { id }, true));
+          subscribedList.replaceChildren(...nodes);
+        } else {
+          setSubscriptionMessage(subscribedList, 'No active subscriptions yet.');
+        }
+        const seen = new Set();
+        const availableNodes = [];
+        subscriptionState.planOrder.forEach((id) => {
+          if (!id || seen.has(id)) return;
+          seen.add(id);
+          if (subscriptionState.userPlanIds.has(id)) return;
+          const plan = subscriptionState.plans.get(id);
+          if (!plan || plan.active === false) return;
+          availableNodes.push(makePlanCard(plan, false));
+        });
+        if (availableNodes.length) {
+          availableList.replaceChildren(...availableNodes);
+        } else {
+          setSubscriptionMessage(availableList, userPlanIds.length ? 'You have all available plans.' : 'New plans coming soon.');
+        }
+      }
+
+      function updateStartSessionAvailability() {
+        const btn = DOM.startSessionBtn;
+        if (!btn) return;
+        if (!btn.dataset.originalLabel) btn.dataset.originalLabel = btn.textContent || 'Start Session';
+        if (subscriptionState.loading) {
+          btn.disabled = true;
+          btn.textContent = 'Loading...';
+          btn.title = 'Loading subscriptions...';
+          return;
+        }
+        btn.textContent = btn.dataset.originalLabel;
+        btn.disabled = subscriptionState.userPlanIds.size === 0;
+        btn.title = subscriptionState.userPlanIds.size ? '' : 'Add a subscription to start a session.';
+      }
+
+      async function loadSubscriptions() {
+        if (!DOM.subscribedPlansList || subscriptionState.loading) {
+          if (!subscriptionState.loading) renderSubscriptionLists();
+          return;
+        }
+        subscriptionState.loading = true;
+        subscriptionState.errorMessage = null;
+        renderSubscriptionLists();
+        updateStartSessionAvailability();
+        try {
+          const [plansRes, userRes] = await Promise.all([
+            fetch('/api/subscriptions'),
+            fetch('/api/me/subscriptions'),
+          ]);
+          if (!plansRes.ok) throw new Error(`HTTP ${plansRes.status}`);
+          const plansJson = await plansRes.json();
+          const userJson = userRes.ok ? await userRes.json() : {};
+          const planEntries = Object.values(plansJson?.plans || {});
+          planEntries.sort((a, b) => {
+            const an = (a?.name || a?.id || '').toLowerCase();
+            const bn = (b?.name || b?.id || '').toLowerCase();
+            return an.localeCompare(bn);
+          });
+          subscriptionState.plans = new Map();
+          subscriptionState.planOrder = [];
+          planEntries.forEach((plan) => {
+            if (!plan || !plan.id) return;
+            subscriptionState.planOrder.push(plan.id);
+            subscriptionState.plans.set(plan.id, plan);
+          });
+          const userPlans = Array.isArray(userJson?.plans) ? userJson.plans : [];
+          userPlans.forEach((plan) => {
+            if (!plan || !plan.id) return;
+            const existing = subscriptionState.plans.get(plan.id) || {};
+            subscriptionState.plans.set(plan.id, { ...existing, ...plan });
+            if (!subscriptionState.planOrder.includes(plan.id)) subscriptionState.planOrder.push(plan.id);
+          });
+          const userPlanIds = new Set();
+          const planIdList = Array.isArray(userJson?.plan_ids) ? userJson.plan_ids : [];
+          planIdList.forEach((id) => { if (id) userPlanIds.add(id); });
+          if (!planIdList.length && userPlans.length) {
+            userPlans.forEach((plan) => { if (plan?.id) userPlanIds.add(plan.id); });
+          }
+          subscriptionState.userPlanIds = userPlanIds;
+          const derivedUserId = userJson?.user_id || userJson?.user?.user_id || subscriptionState.userId || USER_PROFILE?.user_id || USER_PROFILE?.id || null;
+          subscriptionState.userId = derivedUserId || subscriptionState.userId || 'demo';
+          userPlanIds.forEach((id) => {
+            if (!subscriptionState.plans.has(id)) {
+              subscriptionState.plans.set(id, { id, name: id, description: 'Plan details unavailable.', active: false });
+              subscriptionState.planOrder.push(id);
+            }
+          });
+          if (!projectDirectory.manifest) {
+            ensureProjectDirectory().catch(() => {});
+          }
+        } catch (err) {
+          console.error('[my_sessions] failed to load subscriptions', err);
+          subscriptionState.errorMessage = 'Unable to load subscriptions right now.';
+        } finally {
+          subscriptionState.loading = false;
+          renderSubscriptionLists();
+          updateStartSessionAvailability();
+        }
+      }
+
+      async function subscribeToPlan(planId) {
+        if (!planId || subscriptionState.loading) return;
+        subscriptionState.loading = true;
+        subscriptionState.errorMessage = null;
+        renderSubscriptionLists();
+        updateStartSessionAvailability();
+        try {
+          if (!subscriptionState.userId) await loadUserProfile();
+          const userId = resolveSubscriptionUserId();
+          const res = await fetch('/api/subscriptions/assign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan_id: planId, user_id: userId }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          showToast('Plan activated.', 'success', 3200);
+        } catch (err) {
+          console.error('[my_sessions] subscribe failed', err);
+          showToast('Unable to activate that plan right now.', 'error', 3600);
+        } finally {
+          subscriptionState.loading = false;
+          await loadSubscriptions();
+        }
+      }
+
+      async function unsubscribeFromPlan(planId) {
+        if (!planId || subscriptionState.loading) return;
+        subscriptionState.loading = true;
+        subscriptionState.errorMessage = null;
+        renderSubscriptionLists();
+        updateStartSessionAvailability();
+        try {
+          if (!subscriptionState.userId) await loadUserProfile();
+          const userId = resolveSubscriptionUserId();
+          const res = await fetch('/api/subscriptions/unassign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan_id: planId, user_id: userId }),
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          showToast('Plan removed.', 'warn', 3200);
+        } catch (err) {
+          console.error('[my_sessions] unsubscribe failed', err);
+          showToast('Unable to update that plan right now.', 'error', 3600);
+        } finally {
+          subscriptionState.loading = false;
+          await loadSubscriptions();
+        }
+      }
+
+      async function startSessionForPlan(planId) {
+        if (!planId) return;
+        const plan = subscriptionState.plans.get(planId);
+        if (!plan) {
+          showToast('That plan is unavailable right now.', 'error', 3400);
+          return;
+        }
+        showToast('Launching session...', 'info', 1600);
+        let projectSlug = plan.project || plan.project_slug || null;
+        const datasetSlug = plan.dataset || null;
+        if (!projectSlug) {
+          await ensureProjectDirectory();
+          if (datasetSlug && projectDirectory.byDataset instanceof Map) {
+            projectSlug = projectDirectory.byDataset.get(datasetSlug) || projectSlug;
+          }
+          if (!projectSlug && projectDirectory.manifest?.defaultProject) {
+            projectSlug = projectDirectory.manifest.defaultProject;
+          }
+        }
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem('viason.activePlanId', planId);
+            if (plan.name) sessionStorage.setItem('viason.activePlanName', plan.name);
+            if (projectSlug) sessionStorage.setItem('viason.activeProject', projectSlug);
+            if (datasetSlug) sessionStorage.setItem('viason.activeDataset', datasetSlug);
+          }
+        } catch { /* ignore storage errors */ }
+        const params = new URLSearchParams();
+        if (projectSlug) params.set('project', projectSlug);
+        if (datasetSlug) params.set('dataset', datasetSlug);
+        const url = params.toString() ? `/start_session?${params.toString()}` : '/start_session';
+        window.location.href = url;
+      }
+
+      function showPlanPicker(planIds) {
+        if (!Array.isArray(planIds) || !planIds.length) return;
+        const overlay = createEl('div', { class: 'plan-picker-overlay', id: 'planPickerOverlay' });
+        const modal = createEl('div', { class: 'plan-picker' });
+        modal.appendChild(createEl('h3', { text: 'Select a session to start' }));
+        modal.appendChild(createEl('p', { text: 'Choose which training experience you want to launch.' }));
+        const list = createEl('div', { class: 'plan-picker-list' });
+        planIds.forEach((planId) => {
+          const plan = subscriptionState.plans.get(planId);
+          if (!plan) return;
+          const label = plan.name || planId;
+          const datasetLabel = plan.dataset ? humanizeDataset(plan.dataset) : 'Default dataset';
+          const btn = createEl('button', {
+            type: 'button',
+            class: 'btn btn-primary plan-picker-option',
+            text: `${label} - ${datasetLabel}`,
+          });
+          btn.onclick = () => { cleanup(); startSessionForPlan(planId); };
+          list.appendChild(btn);
+        });
+        modal.appendChild(list);
+        const footer = createEl('div', { class: 'plan-picker-footer' }, [
+          createEl('button', {
+            type: 'button',
+            class: 'btn btn-tonal btn-inline',
+            text: 'Cancel',
+            onclick: () => cleanup(),
+          }),
+        ]);
+        modal.appendChild(footer);
+        overlay.appendChild(modal);
+        function cleanup() {
+          document.removeEventListener('keydown', onKey);
+          if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        }
+        function onKey(e) {
+          if ((e.key || '').toLowerCase() === 'escape') cleanup();
+        }
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+        document.addEventListener('keydown', onKey);
+        document.body.appendChild(overlay);
+      }
+
+      function handleStartSessionClick(event) {
+        if (!DOM.startSessionBtn) return;
+        if (subscriptionState.loading) {
+          if (event) event.preventDefault?.();
+          showToast('Loading your subscriptions...', 'warn', 2600);
+          return;
+        }
+        const planIds = Array.from(subscriptionState.userPlanIds);
+        if (!planIds.length) {
+          if (event) event.preventDefault?.();
+          showToast('Add a subscription to start a session.', 'warn', 3400);
+          DOM.subscriptionsSection?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+        if (planIds.length === 1) {
+          if (event) event.preventDefault?.();
+          startSessionForPlan(planIds[0]);
+          return;
+        }
+        if (event) event.preventDefault?.();
+        showPlanPicker(planIds);
+        DOM.subscriptionsSection?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
 
 
@@ -3038,6 +3704,16 @@
 
           recommendationText: document.getElementById('recommendationText'),
 
+          subscribedPlansList: document.getElementById('subscribedPlansList'),
+
+          availablePlansList: document.getElementById('availablePlansList'),
+
+          subscriptionsSection: document.getElementById('subscriptionsSection'),
+
+          startSessionBtn: document.getElementById('startSessionBtn'),
+
+          toastBar: document.getElementById('toastBar'),
+
           recommendationAction: document.getElementById('recommendationAction'),
 
         };
@@ -3120,8 +3796,10 @@
 
         if (supportSecondaryBtn) supportSecondaryBtn.onclick = openSupportWidget;
 
+        updateStartSessionAvailability();
+        if (DOM.startSessionBtn) DOM.startSessionBtn.addEventListener('click', handleStartSessionClick);
 
-
+        loadSubscriptions();
         loadSessions();
 
       });
@@ -3138,9 +3816,9 @@
 
     <div class="header-main">
 
-      <h1>Hi, Hooper!</h1>
+        <h1 id="dashboardGreeting">Hi, Athlete!</h1>
 
-      <button class="btn btn-primary" onclick="window.open('/', '_self')">Start Session</button>
+      <button class="btn btn-primary" id="startSessionBtn">Start Session</button>
 
     </div>
 
@@ -3236,7 +3914,7 @@
 
       <div class="metric-card">
 
-        <h3>Rating ˜...</h3>
+        <h3>Rating ...</h3>
 
         <strong id="ratingMetric">-</strong>
 
@@ -3289,6 +3967,26 @@
         <span>Total training time</span>
 
       </div>
+
+    </section>
+
+    <section class="subscriptions-grid" id="subscriptionsSection">
+
+      <article class="card subscription-card">
+
+        <h2 class="card-title">Your Subscriptions</h2>
+
+        <div class="subscription-list" id="subscribedPlansList"></div>
+
+      </article>
+
+      <article class="card subscription-card">
+
+        <h2 class="card-title">Available Plans</h2>
+
+        <div class="subscription-list" id="availablePlansList"></div>
+
+      </article>
 
     </section>
 
@@ -3383,6 +4081,9 @@
     </section>
 
   </main>
+
+  <div id="toastBar" role="status" aria-live="polite" aria-atomic="true"></div>
+  <script src="/static/js/ui_menu.js"></script>
 
 </body>
 

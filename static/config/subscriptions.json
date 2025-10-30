@@ -1,0 +1,31 @@
+{
+  "plans": {
+    "basketball_monthly": {
+      "id": "basketball_monthly",
+      "name": "Basketball Coaching",
+      "project": "basketball",
+      "dataset": "basketball_pose",
+      "description": "Full access to the basketball shot coaching experience.",
+      "price": 19.99,
+      "period": "monthly",
+      "trial_days": 7,
+      "active": true
+    },
+    "golf_range_monthly": {
+      "id": "golf_range_monthly",
+      "name": "Golf Range Analyzer",
+      "project": "golf",
+      "dataset": "g_pose",
+      "description": "Pose and object analysis tailored for golf swing sessions at the range.",
+      "price": 19.99,
+      "period": "monthly",
+      "trial_days": 7,
+      "active": true
+    }
+  },
+  "userSubscriptions": {
+    "1": [
+      "golf_range_monthly"
+    ]
+  }
+}

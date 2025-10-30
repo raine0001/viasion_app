@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>viason Challenges</title>
+  <script>
+    (function preloadDetectorConfig(){
+      try {
+        fetch('/static/config/detector.json', { cache: 'no-store' })
+          .then(res => res.ok ? res.json() : null)
+          .then(cfg => {
+            if (!cfg || typeof cfg !== 'object') return;
+            if (cfg.model_url) window.DETECTOR_MODEL_URL = cfg.model_url;
+            if (cfg.fallback_url) window.DETECTOR_FALLBACK_MODEL_URL = cfg.fallback_url;
+            if (Array.isArray(cfg.labels) && cfg.labels.length) window.DETECTOR_LABELS = cfg.labels.slice();
+          })
+          .catch(() => {});
+      } catch {}
+    })();
+  </script>
+  <style>
+    :root{
+      color-scheme: dark;
+      --bg:#07090f;
+      --surface:#11162a;
+      --surface-soft:#182038;
+      --border:#1c2436;
+      --accent:#facc15;
+      --accent-soft:rgba(250,204,21,.17);
+      --text:#f5f7fb;
+      --text-soft:#aab3ce;
+      --radius:20px;
+      --gap:clamp(14px,3vw,28px);
+    }
+    *,*::before,*::after{box-sizing:border-box;}
+    body{
+      margin:0;
+      min-height:100vh;
+      font:14px/1.5 "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:radial-gradient(circle at 10% -20%,rgba(250,204,21,.1),transparent 45%),var(--bg);
+      color:var(--text);
+      display:flex;
+      flex-direction:column;
+      padding-bottom:48px;
+    }
+    header{
+      padding:clamp(22px,6vw,42px) clamp(18px,6vw,56px) clamp(12px,4vw,28px);
+    }
+    h1{
+      margin:0 0 6px;
+      font:700 clamp(26px,6vw,40px)/1 "Bebas Neue","Inter",sans-serif;
+      letter-spacing:.045em;
+    }
+    p.subtitle{
+      margin:0;
+      color:var(--text-soft);
+      font-size:clamp(14px,3.6vw,16px);
+      max-width:720px;
+    }
+    .tabs{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin:22px 0 clamp(14px,4vw,26px);
+    }
+    .tab{
+      padding:10px 16px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:var(--surface);
+      color:var(--text-soft);
+      font-weight:600;
+      cursor:pointer;
+      transition:.18s ease;
+    }
+    .tab.active,
+    .tab:hover{
+      background:var(--accent);
+      color:#1c1a05;
+      border-color:transparent;
+    }
+    main{
+      padding:0 clamp(18px,6vw,56px) clamp(42px,8vw,84px);
+      display:grid;
+      gap:var(--gap);
+      grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    }
+    .card{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      transition:transform .2s ease, border .2s ease;
+      position:relative;
+    }
+    .card:hover{
+      transform:translateY(-6px);
+      border-color:var(--accent);
+    }
+    .card::before{
+      content:'';
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      border-radius:inherit;
+      background:linear-gradient(135deg,rgba(250,204,21,.12),transparent 60%);
+      opacity:0;
+      transition:opacity .2s ease;
+    }
+    .card:hover::before{opacity:1;}
+    .card-header{
+      padding:16px 18px 12px;
+    }
+    .card-title{
+      margin:0;
+      font:700 20px/1.2 "Inter",sans-serif;
+    }
+    .card-body{
+      padding:0 18px 18px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      color:var(--text-soft);
+    }
+    .meta{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px 14px;
+      font-size:12px;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 10px;
+      border-radius:999px;
+      background:rgba(24,32,56,.9);
+      border:1px solid var(--border);
+      font-weight:600;
+      color:var(--text);
+    }
+    .progress{
+      height:6px;
+      border-radius:999px;
+      background:rgba(255,255,255,.08);
+      overflow:hidden;
+    }
+    .progress span{
+      display:block;
+      height:100%;
+      border-radius:inherit;
+      background:linear-gradient(90deg,var(--accent),#ffe26b);
+      width:0%;
+    }
+    .card-actions{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .card-actions button{
+      border:none;
+      background:var(--accent);
+      color:#1b1704;
+      padding:10px 16px;
+      border-radius:12px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .card-actions a{
+      color:var(--text-soft);
+      font-weight:600;
+      text-decoration:none;
+    }
+    @media(max-width:640px){
+      .card-actions{
+        flex-direction:column;
+        align-items:flex-start;
+      }
+      .card-actions button,
+      .card-actions a{
+        width:100%;
+        text-align:center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Challenges & Awards</h1>
+    <p class="subtitle">Compete with your coach, team, or the global viason community. Log qualifying sessions, climb the leaderboard, and unlock exclusive rewards.</p>
+    <div class="tabs" id="challengeTabs"></div>
+  </header>
+
+  <main id="challengeGrid"></main>
+
+  <script>
+    const CHALLENGE_DATA = [
+      {
+        id: 'golf-range-10',
+        title: 'Driving Range Rhythm',
+        track: 'golf',
+        location: 'Virtual Range',
+        closes: 'Closes in 5d',
+        registered: 128,
+        cap: 250,
+        progress: 128 / 250,
+        description: 'Post a 10-swing session with tempo ratio between 2.8 and 3.2.',
+        tags: ['golf', 'tempo', 'open']
+      },
+      {
+        id: 'hoops-perfect-25',
+        title: 'Perfect 25',
+        track: 'basketball',
+        location: 'Global',
+        closes: 'Closes in 2d',
+        registered: 684,
+        cap: 1000,
+        progress: 684 / 1000,
+        description: 'Make 25 consecutive free throws while holding follow-through for 0.3s.',
+        tags: ['basketball', 'elite']
+      },
+      {
+        id: 'factory-precision',
+        title: 'Assembly Precision Sprint',
+        track: 'workforce',
+        location: 'Plant 14 / Remote',
+        closes: 'Opens next week',
+        registered: 42,
+        cap: 120,
+        progress: 42 / 120,
+        description: 'Record a 6-step assembly cycle with zero order violations.',
+        tags: ['industrial', 'team']
+      },
+      {
+        id: 'dance-balance',
+        title: 'Balance & Flow',
+        track: 'dance',
+        location: 'Community Stage',
+        closes: 'Closes in 12d',
+        registered: 59,
+        cap: 200,
+        progress: 59 / 200,
+        description: 'Share a 45-second movement sequence with finish balance score ≥0.9.',
+        tags: ['dance', 'spotlight']
+      }
+    ];
+
+    const TRACKS = [
+      { id: 'all', label: 'All challenges' },
+      { id: 'golf', label: 'Golf' },
+      { id: 'basketball', label: 'Basketball' },
+      { id: 'workforce', label: 'Workforce' },
+      { id: 'dance', label: 'Dance & Movement' }
+    ];
+
+    const tabsEl = document.getElementById('challengeTabs');
+    const gridEl = document.getElementById('challengeGrid');
+    let activeTrack = 'all';
+
+    function renderTabs(){
+      tabsEl.innerHTML = '';
+      TRACKS.forEach(track => {
+        const btn = document.createElement('button');
+        btn.className = 'tab' + (track.id === activeTrack ? ' active' : '');
+        btn.textContent = track.label;
+        btn.onclick = () => {
+          activeTrack = track.id;
+          renderTabs();
+          renderChallenges();
+        };
+        tabsEl.appendChild(btn);
+      });
+    }
+
+    function renderChallenges(){
+      gridEl.innerHTML = '';
+      const list = CHALLENGE_DATA.filter(item => activeTrack === 'all' || item.track === activeTrack);
+      if (!list.length){
+        const empty = document.createElement('article');
+        empty.className = 'card';
+        empty.innerHTML = `
+          <div class="card-header"><h2 class="card-title">No challenges yet</h2></div>
+          <div class="card-body">
+            <p class="subtitle">We’ll post the next challenge soon. Make sure notifications are enabled in My Trainer.</p>
+          </div>`;
+        gridEl.appendChild(empty);
+        return;
+      }
+      list.forEach(item => {
+        const card = document.createElement('article');
+        card.className = 'card';
+        const header = document.createElement('div');
+        header.className = 'card-header';
+        header.innerHTML = `<h2 class="card-title">${item.title}</h2>`;
+
+        const body = document.createElement('div');
+        body.className = 'card-body';
+        body.innerHTML = `
+          <div class="meta">
+            <span class="pill">📍 ${item.location}</span>
+            <span class="pill">🕒 ${item.closes}</span>
+          </div>
+          <p>${item.description}</p>
+          <div class="meta"><span>${item.registered} registered</span><span>Cap ${item.cap}</span></div>
+          <div class="progress"><span style="width:${Math.min(100, Math.round((item.progress || 0) * 100))}%"></span></div>
+          <div class="meta">
+            ${item.tags.map(tag => `<span class="pill" style="border-color:rgba(250,204,21,.35);background:${tag === 'open' ? 'rgba(250,204,21,.18)' : 'rgba(255,255,255,.05)'};color:${tag==='open'?'#161504':varAccentText()}">${tag}</span>`).join('')}
+          </div>`;
+
+        const footer = document.createElement('div');
+        footer.className = 'card-actions';
+
+        const registerBtn = document.createElement('button');
+        registerBtn.type = 'button';
+        registerBtn.textContent = 'Register';
+        registerBtn.onclick = () => alert(`Challenge registration queued for ${item.title}.`);
+
+        const viewLink = document.createElement('a');
+        viewLink.href = '#';
+        viewLink.textContent = 'View leaderboard';
+        viewLink.onclick = (e) => {
+          e.preventDefault();
+          alert('Leaderboard and media hub coming soon.');
+        };
+
+        footer.append(registerBtn, viewLink);
+        card.append(header, body, footer);
+        gridEl.appendChild(card);
+      });
+    }
+
+    function varAccentText(){ return '#fbed98'; }
+
+    renderTabs();
+    renderChallenges();
+  </script>
+  <script src="/static/js/ui_menu.js"></script>
+</body>
+</html>

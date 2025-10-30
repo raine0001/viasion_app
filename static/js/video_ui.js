@@ -7,6 +7,53 @@ import { setOverlayInteractive, syncOverlayToVideo } from './fix_overlay_display
 import { enableHoopPickOnce } from './app.js';
 import { getLockedHoopBox, handleHoopSelection, canonHoop } from '/static/arc_mm/hoop_tracker.js';
 
+function getActiveProjectMeta() {
+  try {
+    const mgr = window.viasonProjectManager;
+    if (mgr && typeof mgr.getActiveProject === 'function') {
+      const project = mgr.getActiveProject();
+      if (project) return project;
+    }
+  } catch { /* ignore */ }
+  const fallback = window.__VIASON_ACTIVE_PROJECT;
+  if (!fallback) return null;
+  if (typeof fallback === 'object' && fallback) return fallback;
+  if (typeof fallback === 'string') return { slug: fallback };
+  return null;
+}
+
+function getWorkflowConfig() {
+  const project = getActiveProjectMeta();
+  return (project && typeof project === 'object' && project.workflow) ? project.workflow : {};
+}
+
+function getSessionTerminology() {
+  const workflow = getWorkflowConfig();
+  const attemptLabel = workflow.attemptLabel || 'shot';
+  const attemptsLabel = workflow.attemptsLabel || (attemptLabel === 'swing' ? 'Swings Taken' : 'Shots Taken');
+  const requiresTargetSelection = workflow.requiresTargetSelection !== false;
+  const countdownSeconds = Number.isFinite(Number(workflow.countdownSeconds))
+    ? Number(workflow.countdownSeconds)
+    : (attemptLabel === 'swing' ? 5 : 5);
+  const readyPrompt = workflow.readyPrompt || (attemptLabel === 'swing' ? 'Swing when ready.' : 'Shoot when ready.');
+  return { attemptLabel, attemptsLabel, requiresTargetSelection, countdownSeconds, readyPrompt };
+}
+
+function requiresTargetSelection() {
+  return getSessionTerminology().requiresTargetSelection;
+}
+
+function getCountdownSeconds() {
+  const terms = getSessionTerminology();
+  return Number.isFinite(terms.countdownSeconds) ? terms.countdownSeconds : 5;
+}
+
+function getReadyPrompt() {
+  return getSessionTerminology().readyPrompt || 'Shoot when ready.';
+}
+
+
+
 // Soft demo toggles (ignored by logic that could conflict)
 window.DEMO = true;
 window.DEMO_MINIMAL_TABLE = true;
@@ -299,6 +346,9 @@ export function mountSessionHUD() {
             bottom: 'calc(env(safe-area-inset-bottom, 0px) + 18px)', gap: '20px', pointerEvents: 'auto'
         });
 
+        const terms = getSessionTerminology();
+        const attemptsLabel = terms.attemptsLabel || 'Shots Taken';
+
         bar.innerHTML = `
       <div class="hud-controls">
         <button id="hudVoiceToggle" class="hud-icon-btn voice-toggle is-on" data-muted="0" aria-pressed="true" aria-label="Toggle voice">
@@ -312,7 +362,7 @@ export function mountSessionHUD() {
           <span class="icon" aria-hidden="true">${ICON_ROTATE_DEVICE}</span>
         </button>
       </div>
-      <div class="hud-metric" id="mShots"><div class="num">0/${formatCapDisplay(window.SESSION_SIZE)}</div><div class="label">Shots Taken</div></div>
+      <div class="hud-metric" id="mShots"><div class="num">0/${formatCapDisplay(window.SESSION_SIZE)}</div><div class="label">${attemptsLabel}</div></div>
       <div class="hud-metric" id="mTime"><div class="num">0:00</div><div class="label">Time Elapsed</div></div>
     `;
         root.appendChild(bar);
@@ -531,6 +581,10 @@ export function updateSessionHUD({ taken = 0, made = 0, accuracy = 0, elapsedSec
     const $ = (id) => bar.querySelector(`#${id} .num`);
     const mm = Math.floor(elapsedSec / 60);
     const ss = Math.floor(elapsedSec % 60).toString().padStart(2, '0');
+    const labelEl = bar.querySelector('#mShots .label');
+    if (labelEl) {
+        labelEl.textContent = getSessionTerminology().attemptsLabel || 'Shots Taken';
+    }
 
     // Use FINALIZED rows only, never overlay pulses
     try {
@@ -1550,20 +1604,41 @@ function handleHudStartSession(event) {
     try { hidePromptMessage(); } catch { }
     try { window.viasonVoice?.on?.(); } catch { }
 
-    const hoopBox = (() => {
+    const terms = getSessionTerminology();
+    const countdownSec = Number.isFinite(terms.countdownSeconds) ? terms.countdownSeconds : 5;
+    const readyPrompt = terms.readyPrompt || 'Shoot when ready.';
+    const targetRequired = terms.requiresTargetSelection;
+    try {
+        window.__sessionTerminology = terms;
+        window.__sessionCountdownSecs = countdownSec;
+        window.__sessionReadyPrompt = readyPrompt;
+    } catch { }
+
+    const hoopBox = targetRequired ? (() => {
         try { return getLockedHoopBox?.(); } catch { return null; }
-    })();
-    const hoopWasLocked = (() => {
+    })() : null;
+    const hoopWasLocked = targetRequired ? (() => {
         try { return !!hoopBox || window.__hoopConfirmed === true || !!window.__lockedHoopBox; }
         catch { return !!hoopBox; }
-    })();
+    })() : false;
 
     try { window.__shotTrackingArmed = false; } catch { }
     try { window.__armCountdownActive = false; } catch { }
     try { window.__RELEASE_LOCK_UNTIL = 0; window.__REL_LAST_FIRE_MS = 0; window.__releaseLatchUntil = 0; window.__LAST_FIRED_FRAME = null; } catch { }
     try { window.__SAMPLER_BLOCK_UNTIL = 0; } catch { }
 
-    if (hoopWasLocked) {
+    if (!targetRequired) {
+        try { window.__hoopConfirmed = true; } catch { }
+        try { window.resumeHoopTracking?.(); } catch {}
+        setTimeout(() => {
+            try { window.startShotTrackingCountdown?.(countdownSec, readyPrompt); }
+            catch (err) { console.warn('[hud] countdown failed', err); }
+            const delayMs = Math.max(0, countdownSec * 1000 + 60);
+            setTimeout(() => {
+                try { window.scheduleArmWhenReady?.(0); } catch { }
+            }, delayMs);
+        }, 100);
+    } else if (hoopWasLocked) {
         try { window.__hoopConfirmed = true; } catch { }
         try { window.resumeHoopTracking?.(); } catch { }
         setTimeout(() => {
@@ -1605,10 +1680,12 @@ function showCenterPrompt(msg) {
 }
 window.showCenterPrompt = showCenterPrompt;
 
-function startShotTrackingCountdown(sec = 5) {
+function startShotTrackingCountdown(sec = 5, readyText) {
+    const countdown = Number.isFinite(sec) ? sec : (Number(window.__sessionCountdownSecs) || getCountdownSeconds());
+    const prompt = readyText || window.__sessionReadyPrompt || getReadyPrompt();
     if (window.__armCountdownActive) return; window.__armCountdownActive = true;
     try { window.__shotTrackingArmed = false; } catch { }
-    try { window.dispatchEvent(new CustomEvent('hud:arm-countdown', { detail: { sec } })); } catch { }
+    try { window.dispatchEvent(new CustomEvent('hud:arm-countdown', { detail: { sec: countdown } })); } catch { }
 
     const root = ensureHudRoot();
     let box = document.getElementById('countdownOverlay');
@@ -1629,13 +1706,13 @@ function startShotTrackingCountdown(sec = 5) {
 
     (async () => {
         try {
-            for (let i = sec; i >= 1; i--) { showNum(i); await new Promise(r => setTimeout(r, 1000)); }
+            for (let i = countdown; i >= 1; i--) { showNum(i); await new Promise(r => setTimeout(r, 1000)); }
             showGo(); setTimeout(hide, 700);
             window.__shotTrackingArmed = true;
             try { window.dispatchEvent(new CustomEvent('hud:armed')); } catch { }
             try {
                 if (typeof window.viasonSpeak === 'function') {
-                    await window.viasonSpeak('Shoot when ready.');
+                    await window.viasonSpeak(prompt);
                 } else {
                     console.warn('[countdown] viasonSpeak unavailable for cue');
                 }
@@ -1700,12 +1777,12 @@ export function initHUDForVideo(videoEl) {
     const boot = () => {
         ensureHudRoot();
         mountSessionHUD();
-        setSessionStatus('SESSION IN PROGRESS…');
+        setSessionStatus('SESSION IN PROGRESS???');
         setOverlayInteractive(true);
-        try { enableHoopPickOnce?.(); } catch { }
+        if (requiresTargetSelection()) {
+            try { enableHoopPickOnce?.(); } catch { }
+        }
     };
-
-    videoEl?.addEventListener('loadeddata', () => boot(), { once: true });
     if (videoEl?.readyState >= 2) boot();
 
     videoEl?.addEventListener('play', ensureHudRoot);
@@ -1730,6 +1807,16 @@ export function initHUDForVideo(videoEl) {
 }
 window.initHUDForVideo = initHUDForVideo;
 
+function kickoffCountdownArmFromHoop() {
+    const sec = Number(window.__sessionCountdownSecs || getCountdownSeconds());
+    const prompt = window.__sessionReadyPrompt || getReadyPrompt();
+    window.startShotTrackingCountdown?.(sec, prompt);
+    const delayMs = Math.max(0, (Number.isFinite(sec) ? sec : 5) * 1000 + 60);
+    setTimeout(() => {
+        try { window.scheduleArmWhenReady?.(0); } catch { }
+    }, delayMs);
+}
+
 /* ------------------------- Hoop lock listeners ------------------------- */
 window.addEventListener('hoop:locked', () => {
     window.__hoopConfirmed = true;
@@ -1740,7 +1827,7 @@ window.addEventListener('hoop:locked', () => {
     try {
         if (window.__shotTrackingArmed !== true && !window.__armCountdownActive) {
             window.__shotTrackingArmed = false;
-            startShotTrackingCountdown?.(5);
+            kickoffCountdownArmFromHoop();
         }
     } catch { }
 });

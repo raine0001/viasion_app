@@ -2,7 +2,7 @@
 from sqlalchemy import select, func, MetaData, Table
 from sqlalchemy.orm import Session           # if you use Core/engine sessions
 from sqlalchemy.dialects.mysql import insert as mysql_insert
-from flask import Flask, request, Response, jsonify, send_from_directory, send_file, session
+from flask import Flask, request, Response, jsonify, send_from_directory, send_file, session, abort
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import numpy as np
@@ -76,6 +76,90 @@ os.makedirs(FRAME_FOLDER, exist_ok=True)
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 PRESET_FILE = DATA_DIR / "voice_presets.json"
+
+PROJECT_MANIFEST_PATH = os.path.join(app.root_path, "static", "config", "projects.json")
+_PROJECT_MANIFEST_CACHE = None
+_PROJECT_MANIFEST_MTIME = None
+_DEFAULT_DATASET_FALLBACK = {
+    "project": "basketball",
+    "slug": "basketball_pose",
+    "root": "datasets/viason_seg",
+    "frameCacheRoot": "frame_cache",
+    "framesRoot": "frames",
+    "labelTrainRoot": "datasets/viason_seg/labels/train",
+    "imagesTrainRoot": "datasets/viason_seg/images/train",
+}
+
+
+def _get_project_manifest():
+    global _PROJECT_MANIFEST_CACHE, _PROJECT_MANIFEST_MTIME
+    try:
+        mtime = os.path.getmtime(PROJECT_MANIFEST_PATH)
+    except OSError:
+        return {"projects": {}, "defaultProject": None}
+    if (_PROJECT_MANIFEST_CACHE is not None and _PROJECT_MANIFEST_MTIME == mtime):
+        return _PROJECT_MANIFEST_CACHE
+    try:
+        with open(PROJECT_MANIFEST_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        data = {"projects": {}, "defaultProject": None}
+    _PROJECT_MANIFEST_CACHE = data
+    _PROJECT_MANIFEST_MTIME = mtime
+    return data
+
+
+def _normalize_dataset(project_slug, dataset_cfg):
+    cfg = dict(dataset_cfg or {})
+    cfg["project"] = project_slug or cfg.get("project") or "basketball"
+    cfg["slug"] = cfg.get("slug") or f"{cfg['project']}_pose"
+    cfg["root"] = cfg.get("root") or "datasets/viason_seg"
+    cfg["frameCacheRoot"] = cfg.get("frameCacheRoot") or "frame_cache"
+    cfg["framesRoot"] = cfg.get("framesRoot") or "frames"
+    if not cfg.get("labelTrainRoot"):
+        cfg["labelTrainRoot"] = os.path.join(cfg["root"], "labels", "train")
+    if not cfg.get("imagesTrainRoot"):
+        cfg["imagesTrainRoot"] = os.path.join(cfg["root"], "images", "train")
+    return cfg
+
+
+def _resolve_dataset(dataset_slug=None):
+    manifest = _get_project_manifest()
+    target_slug = dataset_slug
+    projects = manifest.get("projects") or {}
+    if target_slug:
+        for project_slug, project_cfg in projects.items():
+            for dataset_cfg in project_cfg.get("datasets") or []:
+                if dataset_cfg.get("slug") == target_slug:
+                    return _normalize_dataset(project_slug, dataset_cfg)
+    default_project = manifest.get("defaultProject")
+    if default_project:
+        project_cfg = projects.get(default_project, {})
+        datasets = project_cfg.get("datasets") or []
+        if datasets:
+            return _normalize_dataset(default_project, datasets[0])
+    return dict(_DEFAULT_DATASET_FALLBACK)
+
+
+def _dataset_abs_path(dataset_cfg, key, *parts):
+    root = dataset_cfg.get(key)
+    if not root:
+        return None
+    base = root if os.path.isabs(root) else os.path.abspath(os.path.join(app.root_path, root))
+    return os.path.abspath(os.path.join(base, *parts))
+
+
+def _send_dataset_label(dataset_cfg, filename):
+    label_root = _dataset_abs_path(dataset_cfg, "labelTrainRoot")
+    if not label_root:
+        return None
+    candidate = os.path.abspath(os.path.join(label_root, filename))
+    if not candidate.startswith(label_root):
+        return None
+    if not os.path.exists(candidate):
+        return None
+    return send_file(candidate, mimetype="text/plain")
+
 
 # Track active users (lightweight, in-memory). Production should use Redis.
 app.active_users = {}
@@ -710,9 +794,9 @@ def api_me():
             return jsonify({'user': None})
         return jsonify({'user': {'user_id': row.user_id, 'name': row.name, 'email': row.email}})
 
-@app.route('/my_viason')
-def my_viason():
-    return send_from_directory('static', 'my_viason.html')
+@app.route('/my_viasion')
+def my_viasion():
+    return send_from_directory('static', 'my_viasion.html')
 
 @app.route('/dashboard')
 def dashboard():

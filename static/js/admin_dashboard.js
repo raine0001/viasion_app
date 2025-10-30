@@ -110,6 +110,43 @@
 
   } : null;
 
+  const subscriptionUI = {
+    pane: document.getElementById('subscriptionPane'),
+    planList: document.getElementById('subscriptionPlanList'),
+    planForm: document.getElementById('subscriptionPlanForm'),
+    planId: document.getElementById('subscriptionPlanId'),
+    planName: document.getElementById('subscriptionPlanName'),
+    planDataset: document.getElementById('subscriptionPlanDataset'),
+    planPrice: document.getElementById('subscriptionPlanPrice'),
+    planPeriod: document.getElementById('subscriptionPlanPeriod'),
+    planTrial: document.getElementById('subscriptionPlanTrial'),
+    planDescription: document.getElementById('subscriptionPlanDescription'),
+    planActive: document.getElementById('subscriptionPlanActive'),
+    saveBtn: document.getElementById('subscriptionSaveBtn'),
+    deactivateBtn: document.getElementById('subscriptionDeactivateBtn'),
+    newBtn: document.getElementById('subscriptionNewBtn'),
+    status: document.getElementById('subscriptionStatus'),
+    userList: document.getElementById('subscriptionUserList'),
+    assignInput: document.getElementById('subscriptionAssignUser'),
+    assignBtn: document.getElementById('subscriptionAssignBtn'),
+    reloadBtn: document.getElementById('subscriptionReloadBtn'),
+  };
+
+  const subscriptionState = {
+    plans: new Map(),
+    usersByPlan: new Map(),
+    userPlans: new Map(),
+    selectedPlanId: null,
+    loading: false,
+  };
+
+  const subscriptionCurrencyFmt = new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+
 
 
 
@@ -4519,6 +4556,380 @@
 
   };
 
+  const formatSubscriptionPrice = (plan) => {
+    const price = Number(plan?.price);
+    if (Number.isFinite(price)) {
+      const period = (plan?.period || 'monthly').toLowerCase();
+      let suffix = 'mo';
+      if (period.startsWith('annual') || period === 'yearly') suffix = 'yr';
+      else if (period.startsWith('week')) suffix = 'wk';
+      else if (period === 'lifetime' || period === 'once' || period === 'onetime') suffix = 'once';
+      return `${subscriptionCurrencyFmt.format(price)} / ${suffix}`;
+    }
+    return plan?.period || 'custom';
+  };
+
+  const setSubscriptionStatus = (message = '', tone = 'info') => {
+    if (!subscriptionUI.status) return;
+    subscriptionUI.status.textContent = message || '';
+    subscriptionUI.status.classList.remove('success', 'error', 'warn');
+    if (tone === 'success' || tone === 'error' || tone === 'warn') {
+      subscriptionUI.status.classList.add(tone);
+    }
+  };
+
+  const renderSubscriptionPlans = () => {
+    if (!subscriptionUI.planList) return;
+    const list = subscriptionUI.planList;
+    list.innerHTML = '';
+    if (subscriptionState.loading) {
+      list.innerHTML = '<div class="subscription-empty">Loading plans...</div>';
+      return;
+    }
+    if (!subscriptionState.plans.size) {
+      list.innerHTML = '<div class="subscription-empty">No plans configured.</div>';
+      return;
+    }
+    const entries = Array.from(subscriptionState.plans.values())
+      .filter(Boolean)
+      .sort((a, b) => (a?.name || a?.id || '').localeCompare(b?.name || b?.id || ''));
+    entries.forEach((plan) => {
+      const item = document.createElement('div');
+      item.className = 'subscription-plan-item';
+      if (plan.id === subscriptionState.selectedPlanId) item.classList.add('selected');
+      if (plan.active === false) item.classList.add('inactive');
+      const title = document.createElement('div');
+      title.className = 'plan-title';
+      title.textContent = plan.name || plan.id;
+      const meta = document.createElement('div');
+      meta.className = 'plan-meta';
+      const dataset = document.createElement('span');
+      dataset.className = 'plan-pill';
+      dataset.textContent = plan.dataset || 'unknown';
+      const price = document.createElement('span');
+      price.textContent = formatSubscriptionPrice(plan);
+      const status = document.createElement('span');
+      status.className = 'plan-pill' + (plan.active === false ? '' : ' active');
+      status.textContent = plan.active === false ? 'inactive' : 'active';
+      meta.append(dataset, price, status);
+      item.append(title, meta);
+      item.addEventListener('click', () => selectSubscriptionPlan(plan.id));
+      list.appendChild(item);
+    });
+  };
+
+  const renderSubscriptionAssignments = () => {
+    if (!subscriptionUI.userList) return;
+    const list = subscriptionUI.userList;
+    list.innerHTML = '';
+    if (subscriptionState.loading) {
+      list.innerHTML = '<div class="subscription-empty">Loading assignments...</div>';
+      if (subscriptionUI.assignBtn) subscriptionUI.assignBtn.disabled = true;
+      return;
+    }
+    const planId = subscriptionState.selectedPlanId;
+    if (!planId || !subscriptionState.plans.has(planId)) {
+      list.innerHTML = '<div class="subscription-empty">Select a plan to view assignments.</div>';
+      if (subscriptionUI.assignBtn) subscriptionUI.assignBtn.disabled = true;
+      return;
+    }
+    const plan = subscriptionState.plans.get(planId);
+    const allowAssign = plan && plan.active !== false;
+    if (subscriptionUI.assignBtn) subscriptionUI.assignBtn.disabled = !allowAssign;
+    const users = (subscriptionState.usersByPlan.get(planId) || []).slice().sort((a, b) => a.localeCompare(b));
+    if (!users.length) {
+      list.innerHTML = '<div class="subscription-empty">No users assigned yet.</div>';
+      return;
+    }
+    users.forEach((userId) => {
+      const row = document.createElement('div');
+      row.className = 'subscription-user-item';
+      const span = document.createElement('span');
+      span.textContent = userId;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-mini';
+      btn.textContent = 'Remove';
+      btn.addEventListener('click', () => removeSubscriptionUser(userId));
+      row.append(span, btn);
+      list.appendChild(row);
+    });
+  };
+
+  const populateSubscriptionForm = (plan) => {
+    if (!subscriptionUI.planForm) return;
+    if (!plan) {
+      resetSubscriptionForm();
+      return;
+    }
+    if (subscriptionUI.planId) {
+      subscriptionUI.planId.value = plan.id || '';
+      subscriptionUI.planId.disabled = true;
+    }
+    if (subscriptionUI.planName) subscriptionUI.planName.value = plan.name || '';
+    if (subscriptionUI.planDataset) subscriptionUI.planDataset.value = plan.dataset || '';
+    if (subscriptionUI.planPrice) {
+      subscriptionUI.planPrice.value = Number.isFinite(Number(plan.price)) ? Number(plan.price) : '';
+    }
+    if (subscriptionUI.planPeriod) subscriptionUI.planPeriod.value = plan.period || 'monthly';
+    if (subscriptionUI.planTrial) {
+      subscriptionUI.planTrial.value = Number.isFinite(Number(plan.trial_days)) ? Number(plan.trial_days) : '';
+    }
+    if (subscriptionUI.planDescription) subscriptionUI.planDescription.value = plan.description || '';
+    if (subscriptionUI.planActive) subscriptionUI.planActive.checked = plan.active !== false;
+    if (subscriptionUI.deactivateBtn) subscriptionUI.deactivateBtn.disabled = plan.active === false;
+  };
+
+  const resetSubscriptionForm = () => {
+    if (!subscriptionUI.planForm) return;
+    subscriptionUI.planForm.reset();
+    if (subscriptionUI.planActive) subscriptionUI.planActive.checked = true;
+    if (subscriptionUI.planId) subscriptionUI.planId.disabled = false;
+    if (subscriptionUI.deactivateBtn) subscriptionUI.deactivateBtn.disabled = true;
+  };
+
+  const selectSubscriptionPlan = (planId) => {
+    if (!subscriptionUI.planList) return;
+    if (!planId || !subscriptionState.plans.has(planId)) {
+      subscriptionState.selectedPlanId = null;
+      resetSubscriptionForm();
+    } else {
+      subscriptionState.selectedPlanId = planId;
+      populateSubscriptionForm(subscriptionState.plans.get(planId));
+    }
+    renderSubscriptionPlans();
+    renderSubscriptionAssignments();
+  };
+
+  const readSubscriptionForm = () => {
+    if (!subscriptionUI.planForm) throw new Error('Plan form unavailable.');
+    const id = (subscriptionUI.planId?.value || '').trim();
+    if (!id) throw new Error('Plan ID is required.');
+    const dataset = (subscriptionUI.planDataset?.value || '').trim();
+    if (!dataset) throw new Error('Dataset is required.');
+    const payload = {
+      id,
+      name: (subscriptionUI.planName?.value || '').trim() || id,
+      dataset,
+      description: (subscriptionUI.planDescription?.value || '').trim(),
+      period: (subscriptionUI.planPeriod?.value || 'monthly').trim() || 'monthly',
+      price: Number(subscriptionUI.planPrice?.value || 0) || 0,
+      trial_days: Number(subscriptionUI.planTrial?.value || 0) || 0,
+      active: subscriptionUI.planActive ? !!subscriptionUI.planActive.checked : true,
+    };
+    if (payload.price < 0) payload.price = 0;
+    if (payload.trial_days < 0) payload.trial_days = 0;
+    return payload;
+  };
+
+  const loadSubscriptionConfig = async (showLoadingMessage = false) => {
+    if (!subscriptionUI.planList) return;
+    if (subscriptionState.loading) return;
+    subscriptionState.loading = true;
+    if (showLoadingMessage) setSubscriptionStatus('Loading subscriptions...', 'info');
+    renderSubscriptionPlans();
+    renderSubscriptionAssignments();
+    try {
+      const res = await fetch('/api/subscriptions');
+      if (!res.ok) throw new Error(`http ${res.status}`);
+      const data = await res.json();
+      const plansMap = new Map();
+      Object.values(data?.plans || {}).forEach((plan) => {
+        if (plan && plan.id) plansMap.set(plan.id, plan);
+      });
+      const usersByPlan = new Map();
+      const userPlans = new Map();
+      Object.entries(data?.userSubscriptions || {}).forEach(([userId, planIds]) => {
+        const ids = Array.isArray(planIds) ? planIds.filter(Boolean) : [];
+        userPlans.set(userId, ids.slice().sort((a, b) => a.localeCompare(b)));
+        ids.forEach((planId) => {
+          if (!usersByPlan.has(planId)) usersByPlan.set(planId, []);
+          usersByPlan.get(planId).push(userId);
+        });
+      });
+      usersByPlan.forEach((ids) => ids.sort((a, b) => a.localeCompare(b)));
+      subscriptionState.plans = plansMap;
+      subscriptionState.usersByPlan = usersByPlan;
+      subscriptionState.userPlans = userPlans;
+      const previous = subscriptionState.selectedPlanId;
+      let next = previous && plansMap.has(previous) ? previous : null;
+      if (!next && plansMap.size) {
+        next = Array.from(plansMap.values())
+          .sort((a, b) => (a?.name || a?.id || '').localeCompare(b?.name || b?.id || ''))[0]?.id || null;
+      }
+      subscriptionState.selectedPlanId = next;
+      if (next) {
+        populateSubscriptionForm(plansMap.get(next));
+      } else {
+        resetSubscriptionForm();
+      }
+      const count = plansMap.size;
+      if (count) {
+        setSubscriptionStatus(`Loaded ${count} plan${count === 1 ? '' : 's'}.`, 'success');
+      } else {
+        setSubscriptionStatus('No plans configured yet.', 'warn');
+      }
+    } catch (err) {
+      console.error('[admin] load subscriptions failed', err);
+      setSubscriptionStatus(`Failed to load subscriptions: ${err.message || err}`, 'error');
+    } finally {
+      subscriptionState.loading = false;
+      renderSubscriptionPlans();
+      renderSubscriptionAssignments();
+    }
+  };
+
+  const saveSubscriptionPlan = async () => {
+    if (!subscriptionUI.planForm) return;
+    let payload;
+    try {
+      payload = readSubscriptionForm();
+    } catch (err) {
+      setSubscriptionStatus(err.message || 'Unable to save plan.', 'warn');
+      return;
+    }
+    if (subscriptionUI.saveBtn) subscriptionUI.saveBtn.disabled = true;
+    try {
+      setSubscriptionStatus('Saving plan...', 'info');
+      const res = await fetch('/api/subscriptions/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || res.statusText || `http ${res.status}`);
+      }
+      subscriptionState.selectedPlanId = payload.id;
+      setSubscriptionStatus('Plan saved.', 'success');
+      await loadSubscriptionConfig();
+      selectSubscriptionPlan(payload.id);
+    } catch (err) {
+      console.error('[admin] save subscription plan failed', err);
+      setSubscriptionStatus(`Save failed: ${err.message || err}`, 'error');
+    } finally {
+      if (subscriptionUI.saveBtn) subscriptionUI.saveBtn.disabled = false;
+    }
+  };
+
+  const deactivateSubscriptionPlan = async () => {
+    const planId = subscriptionState.selectedPlanId;
+    if (!planId) {
+      setSubscriptionStatus('Select a plan to deactivate.', 'warn');
+      return;
+    }
+    if (!confirm(`Deactivate ${planId}?`)) return;
+    if (subscriptionUI.deactivateBtn) subscriptionUI.deactivateBtn.disabled = true;
+    try {
+      setSubscriptionStatus('Deactivating plan...', 'info');
+      const res = await fetch(`/api/subscriptions/plan/${encodeURIComponent(planId)}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || res.statusText || `http ${res.status}`);
+      }
+      setSubscriptionStatus('Plan deactivated.', 'success');
+      await loadSubscriptionConfig();
+      selectSubscriptionPlan(planId);
+    } catch (err) {
+      console.error('[admin] deactivate subscription plan failed', err);
+      setSubscriptionStatus(`Deactivate failed: ${err.message || err}`, 'error');
+    } finally {
+      if (subscriptionUI.deactivateBtn) subscriptionUI.deactivateBtn.disabled = false;
+    }
+  };
+
+  const assignSubscriptionUser = async () => {
+    const planId = subscriptionState.selectedPlanId;
+    if (!planId) {
+      setSubscriptionStatus('Select a plan first.', 'warn');
+      return;
+    }
+    const plan = subscriptionState.plans.get(planId);
+    if (plan && plan.active === false) {
+      setSubscriptionStatus('This plan is inactive.', 'warn');
+      return;
+    }
+    const userId = (subscriptionUI.assignInput?.value || '').trim();
+    if (!userId) {
+      setSubscriptionStatus('Enter a user id to assign.', 'warn');
+      subscriptionUI.assignInput?.focus();
+      return;
+    }
+    if (subscriptionUI.assignBtn) subscriptionUI.assignBtn.disabled = true;
+    try {
+      setSubscriptionStatus(`Assigning ${userId}...`, 'info');
+      const res = await fetch('/api/subscriptions/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_id: planId, user_id: userId }),
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || res.statusText || `http ${res.status}`);
+      }
+      setSubscriptionStatus(`Assigned ${userId}.`, 'success');
+      if (subscriptionUI.assignInput) subscriptionUI.assignInput.value = '';
+      await loadSubscriptionConfig();
+      selectSubscriptionPlan(planId);
+    } catch (err) {
+      console.error('[admin] assign subscription user failed', err);
+      setSubscriptionStatus(`Assign failed: ${err.message || err}`, 'error');
+    } finally {
+      if (subscriptionUI.assignBtn) subscriptionUI.assignBtn.disabled = false;
+    }
+  };
+
+  const removeSubscriptionUser = async (userId) => {
+    const planId = subscriptionState.selectedPlanId;
+    if (!planId || !userId) return;
+    try {
+      setSubscriptionStatus(`Removing ${userId}...`, 'info');
+      const res = await fetch('/api/subscriptions/unassign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_id: planId, user_id: userId }),
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || res.statusText || `http ${res.status}`);
+      }
+      setSubscriptionStatus(`Removed ${userId}.`, 'success');
+      await loadSubscriptionConfig();
+      selectSubscriptionPlan(planId);
+    } catch (err) {
+      console.error('[admin] remove subscription user failed', err);
+      setSubscriptionStatus(`Remove failed: ${err.message || err}`, 'error');
+    }
+  };
+
+  const newSubscriptionPlan = () => {
+    subscriptionState.selectedPlanId = null;
+    resetSubscriptionForm();
+    renderSubscriptionPlans();
+    renderSubscriptionAssignments();
+    setSubscriptionStatus('Creating new plan.', 'info');
+    subscriptionUI.planId?.focus();
+  };
+
+  if (subscriptionUI.newBtn) subscriptionUI.newBtn.addEventListener('click', newSubscriptionPlan);
+
+  if (subscriptionUI.saveBtn) subscriptionUI.saveBtn.addEventListener('click', saveSubscriptionPlan);
+
+  if (subscriptionUI.deactivateBtn) subscriptionUI.deactivateBtn.addEventListener('click', deactivateSubscriptionPlan);
+
+  if (subscriptionUI.assignBtn) subscriptionUI.assignBtn.addEventListener('click', assignSubscriptionUser);
+
+  if (subscriptionUI.assignInput) subscriptionUI.assignInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      assignSubscriptionUser();
+    }
+  });
+
+  if (subscriptionUI.reloadBtn) subscriptionUI.reloadBtn.addEventListener('click', () => loadSubscriptionConfig(true));
+
   if (challengeNewBtn) challengeNewBtn.addEventListener('click', () => {
 
     clearChallengeForm();
@@ -4532,6 +4943,13 @@
   if (challengeForm) challengeForm.addEventListener('input', updateChallengeButtons);
 
   updateChallengeButtons();
+
+  if (subscriptionUI.planList) {
+    resetSubscriptionForm();
+    renderSubscriptionPlans();
+    renderSubscriptionAssignments();
+    loadSubscriptionConfig();
+  }
 
   if (challengeListEl) loadChallenges();
 
@@ -4647,7 +5065,7 @@
 
 
 
-  if (btnRefresh) btnRefresh.addEventListener('click', () => { loadSessions(true); loadSupportMetadata(true); loadChallenges(true); });
+  if (btnRefresh) btnRefresh.addEventListener('click', () => { loadSessions(true); loadSupportMetadata(true); loadChallenges(true); loadSubscriptionConfig(true); });
 
 
 

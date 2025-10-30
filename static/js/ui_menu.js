@@ -1,5 +1,5 @@
 // /static/js/ui_menu.js
-// Hamburger menu + slideouts + floating Myviason button
+// Hamburger menu + slideouts + floating My Trainer button
 // DOES NOT TOUCH VIDEO LOADING. Uses #videoInput and handleVideoUpload in app.js.
 
 (function () {
@@ -75,7 +75,7 @@
     css.id = 'ui-menu-css';
     css.textContent = `
       .viason-hamburger {
-        position: fixed; top: 12px; left: 12px; z-index: 10050;
+        position: fixed; top: 12px; left: 12px; z-index: 15000;
         width: 38px; height: 38px; border-radius: 8px;
         display:flex; align-items:center; justify-content:center;
         background: rgba(0,0,0,.75); color:#fff; border:1px solid rgba(255,255,255,.15);
@@ -83,7 +83,7 @@
       }
       .viason-hamburger:hover { background: rgba(0,0,0,.88); }
       .viason-drawer {
-        position: fixed; top:0; bottom:0; left:0; width: 300px; z-index:10040;
+        position: fixed; top:0; bottom:0; left:0; width: 300px; z-index:14990;
         background: rgba(12,12,14,.98); color:#fff; border-right:1px solid rgba(255,255,255,.12);
         transform: translateX(-110%); transition: transform .22s ease-out; padding: 12px;
         box-shadow: 0 10px 30px rgba(0,0,0,.35);
@@ -125,7 +125,7 @@
       .viason-list-item { padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between;}
       .viason-list-item:last-child { border-bottom:none; }
       .viason-floating-myviason {
-        position: fixed; right: 16px; bottom: 88px; z-index: 10050;
+        position: fixed; right: 16px; bottom: 88px; z-index: 14990;
         background: rgba(0,0,0,.78); color:#fff; border:1px solid rgba(255,255,255,.15);
         padding:10px 12px; border-radius: 999px; cursor:pointer; font:600 13px system-ui;
       }
@@ -156,6 +156,40 @@
 
   // ---------- helpers ----------
   const __panels = new Set();
+
+  const DETECTOR_CONFIG_ENDPOINT = '/static/config/detector.json';
+  let MENU_DETECTOR_MODEL_URL = '/static/models/best.onnx';
+  let MENU_DETECTOR_FALLBACK_URL = '/static/models/backup_best.onnx';
+  let MENU_DETECTOR_LABELS = ['player','club','ball','tee','flag','hole','iron','wedge','driver'];
+  let __menuDetectorConfig = null;
+
+  function preloadDetectorConfig() {
+    if (__menuDetectorConfig) return __menuDetectorConfig;
+    __menuDetectorConfig = (async () => {
+      try {
+        const res = await fetch(DETECTOR_CONFIG_ENDPOINT, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const cfg = await res.json();
+        if (cfg && typeof cfg === 'object') {
+          if (cfg.model_url) MENU_DETECTOR_MODEL_URL = cfg.model_url;
+          if (cfg.fallback_url) MENU_DETECTOR_FALLBACK_URL = cfg.fallback_url;
+          if (Array.isArray(cfg.labels) && cfg.labels.length) MENU_DETECTOR_LABELS = cfg.labels.slice();
+          try {
+            window.DETECTOR_MODEL_URL = MENU_DETECTOR_MODEL_URL;
+            window.DETECTOR_FALLBACK_MODEL_URL = MENU_DETECTOR_FALLBACK_URL;
+            window.DETECTOR_LABELS = MENU_DETECTOR_LABELS.slice();
+          } catch {}
+        }
+        return cfg || {};
+      } catch (err) {
+        console.warn('[ui_menu] detector config fetch failed', err);
+        return {};
+      }
+    })();
+    return __menuDetectorConfig;
+  }
+
+  preloadDetectorConfig().catch(() => {});
 
   // ——— Close drawer + any open sidepanels ———
   let __drawer = null;
@@ -1157,7 +1191,7 @@ async function openChallengesPanel(initialSlug) {
 }
 
 async function openMyviasonPanel(){
-    const panel = (openMyviasonPanel.panel ||= makeSidePanel('My viason'));
+    const panel = (openMyviasonPanel.panel ||= makeSidePanel('My Trainer'));
     const prefs = (window.viasonGetPrefs?.() || {voice:'alloy', tts:'openai', speed:1, pitch:1, volume:1, bassDb:0, trebleDb:0, lang:'en-US'});
     const body = el('div');
     const normalizeEngine = (value) => {
@@ -1784,22 +1818,33 @@ function mountHamburgerMenu(){
   const drawer = el('div', {class:'viason-drawer'},
     el('h3', {}, 'Menu'),
     el('ul', {class:'viason-menu'},
-      el('li', {}, el('button', {class:'viason-item', onclick:openContentPanel}, 'Content')),
-      el('li', {}, el('button', {class:'viason-item', onclick:openMyviasonPanel}, 'My viason')),
-      el('li', {}, el('button', {class:'viason-item', onclick:openAuthPanel}, 'Login / Account')),
-      el('li', {},
-        el('button', {class:'viason-item', onclick:openChallengesPanel}, 'Challenges'),
-        el('ul', {class:'viason-submenu'},
-          el('li', {}, el('button', {class:'viason-subitem', onclick:() => openChallengesPanel('cav-camps-2025')}, 'CAV Camps 2025'))
-        )
-      ),
-      el('li', {}, el('button', {class:'viason-item', onclick:() => window.open('/static/my_sessions.html','_blank')}, 'My Sessions')),
-      el('li', {}, el('button', {class:'viason-item', onclick:openDiagnosticsPanel}, 'Coach Diagnostics')),
-      // ✅ one Preferences item only
+      el('li', {}, el('button', {
+        class:'viason-item',
+        onclick: () => {
+          try { window.location.href = '/static/my_sessions.html'; }
+          catch { window.open('/static/my_sessions.html', '_self'); }
+        }
+      }, 'My Sessions')),
+      el('li', {}, el('button', {
+        class:'viason-item',
+        onclick: () => {
+          try { window.location.href = '/static/community.html'; }
+          catch { window.open('/static/community.html', '_self'); }
+        }
+      }, 'Community')),
+      el('li', {}, el('button', {
+        class:'viason-item',
+        onclick: () => {
+          try { window.location.href = '/static/challenges.html'; }
+          catch { window.open('/static/challenges.html', '_self'); }
+        }
+      }, 'Challenges')),
+      el('li', {}, el('button', {class:'viason-item', onclick:openMyviasonPanel}, 'My Trainer')),
       el('li', {}, el('button', {
         class:'viason-item',
         onclick: () => window.openPreferencesPanel?.()
-      }, 'Preferences'))
+      }, 'Preferences')),
+      el('li', {}, el('button', {class:'viason-item', onclick:openAuthPanel}, 'Login / Account'))
     )
   );
   document.body.appendChild(drawer);
@@ -1810,7 +1855,7 @@ function mountHamburgerMenu(){
   window.addEventListener('keydown', (e)=>{ if ((e.key||'').toLowerCase()==='m') toggle(); });
   function toggle(){ drawer.classList.toggle('open'); }
 
-  const floater = el('button', {class:'viason-floating-myviason', onclick:openMyviasonPanel}, 'Myviason ⚙️');
+  const floater = el('button', {class:'viason-floating-myviason', onclick:openMyviasonPanel}, 'My Trainer');
   document.body.appendChild(floater);
 
   wireVideoAutoClose();

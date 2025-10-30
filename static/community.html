@@ -1,79 +1,392 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>viason Community</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <script>
+    (function preloadDetectorConfig(){
+      try {
+        fetch('/static/config/detector.json', { cache: 'no-store' })
+          .then(res => res.ok ? res.json() : null)
+          .then(cfg => {
+            if (!cfg || typeof cfg !== 'object') return;
+            if (cfg.model_url) window.DETECTOR_MODEL_URL = cfg.model_url;
+            if (cfg.fallback_url) window.DETECTOR_FALLBACK_MODEL_URL = cfg.fallback_url;
+            if (Array.isArray(cfg.labels) && cfg.labels.length) window.DETECTOR_LABELS = cfg.labels.slice();
+          })
+          .catch(() => {});
+      } catch {}
+    })();
+  </script>
   <style>
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      background: #101010;
-      color: white;
+    :root{
+      color-scheme: dark;
+      --bg:#080b12;
+      --surface:#111624;
+      --surface-soft:#161c2d;
+      --border:#1f2637;
+      --border-soft:#222b3f;
+      --text:#f4f7fb;
+      --text-soft:#a6adc6;
+      --accent:#facc15;
+      --card-radius:18px;
+      --gap:clamp(12px,3vw,24px);
     }
-    .header {
-      background: #222;
-      padding: 1rem;
-      text-align: center;
-      font-size: 1.5rem;
+    *,*::before,*::after{box-sizing:border-box;}
+    body{
+      margin:0;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      background:radial-gradient(circle at 20% 20%,rgba(250,204,21,.08),transparent 45%),var(--bg);
+      font:14px/1.5 "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color:var(--text);
+      padding-bottom:40px;
     }
-    #feedContainer {
-      display: grid;
-      gap: 1rem;
-      padding: 2rem;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    header{
+      padding:clamp(18px,5vw,32px) clamp(16px,5vw,48px) 0;
     }
-    .card {
-      background: #1c1c1c;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 0 10px rgba(0,0,0,0.3);
-      display: flex;
-      flex-direction: column;
+    h1{
+      margin:0 0 6px;
+      font:700 clamp(24px,5vw,36px)/1.1 "Bebas Neue", "Inter", sans-serif;
+      letter-spacing:.04em;
     }
-    .card video {
-      width: 100%;
-      aspect-ratio: 16 / 9;
-      background: black;
+    p.subtitle{
+      margin:0;
+      color:var(--text-soft);
+      font-size:clamp(14px,3.6vw,16px);
+      max-width:720px;
     }
-    .info {
-      padding: 1rem;
+    .filters{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin:18px 0 clamp(12px,4vw,20px);
     }
-    .uploader {
-      font-weight: bold;
-      margin-bottom: 0.25rem;
+    .filter-btn{
+      border:1px solid var(--border);
+      background:var(--surface);
+      color:var(--text-soft);
+      padding:8px 14px;
+      border-radius:999px;
+      font-weight:600;
+      cursor:pointer;
+      transition:.18s ease;
     }
-    .date {
-      font-size: 0.85rem;
-      color: #aaa;
-      margin-bottom: 0.5rem;
+    .filter-btn.active,
+    .filter-btn:hover{
+      background:var(--accent);
+      color:#1c1a05;
+      border-color:transparent;
     }
-    .notes {
-      font-size: 0.95rem;
-      line-height: 1.4;
+    main{
+      flex:1 1 auto;
+      padding:0 clamp(16px,5vw,48px) clamp(32px,8vw,72px);
+    }
+    .feed{
+      display:grid;
+      gap:var(--gap);
+      grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    }
+    article.post{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--card-radius);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      position:relative;
+      transition:transform .2s ease, border .2s ease;
+    }
+    article.post:hover{
+      transform:translateY(-6px);
+      border-color:var(--accent);
+    }
+    .post-media{
+      position:relative;
+      padding-top:56%;
+      background:linear-gradient(135deg,rgba(80,112,255,.35),rgba(17,24,39,.8));
+      overflow:hidden;
+    }
+    .post-media img{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+    .post-body{
+      padding:18px 18px 20px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+    }
+    .post-meta{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      color:var(--text-soft);
+      font-size:12px;
+    }
+    .post-title{
+      margin:0;
+      font:600 18px/1.3 "Inter", sans-serif;
+    }
+    .tags{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+    }
+    .tag{
+      font-size:11px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(250,204,21,.45);
+      background:rgba(250,204,21,.08);
+      color:var(--accent);
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
+    .post-footer{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    .actions{
+      display:flex;
+      gap:8px;
+    }
+    .action-btn{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      background:var(--surface-soft);
+      border:1px solid var(--border-soft);
+      color:var(--text-soft);
+      padding:8px 11px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:600;
+    }
+    .action-btn:hover{
+      border-color:var(--accent);
+      color:var(--accent);
+    }
+    .cta{
+      border:none;
+      background:var(--accent);
+      color:#161504;
+      padding:10px 14px;
+      border-radius:12px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    @media (max-width:680px){
+      .filters{
+        gap:8px;
+      }
+      .filter-btn{
+        flex:1 1 calc(50% - 8px);
+        text-align:center;
+      }
+      .post-footer{
+        flex-direction:column;
+        align-items:flex-start;
+      }
+      .actions{
+        width:100%;
+        flex-wrap:wrap;
+      }
+      .action-btn{
+        flex:1 1 auto;
+        justify-content:center;
+      }
+      .cta{
+        width:100%;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="header">viason Skill Training Feed</div>
-  <div id="feedContainer"></div>
+  <header>
+    <h1>Community Feed</h1>
+    <p class="subtitle">Stream highlights, form check-ins, and success stories from across the viason community. Open a session to replay the clips and review full training results.</p>
+    <div class="filters" id="filterButtons"></div>
+  </header>
 
-  <template id="videoCard">
-    <div class="card">
-      <video controls muted playsinline></video>
-      <div class="info">
-        <div class="uploader">Uploader</div>
-        <div class="date">Date</div>
-        <div class="notes">Description or notes...</div>
-      </div>
-    </div>
-  </template>
+  <main>
+    <section class="feed" id="feed"></section>
+  </main>
 
-  <script src="/static/feedLoader.js"></script>
   <script>
-    loadFeed();
+    function goTo(path, hash = '') {
+      if (window.viasonNavigate) {
+        window.viasonNavigate(path, hash);
+      } else {
+        const anchor = hash && !hash.startsWith('#') ? '#' + hash : hash || '';
+        window.location.href = path + anchor;
+      }
+    }
+
+    const FEED = [
+      {
+        id: 'post-01',
+        title: 'Smooth tempo on the range',
+        athlete: 'Jordan R.',
+        sport: 'golf',
+        timestamp: '2 hours ago',
+        likes: 22,
+        comments: 4,
+        focus: ['golf', 'tempo', 'range'],
+        summary: 'Backswing-to-downswing ratio locked at 3:1, impact posture 92% consistent.',
+        thumb: '/static/img/feed_golf_01.jpg'
+      },
+      {
+        id: 'post-02',
+        title: '25/25 made free throws',
+        athlete: 'Skylar P.',
+        sport: 'basketball',
+        timestamp: '6 hours ago',
+        likes: 41,
+        comments: 9,
+        focus: ['basketball', 'arc', 'rhythm'],
+        summary: 'Release angle averaged 48°, follow-through hold +420ms over baseline.',
+        thumb: '/static/img/feed_hoops_02.jpg'
+      },
+      {
+        id: 'post-03',
+        title: 'Machine start-up certification',
+        athlete: 'Leon A.',
+        sport: 'industrial',
+        timestamp: 'yesterday',
+        likes: 15,
+        comments: 2,
+        focus: ['industrial', 'sequence'],
+        summary: 'Step compliance 100%, flagged an early lever reset in iteration one.',
+        thumb: '/static/img/feed_industrial_01.jpg'
+      },
+      {
+        id: 'post-04',
+        title: 'Vault prep session',
+        athlete: 'Nina L.',
+        sport: 'dance',
+        timestamp: '1 day ago',
+        likes: 33,
+        comments: 11,
+        focus: ['dance', 'balance'],
+        summary: 'Landing posture within 4° variance, finish balance score 0.96.',
+        thumb: '/static/img/feed_dance_01.jpg'
+      }
+    ];
+
+    const filters = [
+      { id: 'all', label: 'All activity' },
+      { id: 'golf', label: 'Golf' },
+      { id: 'basketball', label: 'Basketball' },
+      { id: 'industrial', label: 'Workforce' },
+      { id: 'dance', label: 'Dance & Movement' }
+    ];
+
+    const feedEl = document.getElementById('feed');
+    const filterEl = document.getElementById('filterButtons');
+    let activeFilter = 'all';
+
+    function renderFilters() {
+      filterEl.innerHTML = '';
+      filters.forEach(f => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-btn' + (f.id === activeFilter ? ' active' : '');
+        btn.textContent = f.label;
+        btn.onclick = () => {
+          activeFilter = f.id;
+          renderFilters();
+          renderFeed();
+        };
+        filterEl.appendChild(btn);
+      });
+    }
+
+    function renderFeed() {
+      const items = FEED.filter(item => activeFilter === 'all' || item.focus.includes(activeFilter) || item.sport === activeFilter);
+      feedEl.innerHTML = '';
+      if (!items.length) {
+        const empty = document.createElement('article');
+        empty.className = 'post';
+        const body = document.createElement('div');
+        body.className = 'post-body';
+        body.innerHTML = '<h3 class="post-title">No posts yet</h3><p class="subtitle">Nobody has shared in this category. Record a session and publish the recap to appear here.</p>';
+        empty.appendChild(body);
+        feedEl.appendChild(empty);
+        return;
+      }
+
+      items.forEach(item => {
+        const card = document.createElement('article');
+        card.className = 'post';
+
+        const media = document.createElement('div');
+        media.className = 'post-media';
+        if (item.thumb) {
+          const img = document.createElement('img');
+          img.src = item.thumb;
+          img.alt = item.title;
+          media.appendChild(img);
+        }
+
+        const body = document.createElement('div');
+        body.className = 'post-body';
+
+        const meta = document.createElement('div');
+        meta.className = 'post-meta';
+        meta.innerHTML = `<span>${item.athlete}</span><span>${item.timestamp}</span>`;
+
+        const title = document.createElement('h3');
+        title.className = 'post-title';
+        title.textContent = item.title;
+
+        const summary = document.createElement('p');
+        summary.className = 'subtitle';
+        summary.textContent = item.summary;
+
+        const tags = document.createElement('div');
+        tags.className = 'tags';
+        item.focus.forEach(tag => {
+          const chip = document.createElement('span');
+          chip.className = 'tag';
+          chip.textContent = tag;
+          tags.appendChild(chip);
+        });
+
+        const footer = document.createElement('div');
+        footer.className = 'post-footer';
+
+        const actions = document.createElement('div');
+        actions.className = 'actions';
+        actions.innerHTML = `
+          <button class="action-btn" type="button">❤️ ${item.likes}</button>
+          <button class="action-btn" type="button">💬 ${item.comments}</button>
+          <button class="action-btn" type="button">🔁 Share</button>
+        `;
+
+        const cta = document.createElement('button');
+        cta.className = 'cta';
+        cta.type = 'button';
+        cta.textContent = 'Open Session';
+        cta.onclick = () => goTo('/static/my_sessions.html');
+
+        footer.append(actions, cta);
+        body.append(meta, title, summary, tags, footer);
+        card.append(media, body);
+        feedEl.appendChild(card);
+      });
+    }
+
+    renderFilters();
+    renderFeed();
   </script>
+  <script src="/static/js/ui_menu.js"></script>
 </body>
 </html>
-

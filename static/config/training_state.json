@@ -1,5 +1,13 @@
 {
-    "run": "viason_20250823_134837",
-    "epochs": 60,
-    "started_at": "2025-08-23T13:48:37.670642"
+  "run": "g_pose_20251028_123053",
+  "epochs": 120,
+  "started_at": "2025-10-28T12:30:53.622492",
+  "dataset": "g_pose",
+  "train_samples": 275,
+  "val_samples": 30,
+  "split_manifest": "C:\\Users\\dave\\Desktop\\Viasion\\viasion.app\\datasets\\g_pose\\_build\\split_manifest.json",
+  "source_folder": "golf_images",
+  "val_ratio": 0.1,
+  "batch": 16,
+  "imgsz": 640
 }

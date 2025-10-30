@@ -1,5 +1,21 @@
 // release_gate.js — consolidated release posture, kinematic scoring, and diagnostics
 
+const ACTIVE_PROJECT_SLUG = 'basketball';
+
+function isBasketballProjectActive() {
+  try {
+    const project =
+      window.__VIASON_ACTIVE_PROJECT ||
+      (typeof window.viasonProjectManager?.getActiveProject === 'function'
+        ? window.viasonProjectManager.getActiveProject()
+        : null);
+    const slug = project?.slug;
+    return !slug || slug === ACTIVE_PROJECT_SLUG;
+  } catch (err) {
+    return true;
+  }
+}
+
 const DEFAULT_FEATURE_WEIGHTS = {
   wristRadial: 0.24,
   elbowRate:   0.22,
@@ -26,6 +42,7 @@ function mirrorGlobals(cfg) {
 }
 
 export function initReleaseConfig() {
+  if (!isBasketballProjectActive()) return;
   try {
     const qs = new URLSearchParams(location.search || '');
     if (qs.has('releaseOnly')) {
@@ -82,10 +99,12 @@ export function initReleaseConfig() {
 }
 
 export function getReleaseKnobs() {
+  if (!isBasketballProjectActive()) return {};
   return { ...(window.REL_CFG || initReleaseConfig()) };
 }
 
 export function setReleaseKnobs(patch) {
+  if (!isBasketballProjectActive()) return;
   const cur = window.REL_CFG || initReleaseConfig();
   const next = {
     ...cur,
@@ -500,6 +519,7 @@ export function printPoseGate() {
 }
 
 export function printLastRelease() {
+  if (!isBasketballProjectActive()) return;
   try {
     const fps = Number(window.__videoFPS) || 30;
     const frame = Number.isFinite(window.ballState?.releaseFrame)
@@ -536,3 +556,14 @@ try {
   if (Number.isFinite(trip)) setReleaseKnobs({ hudScoreTrip: trip });
 } catch {}
 
+try {
+  const mgr = window?.viasonProjectManager;
+  if (mgr?.registerModule) {
+    mgr.registerModule('basketball/release-gate', {
+      project: ACTIVE_PROJECT_SLUG,
+      init() {
+        // release_gate exposes direct exports; runtime guarded by project checks.
+      }
+    });
+  }
+} catch {}

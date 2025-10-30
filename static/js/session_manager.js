@@ -6,6 +6,54 @@
 
 import { viasonSpeak, primeCoachAudio, listenForEndSession } from '/static/js/coach_voice.js';
 
+/* ------------------------ project helpers ------------------------ */
+function getActiveProjectMeta() {
+    try {
+        const mgr = window.viasonProjectManager;
+        if (mgr && typeof mgr.getActiveProject === 'function') {
+            const project = mgr.getActiveProject();
+            if (project) return project;
+        }
+    } catch { /* ignore */ }
+    const fallback = window.__VIASON_ACTIVE_PROJECT;
+    if (!fallback) return null;
+    if (typeof fallback === 'object' && fallback) return fallback;
+    if (typeof fallback === 'string') return { slug: fallback };
+    return null;
+}
+
+function getWorkflowConfig() {
+    const project = getActiveProjectMeta();
+    return (project && typeof project === 'object' && project.workflow) ? project.workflow : {};
+}
+
+function getWorkflowAttemptLabel() {
+    const workflow = getWorkflowConfig();
+    const raw = typeof workflow.attemptLabel === 'string' ? workflow.attemptLabel.trim() : '';
+    return raw || 'shot';
+}
+
+function projectRequiresTargetSelection() {
+    const workflow = getWorkflowConfig();
+    return workflow.requiresTargetSelection !== false;
+}
+
+function getWorkflowCountdownSeconds() {
+    const workflow = getWorkflowConfig();
+    const val = Number(workflow.countdownSeconds);
+    return Number.isFinite(val) && val > 0 ? val : 5;
+}
+
+function getWorkflowReadyPrompt() {
+    const workflow = getWorkflowConfig();
+    if (typeof workflow.readyPrompt === 'string') {
+        const trimmed = workflow.readyPrompt.trim();
+        if (trimmed) return trimmed;
+    }
+    const attempt = getWorkflowAttemptLabel();
+    return attempt === 'swing' ? 'Swing when ready.' : 'Shoot when ready.';
+}
+
 /* ------------------------ tiny helpers ------------------------ */
 async function postJSON(url, body) {
     const r = await fetch(url, {
@@ -78,6 +126,7 @@ function getFinalizedCount() {
 let __wired = false;
 let __sid = null;
 let __ended = false;
+let __startPromise = null;
 
 // Display name for voice (fallbacks)
 function getDisplayName() {
@@ -92,94 +141,125 @@ const name = getDisplayName();
 /* ------------------------ core actions ------------------------ */
 async function startSession() {
     if (__sid) return __sid;      // already started
-    __ended = false;
-    __shotCounter = 0;
-    __processedSummaries.clear();
+    if (__startPromise) return __startPromise;
 
-    // choose cap once per session (URL > env > LS > default)
-    let cap = (() => {
+    __startPromise = (async () => {
+        __ended = false;
+        __shotCounter = 0;
+        __processedSummaries.clear();
+
+        // choose cap once per session (URL > env > LS > default)
+        let cap = (() => {
+            try {
+                const q = new URLSearchParams(location.search || '');
+                const qp = Number(q.get('cap'));
+                if (Number.isFinite(qp) && qp > 0) return qp;
+            } catch { }
+            return Number(window.DEMO_SESSION_CAP ?? window.__SESSION_CAP ?? window.SESSION_CAP);
+        })();
+        if (!Number.isFinite(cap) || cap <= 0) cap = 10;
+        setSessionCap(cap);
+
+        let sessionId = null;
         try {
-            const q = new URLSearchParams(location.search || '');
-            const qp = Number(q.get('cap'));
-            if (Number.isFinite(qp) && qp > 0) return qp;
-        } catch { }
-        return Number(window.DEMO_SESSION_CAP ?? window.__SESSION_CAP ?? window.SESSION_CAP);
-    })();
-    if (!Number.isFinite(cap) || cap <= 0) cap = 10;
-    setSessionCap(cap);
+            const res = await postJSON('/api/sessions/start', { device: navigator.userAgent });
+            sessionId = res?.id || null;
+        } catch (err) {
+            __sid = null;
+            window.__SESSION_ID = null;
+            window.__SESSION_ACTIVE = false;
+            throw err;
+        }
 
-    // mint session
-    const res = await postJSON('/api/sessions/start', { device: navigator.userAgent });
-    __sid = res?.id || null;
-    window.__SESSION_ID = __sid || null;
-    window.__SESSION_ACTIVE = true;
-    window.__SESSION_SHOT_COUNT = 0;
-    window.__sessionStart = Date.now();
+        __sid = sessionId;
+        window.__SESSION_ID = sessionId || null;
+        window.__SESSION_ACTIVE = true;
+        window.__SESSION_SHOT_COUNT = 0;
+        window.__sessionStart = Date.now();
 
-    // nudge HUD
-    try { window.mountSessionHUD?.(); window.setSessionStatus?.('SESSION IN PROGRESS'); } catch { }
+        // nudge HUD
+        try { window.mountSessionHUD?.(); window.setSessionStatus?.('SESSION IN PROGRESS'); } catch { }
 
-    // tell everyone
-    let muted = false;
-    try { window.__coachMuted = false; } catch { }
-    try {
-        localStorage.setItem('viason_muted', 'false');
-        muted = localStorage.getItem('viason_muted') === 'true';
-    } catch {
-        muted = false;
-    }
-
-    const shouldGreet = !muted;
-
-    let resolveGreeting = null;
-    let greetingPromise = null;
-    if (shouldGreet) {
+        // tell everyone
+        let muted = false;
+        try { window.__coachMuted = false; } catch { }
         try {
-            greetingPromise = new Promise((resolve) => { resolveGreeting = resolve; });
-            window.__GREETING_PROMISE = greetingPromise;
-        } catch { resolveGreeting = null; greetingPromise = null; }
-    } else {
-        try { window.__GREETING_PROMISE = null; } catch { }
-    }
+            localStorage.setItem('viason_muted', 'false');
+            muted = localStorage.getItem('viason_muted') === 'true';
+        } catch {
+            muted = false;
+        }
 
-    try { window.dispatchEvent(new CustomEvent('hud:start-session')); } catch { }
+        const shouldGreet = !muted;
 
-    const finishGreeting = () => {
-        try { resolveGreeting?.(); } catch { }
-        try { window.__GREETING_PROMISE = null; } catch { }
-        try { window.dispatchEvent(new CustomEvent('coach:greeting-finished')); } catch { }
-    };
-
-    if (shouldGreet) {
-        const greeting = `${name}, let's get started. Tap the hoop area, then get into position to take your first shot.`;
-        try { await primeCoachAudio?.(); } catch { }
+        let resolveGreeting = null;
+        let greetingPromise = null;
+        const attemptLabel = getWorkflowAttemptLabel();
+        const requiresTarget = projectRequiresTargetSelection();
+        const readyPrompt = getWorkflowReadyPrompt();
+        const countdownSeconds = getWorkflowCountdownSeconds();
         try {
-            if (typeof viasonSpeak === 'function') {
-                try {
-                    const job = viasonSpeak(greeting);
-                    if (job && typeof job.then === 'function') {
-                        try { window.__GREETING_PROMISE = greetingPromise || job; } catch { }
-                        const ok = await job;
-                        if (!ok) console.warn('[coach:greeting] TTS failed');
-                    } else {
-                        console.warn('[coach:greeting] TTS handler returned non-promise');
+            window.__sessionReadyPrompt = readyPrompt;
+            window.__sessionCountdownSecs = countdownSeconds;
+        } catch { /* ignore storage issues */ }
+        if (shouldGreet) {
+            try {
+                greetingPromise = new Promise((resolve) => { resolveGreeting = resolve; });
+                window.__GREETING_PROMISE = greetingPromise;
+            } catch { resolveGreeting = null; greetingPromise = null; }
+        } else {
+            try { window.__GREETING_PROMISE = null; } catch { }
+        }
+
+        try { window.dispatchEvent(new CustomEvent('hud:start-session')); } catch { }
+
+        const finishGreeting = () => {
+            try { resolveGreeting?.(); } catch { }
+            try { window.__GREETING_PROMISE = null; } catch { }
+            try { window.dispatchEvent(new CustomEvent('coach:greeting-finished')); } catch { }
+        };
+
+        if (shouldGreet) {
+            const noun = attemptLabel || 'shot';
+            const fallbackPrompt = readyPrompt || 'Get into position when you are ready.';
+            const greeting = requiresTarget
+                ? `${name}, let's get started. Tap the target area, then get into position for your first ${noun}.`
+                : `${name}, let's get started. ${fallbackPrompt}`;
+            try { await primeCoachAudio?.(); } catch { }
+            try {
+                if (typeof viasonSpeak === 'function') {
+                    try {
+                        const job = viasonSpeak(greeting);
+                        if (job && typeof job.then === 'function') {
+                            try { window.__GREETING_PROMISE = greetingPromise || job; } catch { }
+                            const ok = await job;
+                            if (!ok) console.warn('[coach:greeting] TTS failed');
+                        } else {
+                            console.warn('[coach:greeting] TTS handler returned non-promise');
+                        }
+                    } catch (err) {
+                        console.warn('[coach:greeting] error', err);
+                        throw err;
                     }
-                } catch (err) {
-                    console.warn('[coach:greeting] error', err);
-                    throw err;
+                } else {
+                    console.warn('[coach:greeting] viasonSpeak not available');
                 }
-            } else {
-                console.warn('[coach:greeting] viasonSpeak not available');
+            } catch { }
+            finally {
+                finishGreeting();
             }
-        } catch { }
-        finally {
+        } else {
             finishGreeting();
         }
-    } else {
-        finishGreeting();
-    }
 
-    return __sid;
+        return sessionId;
+    })();
+
+    try {
+        return await __startPromise;
+    } finally {
+        __startPromise = null;
+    }
 }
 
 async function persistShotFromSummary(detail) {

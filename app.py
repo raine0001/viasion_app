@@ -9,6 +9,7 @@ from flask import (
     send_file,
     abort,
     url_for,
+    redirect,
     Blueprint,
     current_app,
     session,
@@ -65,6 +66,7 @@ import io
 import wave
 from datetime import date, datetime, timezone
 from collections import defaultdict
+import random
 import threading
 from queue import Queue
 from PIL import Image
@@ -146,6 +148,703 @@ os.makedirs(FRAME_FOLDER, exist_ok=True)
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 PRESET_FILE = DATA_DIR / "voice_presets.json"
+
+PROJECT_MANIFEST_PATH = os.path.join(app.root_path, "static", "config", "projects.json")
+_PROJECT_MANIFEST_CACHE = None
+_PROJECT_MANIFEST_MTIME = None
+_DEFAULT_DATASET_FALLBACK = {
+    "project": "basketball",
+    "slug": "basketball_pose",
+    "root": "datasets/viason_seg",
+    "frameCacheRoot": "frame_cache",
+    "framesRoot": "frames",
+    "labelTrainRoot": "datasets/viason_seg/labels/train",
+    "imagesTrainRoot": "datasets/viason_seg/images/train",
+}
+
+
+def _get_project_manifest():
+    global _PROJECT_MANIFEST_CACHE, _PROJECT_MANIFEST_MTIME
+    try:
+        mtime = os.path.getmtime(PROJECT_MANIFEST_PATH)
+    except OSError:
+        return {"projects": {}, "defaultProject": None}
+    if (
+        _PROJECT_MANIFEST_CACHE is not None
+        and _PROJECT_MANIFEST_MTIME == mtime
+    ):
+        return _PROJECT_MANIFEST_CACHE
+    try:
+        with open(PROJECT_MANIFEST_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        data = {"projects": {}, "defaultProject": None}
+    _PROJECT_MANIFEST_CACHE = data
+    _PROJECT_MANIFEST_MTIME = mtime
+    return data
+
+
+def _normalize_dataset(project_slug, dataset_cfg):
+    cfg = dict(dataset_cfg or {})
+    cfg["project"] = project_slug or cfg.get("project") or "basketball"
+    cfg["slug"] = cfg.get("slug") or f"{cfg['project']}_pose"
+    cfg["root"] = cfg.get("root") or "datasets/viason_seg"
+    cfg["frameCacheRoot"] = cfg.get("frameCacheRoot") or "frame_cache"
+    cfg["framesRoot"] = cfg.get("framesRoot") or "frames"
+    if not cfg.get("labelTrainRoot"):
+        cfg["labelTrainRoot"] = os.path.join(cfg["root"], "labels", "train")
+    if not cfg.get("imagesTrainRoot"):
+        cfg["imagesTrainRoot"] = os.path.join(cfg["root"], "images", "train")
+    detector_path = cfg.get("detector")
+    if detector_path:
+        cfg["detector"] = detector_path
+    else:
+        cfg.pop("detector", None)
+    labels = cfg.get("labels")
+    if isinstance(labels, list):
+        cfg["labels"] = labels
+    elif labels is None:
+        cfg["labels"] = []
+    else:
+        cfg["labels"] = list(labels)
+    return cfg
+
+
+def _resolve_dataset(dataset_slug=None):
+    manifest = _get_project_manifest()
+    target_slug = dataset_slug
+    projects = manifest.get("projects") or {}
+
+    if target_slug:
+        for project_slug, project_cfg in projects.items():
+            for dataset_cfg in project_cfg.get("datasets") or []:
+                if dataset_cfg.get("slug") == target_slug:
+                    return _normalize_dataset(project_slug, dataset_cfg)
+
+    default_project = manifest.get("defaultProject")
+    if default_project:
+        project_cfg = projects.get(default_project, {})
+        datasets = project_cfg.get("datasets") or []
+        if datasets:
+            return _normalize_dataset(default_project, datasets[0])
+
+    return dict(_DEFAULT_DATASET_FALLBACK)
+
+
+def _dataset_abs_path(dataset_cfg, key, *parts):
+    root = dataset_cfg.get(key)
+    if not root:
+        return None
+    base = root if os.path.isabs(root) else os.path.abspath(os.path.join(app.root_path, root))
+    return os.path.abspath(os.path.join(base, *parts))
+
+
+def _send_dataset_label(dataset_cfg, filename):
+    label_root = _dataset_abs_path(dataset_cfg, "labelTrainRoot")
+    if not label_root:
+        return None
+    candidate = os.path.abspath(os.path.join(label_root, filename))
+    if not candidate.startswith(label_root):
+        return None
+    if not os.path.exists(candidate):
+        return None
+    return send_file(candidate, mimetype="text/plain")
+
+
+def _ensure_dataset_dirs(dataset_cfg):
+    for key in ("root", "frameCacheRoot", "framesRoot", "labelTrainRoot", "imagesTrainRoot"):
+        path = dataset_cfg.get(key)
+        if not path:
+            continue
+        abs_path = _dataset_abs_path(dataset_cfg, key)
+        if abs_path:
+            os.makedirs(abs_path, exist_ok=True)
+
+
+def _collect_image_files(root_path):
+    total = 0
+    by_folder = []
+    if not root_path or not os.path.exists(root_path):
+        return total, by_folder
+    if os.path.isdir(root_path):
+        for entry in sorted(os.listdir(root_path)):
+            full = os.path.join(root_path, entry)
+            if os.path.isdir(full):
+                count = sum(
+                    1
+                    for name in os.listdir(full)
+                    if os.path.splitext(name)[1].lower() in IMAGE_EXTENSIONS
+                )
+                by_folder.append({"folder": entry, "images": count})
+                total += count
+            elif os.path.isfile(full):
+                ext = os.path.splitext(entry)[1].lower()
+                if ext in IMAGE_EXTENSIONS:
+                    total += 1
+    return total, by_folder
+
+
+def _dataset_summary(dataset_cfg):
+    summary = {
+        "slug": dataset_cfg.get("slug"),
+        "train_images": 0,
+        "train_labels": 0,
+        "label_distribution": [],
+        "frame_cache_total": 0,
+        "frame_sets": [],
+    }
+    frames_root = _dataset_abs_path(dataset_cfg, "frameCacheRoot")
+    images_root = _dataset_abs_path(dataset_cfg, "imagesTrainRoot")
+    labels_root = _dataset_abs_path(dataset_cfg, "labelTrainRoot")
+    labels = dataset_cfg.get("labels") or []
+
+    total_frames, frame_sets = _collect_image_files(frames_root)
+    summary["frame_cache_total"] = total_frames
+    summary["frame_sets"] = frame_sets
+
+    if images_root and os.path.exists(images_root):
+        summary["train_images"] = sum(
+            1
+            for name in os.listdir(images_root)
+            if os.path.splitext(name)[1].lower() in IMAGE_EXTENSIONS
+        )
+
+    distribution = defaultdict(int)
+    label_files = 0
+    if labels_root and os.path.exists(labels_root):
+        for name in os.listdir(labels_root):
+            if not name.lower().endswith(".txt"):
+                continue
+            label_files += 1
+            try:
+                with open(os.path.join(labels_root, name), "r", encoding="utf-8") as f:
+                    for line in f:
+                        parts = line.strip().split()
+                        if not parts:
+                            continue
+                        try:
+                            cid = int(float(parts[0]))
+                        except Exception:
+                            continue
+                        if labels and 0 <= cid < len(labels):
+                            key = labels[cid]
+                        else:
+                            key = str(cid)
+                        distribution[key] += 1
+            except Exception:
+                continue
+    summary["train_labels"] = label_files
+    summary["label_distribution"] = [
+        {"label": key, "count": count} for key, count in sorted(distribution.items())
+    ]
+    summary["train_pairs"] = min(summary["train_images"], summary["train_labels"])
+    return summary
+
+
+SUBSCRIPTIONS_CONFIG_PATH = os.path.join(app.root_path, "static", "config", "subscriptions.json")
+_SUBSCRIPTIONS_CACHE = None
+_SUBSCRIPTIONS_MTIME = None
+_DEFAULT_SUBSCRIPTIONS = {
+    "plans": {
+        "basketball_monthly": {
+            "id": "basketball_monthly",
+            "name": "Basketball Coaching",
+            "dataset": "basketball_pose",
+            "description": "Full access to the basketball shot coaching experience.",
+            "price": 19.99,
+            "period": "monthly",
+            "trial_days": 7,
+            "active": True,
+        },
+        "golf_range_monthly": {
+            "id": "golf_range_monthly",
+            "name": "Golf Range Analyzer",
+            "dataset": "g_pose",
+            "description": "Pose and object analysis tailored for golf swing sessions at the range.",
+            "price": 19.99,
+            "period": "monthly",
+            "trial_days": 7,
+            "active": True,
+        },
+    },
+    "userSubscriptions": {},
+}
+
+
+def _ensure_subscription_defaults(data):
+    if not isinstance(data, dict):
+        data = {}
+    data.setdefault("plans", {})
+    data.setdefault("userSubscriptions", {})
+    return data
+
+
+def _load_subscriptions_config():
+    global _SUBSCRIPTIONS_CACHE, _SUBSCRIPTIONS_MTIME
+    try:
+        mtime = os.path.getmtime(SUBSCRIPTIONS_CONFIG_PATH)
+    except OSError:
+        data = json.loads(json.dumps(_DEFAULT_SUBSCRIPTIONS))
+        _write_subscriptions_config(data)
+        return data
+
+    if _SUBSCRIPTIONS_CACHE is not None and _SUBSCRIPTIONS_MTIME == mtime:
+        return _SUBSCRIPTIONS_CACHE
+
+    try:
+        with open(SUBSCRIPTIONS_CONFIG_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        data = json.loads(json.dumps(_DEFAULT_SUBSCRIPTIONS))
+
+    data = _ensure_subscription_defaults(data)
+    _SUBSCRIPTIONS_CACHE = data
+    _SUBSCRIPTIONS_MTIME = mtime
+    return data
+
+
+def _write_subscriptions_config(data):
+    global _SUBSCRIPTIONS_CACHE, _SUBSCRIPTIONS_MTIME
+    os.makedirs(os.path.dirname(SUBSCRIPTIONS_CONFIG_PATH), exist_ok=True)
+    tmp_path = SUBSCRIPTIONS_CONFIG_PATH + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp_path, SUBSCRIPTIONS_CONFIG_PATH)
+    _SUBSCRIPTIONS_CACHE = data
+    try:
+        _SUBSCRIPTIONS_MTIME = os.path.getmtime(SUBSCRIPTIONS_CONFIG_PATH)
+    except OSError:
+        _SUBSCRIPTIONS_MTIME = None
+
+
+def _prepare_training_split(dataset_cfg, val_ratio=0.1):
+    """Build a fresh train/val split under dataset_root/_build/* and return metadata."""
+    image_src = _dataset_abs_path(dataset_cfg, "imagesTrainRoot")
+    label_src = _dataset_abs_path(dataset_cfg, "labelTrainRoot")
+    root_abs = _dataset_abs_path(dataset_cfg, "root")
+    if not root_abs:
+        raise RuntimeError("Dataset root is not configured")
+    if not image_src or not os.path.exists(image_src):
+        raise RuntimeError("Dataset has no images to train on yet")
+    if not label_src or not os.path.exists(label_src):
+        raise RuntimeError("Dataset has no labels to train on yet")
+
+    supported_exts = (".jpg", ".jpeg", ".png", ".bmp", ".JPG", ".JPEG", ".PNG", ".BMP")
+    pairs = []
+    for label_name in sorted(os.listdir(label_src)):
+        if not label_name.lower().endswith(".txt"):
+            continue
+        base = os.path.splitext(label_name)[0]
+        label_path = os.path.join(label_src, label_name)
+        image_path = None
+        for ext in supported_exts:
+            cand = os.path.join(image_src, base + ext)
+            if os.path.exists(cand):
+                image_path = cand
+                break
+        if not image_path:
+            _trace("[prepare_split] missing image for label", label_name)
+            continue
+        pairs.append((image_path, label_path))
+
+    if not pairs:
+        raise RuntimeError("No paired images/labels found for training")
+
+    # deterministic shuffle -> hold out val_ratio (default 10%)
+    rng = random.Random(42)
+    indices = list(range(len(pairs)))
+    rng.shuffle(indices)
+    try:
+        val_ratio = float(val_ratio)
+    except Exception:
+        val_ratio = 0.1
+    val_ratio = min(max(val_ratio, 0.0), 0.5)
+    val_count = int(round(len(pairs) * val_ratio))
+    if val_count <= 0 and len(pairs) > 1:
+        val_count = 1
+    val_indices = set(indices[:val_count])
+
+    build_root = os.path.join(root_abs, "_build")
+    shutil.rmtree(build_root, ignore_errors=True)
+
+    train_img_dir = os.path.join(build_root, "images", "train")
+    val_img_dir = os.path.join(build_root, "images", "val")
+    train_lbl_dir = os.path.join(build_root, "labels", "train")
+    val_lbl_dir = os.path.join(build_root, "labels", "val")
+    for path in (train_img_dir, val_img_dir, train_lbl_dir, val_lbl_dir):
+        os.makedirs(path, exist_ok=True)
+
+    manifest = {
+        "dataset": dataset_cfg.get("slug"),
+        "total": len(pairs),
+        "train": [],
+        "val": [],
+        "val_ratio_requested": val_ratio,
+    }
+
+    for idx, (img_path, label_path) in enumerate(pairs):
+        target_img_dir, target_lbl_dir, bucket = (
+            (val_img_dir, val_lbl_dir, manifest["val"])
+            if idx in val_indices
+            else (train_img_dir, train_lbl_dir, manifest["train"])
+        )
+        img_name = os.path.basename(img_path)
+        lbl_name = os.path.basename(label_path)
+        shutil.copy2(img_path, os.path.join(target_img_dir, img_name))
+        shutil.copy2(label_path, os.path.join(target_lbl_dir, lbl_name))
+        bucket.append({"image": img_name, "label": lbl_name})
+
+    yaml_path = os.path.join(build_root, "data.yaml")
+    rel_train = os.path.relpath(train_img_dir, root_abs).replace(os.sep, "/")
+    rel_val = os.path.relpath(val_img_dir, root_abs).replace(os.sep, "/")
+    names = dataset_cfg.get("labels") or sorted(REQUIRED_LABELS)
+    yaml_lines = [
+        f"path: {root_abs.replace(os.sep, '/')}",
+        f"train: {rel_train}",
+        f"val: {rel_val}",
+        f"names: {json.dumps(names)}",
+    ]
+    with open(yaml_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(yaml_lines) + "\n")
+
+    manifest_path = os.path.join(build_root, "split_manifest.json")
+    with open(manifest_path, "w", encoding="utf-8") as mf:
+        json.dump(manifest, mf, indent=2)
+
+    _trace(
+        "[prepare_split]",
+        dataset_cfg.get("slug"),
+        "total=",
+        len(pairs),
+        "train=",
+        len(manifest["train"]),
+        "val=",
+        len(manifest["val"]),
+    )
+
+    return {
+        "yaml_path": yaml_path,
+        "train_dir": train_img_dir,
+        "val_dir": val_img_dir,
+        "train_count": len(manifest["train"]),
+        "val_count": len(manifest["val"]),
+        "build_root": build_root,
+        "manifest_path": manifest_path,
+    }
+
+
+def _write_project_manifest(data):
+    global _PROJECT_MANIFEST_CACHE, _PROJECT_MANIFEST_MTIME
+    os.makedirs(os.path.dirname(PROJECT_MANIFEST_PATH), exist_ok=True)
+    tmp_path = PROJECT_MANIFEST_PATH + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp_path, PROJECT_MANIFEST_PATH)
+    _PROJECT_MANIFEST_CACHE = data
+    try:
+        _PROJECT_MANIFEST_MTIME = os.path.getmtime(PROJECT_MANIFEST_PATH)
+    except OSError:
+        _PROJECT_MANIFEST_MTIME = None
+
+
+@app.get("/api/projects")
+def api_list_projects():
+    return jsonify(_get_project_manifest())
+
+
+@app.post("/api/projects")
+def api_create_project():
+    payload = request.get_json(force=True, silent=True) or {}
+    slug = (payload.get("slug") or "").strip().lower()
+    if not slug:
+        return jsonify({"error": "slug is required"}), 400
+    manifest = _get_project_manifest()
+    projects = manifest.setdefault("projects", {})
+    if slug in projects:
+        return jsonify({"error": "project already exists"}), 400
+
+    name = (payload.get("name") or slug.replace("_", " ").title()).strip()
+    description = (payload.get("description") or "").strip()
+
+    raw_datasets = payload.get("datasets")
+    if not raw_datasets:
+        dataset_slug = (payload.get("dataset_slug") or f"{slug}_pose").strip().lower()
+        raw_datasets = [
+            {
+                "slug": dataset_slug,
+                "label": payload.get("dataset_label")
+                or f"{name} Dataset",
+                "root": payload.get("dataset_root") or f"datasets/{dataset_slug}",
+                "frameCacheRoot": payload.get("frameCacheRoot")
+                or f"frame_cache/{dataset_slug}",
+                "framesRoot": payload.get("framesRoot") or f"frames/{dataset_slug}",
+                "labelTrainRoot": payload.get("labelTrainRoot")
+                or f"datasets/{dataset_slug}/labels/train",
+                "imagesTrainRoot": payload.get("imagesTrainRoot")
+                or f"datasets/{dataset_slug}/images/train",
+                "labels": payload.get("labels") or [],
+            }
+        ]
+
+    datasets = []
+    for ds in raw_datasets:
+        norm = _normalize_dataset(slug, ds)
+        datasets.append(norm)
+        _ensure_dataset_dirs(norm)
+
+    modules = payload.get("modules") or {}
+
+    project = {
+        "name": name,
+        "description": description,
+        "datasets": datasets,
+        "modules": modules,
+    }
+
+    projects[slug] = project
+    if not manifest.get("defaultProject"):
+        manifest["defaultProject"] = slug
+
+    _write_project_manifest(manifest)
+    return jsonify({"project": project, "slug": slug})
+
+
+@app.patch("/api/projects/<slug>")
+def api_update_project(slug):
+    manifest = _get_project_manifest()
+    projects = manifest.setdefault("projects", {})
+    project = projects.get(slug)
+    if not project:
+        return jsonify({"error": "project not found"}), 404
+
+    payload = request.get_json(force=True, silent=True) or {}
+    if "name" in payload:
+        project["name"] = (payload.get("name") or project.get("name") or slug).strip()
+    if "description" in payload:
+        project["description"] = (payload.get("description") or "").strip()
+    if "modules" in payload and isinstance(payload.get("modules"), dict):
+        project["modules"] = payload["modules"]
+    if "datasets" in payload and isinstance(payload.get("datasets"), list):
+        new_datasets = []
+        for ds in payload["datasets"]:
+            norm = _normalize_dataset(slug, ds)
+            new_datasets.append(norm)
+            _ensure_dataset_dirs(norm)
+        if new_datasets:
+            project["datasets"] = new_datasets
+
+    _write_project_manifest(manifest)
+    return jsonify({"project": project, "slug": slug})
+
+
+@app.post("/api/projects/<slug>/detector")
+def api_set_project_detector(slug):
+    manifest = _get_project_manifest()
+    projects = manifest.get("projects") or {}
+    project = projects.get(slug)
+    if not project:
+        return jsonify({"error": "project not found"}), 404
+
+    payload = request.get_json(force=True, silent=True) or {}
+    dataset_slug = (payload.get("dataset") or "").strip()
+    detector_path = (payload.get("detector") or "").strip()
+    if not dataset_slug:
+        return jsonify({"error": "dataset slug required"}), 400
+
+    datasets = project.get("datasets") or []
+    target = next((ds for ds in datasets if ds.get("slug") == dataset_slug), None)
+    if not target:
+        return jsonify({"error": "dataset not found"}), 404
+
+    old_path = target.get("detector")
+
+    if detector_path:
+        # normalise path relative to app root when possible
+        detector_path = detector_path.replace("\\", "/")
+        abs_candidate = (
+            detector_path
+            if os.path.isabs(detector_path)
+            else os.path.abspath(os.path.join(app.root_path, detector_path))
+        )
+        abs_candidate = os.path.abspath(abs_candidate)
+        if abs_candidate.startswith(os.path.abspath(app.root_path)):
+            rel = os.path.relpath(abs_candidate, app.root_path).replace("\\", "/")
+            target["detector"] = rel
+            new_abs = os.path.abspath(os.path.join(app.root_path, rel))
+        else:
+            target["detector"] = detector_path
+            new_abs = abs_candidate
+    else:
+        target.pop("detector", None)
+        new_abs = None
+
+    _write_project_manifest(manifest)
+
+    # invalidate caches so next detection loads fresh weights
+    if old_path:
+        old_abs = (
+            old_path
+            if os.path.isabs(old_path)
+            else os.path.abspath(os.path.join(app.root_path, old_path))
+        )
+        _DETECTOR_CACHE.pop(os.path.abspath(old_abs), None)
+    if new_abs:
+        _DETECTOR_CACHE.pop(os.path.abspath(new_abs), None)
+
+    return jsonify(
+        {
+            "project": slug,
+            "dataset": dataset_slug,
+            "detector": target.get("detector"),
+        }
+    )
+
+
+# dataset summaries ---------------------------------------------------------
+@app.get("/api/datasets/<dataset_slug>/summary")
+def api_dataset_summary(dataset_slug):
+    dataset = _resolve_dataset(dataset_slug)
+    summary = _dataset_summary(dataset)
+    return jsonify({"dataset": dataset.get("slug"), **summary})
+
+
+@app.get("/api/subscriptions")
+def api_subscriptions_list():
+    return jsonify(_load_subscriptions_config())
+
+
+def _normalize_plan_payload(payload):
+    plan_id = (payload.get("id") or payload.get("plan_id") or "").strip()
+    if not plan_id:
+        raise ValueError("plan id required")
+    name = (payload.get("name") or plan_id.replace("_", " ").title()).strip()
+    dataset = (payload.get("dataset") or "").strip()
+    if not dataset:
+        raise ValueError("dataset slug required for plan")
+    description = (payload.get("description") or "").strip()
+    try:
+        price = float(payload.get("price", 0.0))
+    except Exception:
+        price = 0.0
+    period = (payload.get("period") or "monthly").strip().lower() or "monthly"
+    try:
+        trial_days = int(payload.get("trial_days", 0))
+    except Exception:
+        trial_days = 0
+    active = bool(payload.get("active", True))
+    return {
+        "id": plan_id,
+        "name": name,
+        "dataset": dataset,
+        "description": description,
+        "price": price,
+        "period": period,
+        "trial_days": max(0, trial_days),
+        "active": active,
+    }
+
+
+@app.post("/api/subscriptions/plan")
+def api_subscriptions_upsert_plan():
+    payload = request.get_json(force=True, silent=True) or {}
+    try:
+        plan = _normalize_plan_payload(payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    data = _load_subscriptions_config()
+    data.setdefault("plans", {})
+    data["plans"][plan["id"]] = plan
+    _write_subscriptions_config(data)
+    return jsonify({"plan": plan})
+
+
+@app.delete("/api/subscriptions/plan/<plan_id>")
+def api_subscriptions_delete_plan(plan_id):
+    data = _load_subscriptions_config()
+    plans = data.setdefault("plans", {})
+    plan = plans.get(plan_id)
+    if not plan:
+        return jsonify({"error": "plan not found"}), 404
+    plan["active"] = False
+    _write_subscriptions_config(data)
+    return jsonify({"plan": plan, "status": "deactivated"})
+
+
+def _ensure_user_subscription_key(user_id):
+    if user_id is None:
+        return None
+    if isinstance(user_id, int):
+        return str(user_id)
+    if isinstance(user_id, str) and user_id.strip():
+        return user_id.strip()
+    return None
+
+
+@app.post("/api/subscriptions/assign")
+def api_subscriptions_assign():
+    payload = request.get_json(force=True, silent=True) or {}
+    user_key = _ensure_user_subscription_key(payload.get("user_id") or payload.get("user"))
+    if not user_key:
+        if ALLOW_STUB_AUTH:
+            user_key = str(session.get("user_id") or "demo")
+        else:
+            return jsonify({"error": "user_id required"}), 400
+
+    plan_id = (payload.get("plan_id") or payload.get("id") or "").strip()
+    if not plan_id:
+        return jsonify({"error": "plan_id required"}), 400
+
+    data = _load_subscriptions_config()
+    plans = data.setdefault("plans", {})
+    if plan_id not in plans:
+        return jsonify({"error": "plan not found"}), 404
+    users = data.setdefault("userSubscriptions", {})
+    current = set(users.get(user_key, []))
+    current.add(plan_id)
+    users[user_key] = sorted(current)
+    _write_subscriptions_config(data)
+    return jsonify({"user": user_key, "plans": users[user_key]})
+
+
+@app.post("/api/subscriptions/unassign")
+def api_subscriptions_unassign():
+    payload = request.get_json(force=True, silent=True) or {}
+    user_key = _ensure_user_subscription_key(payload.get("user_id") or payload.get("user"))
+    if not user_key:
+        return jsonify({"error": "user_id required"}), 400
+    plan_id = (payload.get("plan_id") or payload.get("id") or "").strip()
+    if not plan_id:
+        return jsonify({"error": "plan_id required"}), 400
+    data = _load_subscriptions_config()
+    users = data.setdefault("userSubscriptions", {})
+    if user_key not in users:
+        return jsonify({"user": user_key, "plans": []})
+    current = set(users.get(user_key, []))
+    if plan_id in current:
+        current.remove(plan_id)
+        users[user_key] = sorted(current)
+        _write_subscriptions_config(data)
+    return jsonify({"user": user_key, "plans": users.get(user_key, [])})
+
+
+@app.get("/api/me/subscriptions")
+def api_my_subscriptions():
+    uid = session.get("user_id")
+    if uid is None and ALLOW_STUB_AUTH:
+        uid = session.setdefault("user_id", "demo")
+    key = _ensure_user_subscription_key(uid)
+    data = _load_subscriptions_config()
+    plans = data.get("plans", {})
+    user_plans = data.get("userSubscriptions", {}).get(key or "", [])
+    return jsonify(
+        {
+            "user_id": key,
+            "plan_ids": user_plans,
+            "plans": [plans[p] for p in user_plans if p in plans],
+        }
+    )
+
 
 # Track active users (lightweight, in-memory). Production should use Redis.
 app.active_users = {}
@@ -252,6 +951,7 @@ BASE_DIR = Path(__file__).resolve().parent
 model_det = None
 TRAINING_NAMES = None
 predict_lock = threading.Lock()
+_DETECTOR_CACHE: dict[str, "YOLO"] = {}
 if TORCH_AVAILABLE:
     try:
         model_det = YOLO(BASE_DIR / "weights/best.pt")
@@ -264,6 +964,30 @@ else:
     print(
         "⚠️ Torch/Ultralytics not available. Server will run with local ONNX (front-end) only."
     )
+
+
+def _get_dataset_detector(dataset_cfg):
+    """Return (YOLO model, class names) for a dataset; fallback to default detector."""
+    if not TORCH_AVAILABLE:
+        raise RuntimeError("Torch runtime not available for detectors")
+
+    path = (dataset_cfg or {}).get("detector")
+    if not path:
+        return model_det, (TRAINING_NAMES or [])
+
+    abs_path = path if os.path.isabs(path) else os.path.join(app.root_path, path)
+    cached = _DETECTOR_CACHE.get(abs_path)
+    if cached is None:
+        try:
+            cached = YOLO(abs_path)
+            _DETECTOR_CACHE[abs_path] = cached
+            print(f"[detector] loaded custom model: {abs_path}")
+        except Exception as exc:
+            print(f"⚠️ Failed to load detector {abs_path}: {exc}")
+            return model_det, (TRAINING_NAMES or [])
+
+    names = getattr(getattr(cached, "model", None), "names", None) or []
+    return cached, names
 
 
 # ----------- video routes -----------
@@ -313,6 +1037,11 @@ def upload_video():
 # ------------html routes ------------
 @app.route("/")
 def index():
+    return redirect(url_for("my_sessions_page"))
+
+
+@app.route("/start_session")
+def start_session_page():
     return send_from_directory("static", "index.html")
 
 
@@ -2303,9 +3032,14 @@ def api_face_clear():
     return jsonify({"status": result})
 
 
-@app.route("/my_viason")
-def my_viason():
-    return send_from_directory("static", "my_viason.html")
+@app.route("/my_viasion")
+def my_viasion():
+    return send_from_directory("static", "my_viasion.html")
+
+
+@app.route("/my_sessions")
+def my_sessions_page():
+    return send_from_directory("static", "my_sessions.html")
 
 
 @app.route("/dashboard")
@@ -2683,7 +3417,11 @@ def api_coach_finalize():
 # -----------app routes --------------
 @app.route("/frames/<video_name>/<frame_file>")
 def serve_frame(video_name, frame_file):
-    return send_from_directory(os.path.join("frame_cache", video_name), frame_file)
+    dataset = _resolve_dataset(request.args.get("dataset"))
+    folder_abs = _dataset_abs_path(dataset, "frameCacheRoot", video_name)
+    if not folder_abs or not os.path.exists(folder_abs):
+        return abort(404)
+    return send_from_directory(folder_abs, frame_file)
 
 
 @app.route("/test_openai")
@@ -2697,13 +3435,20 @@ def test_openai():
 
 @app.route("/list_frames/<video_name>")
 def list_frames(video_name):
-    folder_path = os.path.join("frame_cache", video_name)
-    if not os.path.exists(folder_path):
+    dataset = _resolve_dataset(request.args.get("dataset"))
+    folder_path = _dataset_abs_path(dataset, "frameCacheRoot", video_name)
+    if not folder_path or not os.path.exists(folder_path):
+        _trace("[list_frames]", "missing folder", "dataset=", dataset.get("slug"), "folder=", folder_path)
         return jsonify({"error": "Folder not found"}), 404
 
-    frames = [f for f in os.listdir(folder_path) if f.endswith(".jpg")]
+    frames = [
+        f
+        for f in os.listdir(folder_path)
+        if f.lower().endswith((".jpg", ".jpeg", ".png"))
+    ]
     frames.sort()
-    return jsonify({"frames": frames})
+    _trace("[list_frames]", "dataset=", dataset.get("slug"), "folder=", folder_path, "count=", len(frames))
+    return jsonify({"frames": frames, "dataset": dataset.get("slug")})
 
 
 # ---------------------- Admin Debug Views ----------------------
@@ -3776,12 +4521,16 @@ def save_yolo_label():
     folder = data.get("folder")
     filename = data.get("filename")
     content = data.get("content", "")
+    dataset_slug = data.get("dataset")
 
-    folder_path = os.path.join("frames", folder)
+    dataset = _resolve_dataset(dataset_slug)
+    folder_path = _dataset_abs_path(dataset, "framesRoot", folder)
+    if not folder_path:
+        return jsonify({"error": "Dataset frames directory unavailable"}), 400
     os.makedirs(folder_path, exist_ok=True)
 
     label_path = os.path.join(folder_path, filename)
-    with open(label_path, "w") as f:
+    with open(label_path, "w", encoding="utf-8") as f:
         f.write(content.strip())
     return "", 200
 
@@ -3927,14 +4676,53 @@ def compile_dataset(folder):
 
 
 # replaces start_training - initiate training Yolo model
-def _kickoff_training():
+def _kickoff_training(folder=None):
     try:
-        yaml_path = os.path.join("datasets", "viason_seg", "data.yaml")
-        run_name = f"viason_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        epochs = 120
-        imgsz = 640
-        batch = 16
-        workers = 0
+        payload = {}
+        if request.is_json:
+            payload = request.get_json(silent=True) or {}
+        dataset_slug = (
+            (payload.get("dataset") or "").strip()
+            or (request.args.get("dataset") or "").strip()
+        )
+        dataset = _resolve_dataset(dataset_slug or None)
+        dataset_slug = dataset.get("slug", "viason")
+
+        val_ratio = payload.get("val_ratio", request.args.get("val_ratio", 0.1))
+        try:
+            val_ratio = float(val_ratio)
+        except Exception:
+            val_ratio = 0.1
+
+        epochs = payload.get("epochs", request.args.get("epochs", 120))
+        try:
+            epochs = int(epochs)
+        except Exception:
+            epochs = 120
+
+        imgsz = payload.get("imgsz", request.args.get("imgsz", 640))
+        try:
+            imgsz = int(imgsz)
+        except Exception:
+            imgsz = 640
+
+        batch = payload.get("batch", request.args.get("batch", 16))
+        try:
+            batch = int(batch)
+        except Exception:
+            batch = 16
+
+        workers = payload.get("workers", request.args.get("workers", 0))
+        try:
+            workers = int(workers)
+        except Exception:
+            workers = 0
+
+        folder_hint = payload.get("folder") or folder
+
+        split_info = _prepare_training_split(dataset, val_ratio=val_ratio)
+        yaml_path = split_info["yaml_path"]
+        run_name = f"{dataset_slug}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         model = "yolov8s.pt"
         aug = (
             "hsv_h=0.015 hsv_s=0.7 hsv_v=0.4 degrees=5 translate=0.08 "
@@ -3955,25 +4743,43 @@ def _kickoff_training():
                     "run": run_name,
                     "epochs": epochs,
                     "started_at": datetime.now().isoformat(),
+                    "dataset": dataset_slug,
+                    "train_samples": split_info["train_count"],
+                    "val_samples": split_info["val_count"],
+                    "split_manifest": split_info["manifest_path"],
+                    "source_folder": folder_hint,
+                    "val_ratio": val_ratio,
+                    "batch": batch,
+                    "imgsz": imgsz,
                 },
                 f,
                 indent=2,
             )
 
-        print("🚀 Running:", cmd)
+        print('[train] Running:', cmd)
         subprocess.Popen(cmd, shell=True)
         return jsonify(
-            {"status": "🚀 Training started.", "run": run_name, "epochs": epochs}
+            {
+                "status": "Training started.",
+                "run": run_name,
+                "epochs": epochs,
+                "train_samples": split_info["train_count"],
+                "val_samples": split_info["val_count"],
+                "dataset": dataset_slug,
+                "val_ratio": val_ratio,
+                "batch": batch,
+                "imgsz": imgsz,
+                "source_folder": folder_hint,
+            }
         )
     except Exception as e:
-        print("❌ Training failed:", e)
-        return jsonify({"status": "❌ Training failed.", "error": str(e)}), 500
-
+        print('[train] Training failed:', e)
+        return jsonify({"status": "Training failed.", "error": str(e)}), 500
 
 # keep a route that accepts the old frontend shape with <folder>
 @app.route("/start_training/<folder>")
 def start_training(folder):
-    return _kickoff_training()
+    return _kickoff_training(folder=folder)
 
 
 # tolerant route without folder (frontend can call /start_training)
@@ -4006,6 +4812,58 @@ def upload():
         kalman = init_kalman()
         return jsonify({"video": f"/uploads/{filename}"})
     return jsonify({"error": "No video uploaded"}), 400
+
+
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+
+
+@app.post("/upload_image_set")
+def upload_image_set():
+    dataset = _resolve_dataset(request.form.get("dataset"))
+    files = request.files.getlist("images")
+    folder_name = request.form.get("folder") or ""
+    if not files:
+        return jsonify({"error": "No images provided"}), 400
+
+    base_folder = secure_filename(folder_name) if folder_name else ""
+    if not base_folder:
+        base_folder = f"imageset_{int(time.time())}"
+    target_dir = _dataset_abs_path(dataset, "frameCacheRoot", base_folder)
+    if not target_dir:
+        return jsonify({"error": "Dataset frame directory unavailable"}), 400
+    os.makedirs(target_dir, exist_ok=True)
+
+    saved = []
+    for i, file in enumerate(files):
+        filename = secure_filename(file.filename)
+        if not filename:
+            continue
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in IMAGE_EXTENSIONS:
+            continue
+        dest = os.path.join(target_dir, filename)
+        stem, ext = os.path.splitext(filename)
+        counter = 1
+        while os.path.exists(dest):
+            dest = os.path.join(target_dir, f"{stem}_{counter}{ext}")
+            counter += 1
+        try:
+            file.save(dest)
+            saved.append(os.path.basename(dest))
+        except Exception as exc:
+            print("[upload_image_set] failed to save", filename, exc)
+
+    if not saved:
+        return jsonify({"error": "No images saved (check file types)"}), 400
+
+    return jsonify(
+        {
+            "folder": base_folder,
+            "count": len(saved),
+            "dataset": dataset.get("slug"),
+            "images": saved,
+        }
+    )
 
 
 @app.route("/uploads/<filename>")
@@ -4077,6 +4935,7 @@ def extract_frames():
     filename = data.get("filename")
     step = int(data.get("step", 5))  # every N frames
     every_seconds = data.get("every_seconds")  # optional float (e.g., 0.5)
+    dataset = _resolve_dataset(data.get("dataset"))
     if every_seconds is not None:
         try:
             every_seconds = float(every_seconds)
@@ -4090,14 +4949,36 @@ def extract_frames():
     if not os.path.exists(video_path):
         return jsonify({"error": f"File not found: {video_path}"}), 404
 
-    out_dir = os.path.join(FRAME_FOLDER, os.path.splitext(filename)[0])
+    base_name = os.path.splitext(os.path.basename(filename))[0]
+    safe_folder = secure_filename(base_name) or "frameset"
+    out_dir = _dataset_abs_path(dataset, "frameCacheRoot", safe_folder)
+    if not out_dir:
+        return jsonify({"error": "Dataset frame directory unavailable"}), 400
     os.makedirs(out_dir, exist_ok=True)
+    _trace(
+        "[extract_frames]",
+        "dataset=",
+        dataset.get("slug"),
+        "out_dir=",
+        out_dir,
+        "step=",
+        step,
+        "every_seconds=",
+        every_seconds,
+    )
 
     try:
         saved_filenames = extract_video_frames(
             video_path, out_dir, step=step, every_seconds=every_seconds
         )
-        return jsonify({"frames": saved_filenames, "count": len(saved_filenames)})
+        return jsonify(
+            {
+                "frames": saved_filenames,
+                "count": len(saved_filenames),
+                "folder": safe_folder,
+                "dataset": dataset.get("slug"),
+            }
+        )
     except Exception as e:
         print("❌ extract_frames failed:", e)
         return jsonify({"error": f"Frame extraction failed: {str(e)}"}), 500
@@ -4206,25 +5087,32 @@ def rotate_frame():
 def load_yolo_label(folder, filename):
     """
     Search order:
-      1) frames/<folder>/<filename>
-      2) datasets/viason_seg/labels/train/<filename>  (fallback)
+      1) framesRoot/<folder>/<filename>
+      2) dataset label directory (labelTrainRoot)
     Returns text/plain if found; otherwise 204 (no content).
     """
-    # primary: frames/<folder>/<filename>
-    frames_root = os.path.abspath(os.path.join(app.root_path, "frames", folder))
-    cand = os.path.abspath(os.path.join(frames_root, filename))
-    if cand.startswith(frames_root) and os.path.exists(cand):
-        return send_file(cand, mimetype="text/plain")
+    dataset = _resolve_dataset(request.args.get("dataset"))
 
-    # fallback: dataset label copy
-    ds_root = os.path.abspath(
-        os.path.join(app.root_path, "datasets", "viason_seg", "labels", "train")
-    )
-    ds_cand = os.path.abspath(os.path.join(ds_root, filename))
-    if ds_cand.startswith(ds_root) and os.path.exists(ds_cand):
-        return send_file(ds_cand, mimetype="text/plain")
+    frames_root = _dataset_abs_path(dataset, "framesRoot", folder)
+    if frames_root:
+        cand = os.path.abspath(os.path.join(frames_root, filename))
+        if cand.startswith(frames_root) and os.path.exists(cand):
+            return send_file(cand, mimetype="text/plain")
+
+    fallback = _send_dataset_label(dataset, filename)
+    if fallback:
+        return fallback
 
     # keep console clean when no label exists yet
+    return ("", 204)
+
+
+@app.route("/dataset_label/<dataset_slug>/<path:filename>")
+def dataset_label(dataset_slug, filename):
+    dataset = _resolve_dataset(dataset_slug)
+    result = _send_dataset_label(dataset, filename)
+    if result:
+        return result
     return ("", 204)
 
 
@@ -4345,7 +5233,7 @@ def label_frame():
 @app.route("/auto_detect_frame_openai", methods=["POST"])
 def auto_detect_frame_openai():
     """
-    Body:  { folder: str, filename: str, confidence?: float }
+    Body:  { folder: str, filename: str, confidence?: float, dataset?: str }
     Return: { img_w:int, img_h:int, detections:[ {label,confidence,box:[x1,y1,x2,y2]}... ] }
             NOTE: box is in ORIGINAL image pixels (no 1280x720 mapping).
     """
@@ -4354,14 +5242,21 @@ def auto_detect_frame_openai():
         folder = b.get("folder")
         filename = b.get("filename")
         conf = float(b.get("confidence", 0.20))
+        dataset = _resolve_dataset(b.get("dataset"))
 
-        # Prefer frame_cache (what UI shows)
-        search_dirs = [
+        search_dirs = []
+        fc_path = _dataset_abs_path(dataset, "frameCacheRoot", folder)
+        if fc_path:
+            search_dirs.append(fc_path)
+        fr_path = _dataset_abs_path(dataset, "framesRoot", folder)
+        if fr_path:
+            search_dirs.append(fr_path)
+        search_dirs.extend([
             os.path.join(app.root_path, "frame_cache", folder),
             os.path.join(app.root_path, "frames", folder),
             os.path.join("frame_cache", folder),
             os.path.join("frames", folder),
-        ]
+        ])
         image_path = None
         for d in search_dirs:
             p = os.path.join(d, filename)
@@ -4379,7 +5274,11 @@ def auto_detect_frame_openai():
         with open(image_path, "rb") as f:
             b64 = base64.b64encode(f.read()).decode("utf-8")
 
-        allowed = ["basketball", "hoop", "net", "backboard", "player"]
+        default_labels = ["basketball", "hoop", "net", "backboard", "player"]
+        allowed = dataset.get("labels") or default_labels
+        allowed = [lbl for lbl in allowed if lbl]
+        if not allowed:
+            allowed = default_labels
         alias = {
             "rim": "hoop",
             "ring": "hoop",
@@ -4391,6 +5290,7 @@ def auto_detect_frame_openai():
             "person": "player",
             "net": "net",
         }
+        alias = {k: v for k, v in alias.items() if v in allowed}
 
         client = get_openai_client()
         prompt = (
@@ -4441,16 +5341,13 @@ def auto_detect_frame_openai():
             if len(box) != 4:
                 continue
 
-            # Robust parse: support normalized [0..1], percent [0..100], or pixels
             x1, y1, x2, y2 = [float(v) for v in box]
-            # Normalize weird orders
             if (
                 0.0 <= x1 <= 1.0
                 and 0.0 <= x2 <= 1.0
                 and 0.0 <= y1 <= 1.0
                 and 0.0 <= y2 <= 1.0
             ):
-                # normalized [0..1]
                 x1, x2 = x1 * W, x2 * W
                 y1, y2 = y1 * H, y2 * H
             elif (
@@ -4459,21 +5356,17 @@ def auto_detect_frame_openai():
                 and 0.0 <= y1 <= 100.0
                 and 0.0 <= y2 <= 100.0
             ):
-                # percentages
                 x1, x2 = (x1 / 100.0) * W, (x2 / 100.0) * W
                 y1, y2 = (y1 / 100.0) * H, (y2 / 100.0) * H
-            # else: assume pixels already
-
-            # sanitize / clamp & order
-            x1, x2 = sorted([max(0, min(W - 1, x1)), max(0, min(W - 1, x2))])
-            y1, y2 = sorted([max(0, min(H - 1, y1)), max(0, min(H - 1, y2))])
-            if x2 - x1 < 2 or y2 - y1 < 2:
+            x1, x2 = sorted((x1, x2))
+            y1, y2 = sorted((y1, y2))
+            if x2 - x1 <= 1 or y2 - y1 <= 1:
                 continue
 
             dets_out.append(
                 {
                     "label": lbl,
-                    "confidence": round(c, 4),
+                    "confidence": float(c),
                     "box": [int(x1), int(y1), int(x2), int(y2)],
                 }
             )
@@ -4482,16 +5375,7 @@ def auto_detect_frame_openai():
 
     except Exception as e:
         traceback.print_exc()
-        if "OPENAI_API_KEY" in str(e) or "api_key" in str(e):
-            return jsonify({"error": "OPENAI_API_KEY missing or invalid"}), 400
         return jsonify({"error": str(e)}), 500
-
-
-# use yolo to detect objects in frame for extractor
-FRAME_DIR = os.path.join(app.root_path, "frames")
-ALT_FRAME_DIR = os.path.join(
-    app.root_path, "frame_cache"
-)  # fallback if symbolic link used
 
 
 @app.route("/auto_detect_frame", methods=["POST"])
@@ -4499,15 +5383,23 @@ def auto_detect_frame():
     data = request.get_json()
     folder = data["folder"]
     filename = data["filename"]
-    conf = float(data.get("confidence", 0.15))  # setting for extractor auto detection
+    conf = float(data.get("confidence", 0.15))  # extractor auto-detect setting
+    dataset = _resolve_dataset(data.get("dataset"))
 
-    # Prefer the bitmap the UI is showing (frame_cache first)
-    search_dirs = [
+    search_dirs = []
+    fc_path = _dataset_abs_path(dataset, "frameCacheRoot", folder)
+    if fc_path:
+        search_dirs.append(fc_path)
+    fr_path = _dataset_abs_path(dataset, "framesRoot", folder)
+    if fr_path:
+        search_dirs.append(fr_path)
+    search_dirs.extend([
         os.path.join(app.root_path, "frame_cache", folder),
         os.path.join(app.root_path, "frames", folder),
         os.path.join("frame_cache", folder),
         os.path.join("frames", folder),
-    ]
+    ])
+
     image_path = None
     for d in search_dirs:
         p = os.path.join(d, filename)
@@ -4523,20 +5415,22 @@ def auto_detect_frame():
             return jsonify({"error": "Failed to read image"}), 500
         H, W = img.shape[:2]
 
-        # Single-threaded predict (Windows stability)
-        with predict_lock:
-            res = model_det.predict(image_path, conf=conf, imgsz=640, verbose=False)[0]
+        model, names = _get_dataset_detector(dataset)
+        if model is None:
+            return jsonify({"error": "Detector model unavailable"}), 500
 
-        names = getattr(getattr(model_det, "model", None), "names", None) or []
+        with predict_lock:
+            res = model.predict(image_path, conf=conf, imgsz=640, verbose=False)[0]
+
+        class_names = names or []
         dets = []
         for b in res.boxes:
             cid = int(b.cls[0])
             x1, y1, x2, y2 = map(float, b.xyxy[0].tolist())
             dets.append(
                 {
-                    "label": names[cid] if 0 <= cid < len(names) else f"class_{cid}",
+                    "label": class_names[cid] if 0 <= cid < len(class_names) else f"class_{cid}",
                     "confidence": float(b.conf[0]),
-                    # ORIGINAL image pixels — front-end will scale to the canvas
                     "box": [int(x1), int(y1), int(x2), int(y2)],
                 }
             )
@@ -4844,19 +5738,23 @@ def set_detector_model():
 # route to serve training labels
 @app.route("/datasets/viason_seg/labels/train/<filename>")
 def serve_dataset_label(filename):
-    return send_from_directory("datasets/viason_seg/labels/train", filename)
+    dataset = _resolve_dataset("basketball_pose")
+    result = _send_dataset_label(dataset, filename)
+    if result:
+        return result
+    return ("", 204)
 
 
 # list_frame_folders route to populate dropdown on extraction page
 @app.route("/list_frame_folders")
 def list_frame_folders():
-    import os
-
-    root = os.path.join(app.root_path, "frame_cache")
+    dataset = _resolve_dataset(request.args.get("dataset"))
+    root = _dataset_abs_path(dataset, "frameCacheRoot")
     folders = []
-    if os.path.exists(root):
+    if root and os.path.exists(root):
         folders = [f for f in os.listdir(root) if os.path.isdir(os.path.join(root, f))]
-    return jsonify({"folders": sorted(folders)})
+    _trace("[list_frame_folders]", "dataset=", dataset.get("slug"), "root=", root, "folders=", folders)
+    return jsonify({"folders": sorted(folders), "dataset": dataset.get("slug")})
 
 
 # ✅ Utility: Move rejected to manual_review/ and log it
@@ -5210,22 +6108,29 @@ def copy_label_to_dataset():
     filename = data.get("filename")
     image = data.get("image")
     sport = (data.get("sport") or CURRENT_SPORT).lower()
+    dataset_slug = data.get("dataset")
+    if not dataset_slug and sport:
+        dataset_slug = f"{sport}_pose"
+    dataset = _resolve_dataset(dataset_slug)
 
-    src_txt = os.path.join("frames", folder, filename)
-    src_img = os.path.join("frame_cache", folder, image)
-    if not os.path.exists(src_img):
+    src_txt = _dataset_abs_path(dataset, "framesRoot", folder, filename)
+    src_img = _dataset_abs_path(dataset, "frameCacheRoot", folder, image)
+    if not src_txt or not os.path.exists(src_txt):
+        return jsonify({"error": f"missing label file: {src_txt}"}), 404
+    if not src_img or not os.path.exists(src_img):
         return jsonify({"error": f"missing image: {src_img}"}), 404
 
-    base = _sport_dataset_root(sport)
-    label_dst = os.path.join(base, "labels", "train", filename)
-    image_dst = os.path.join(base, "images", "train", image)
+    label_dst = _dataset_abs_path(dataset, "labelTrainRoot", filename)
+    image_dst = _dataset_abs_path(dataset, "imagesTrainRoot", image)
+    if not label_dst or not image_dst:
+        return jsonify({"error": "dataset paths unavailable"}), 400
+
     os.makedirs(os.path.dirname(label_dst), exist_ok=True)
+    os.makedirs(os.path.dirname(image_dst), exist_ok=True)
 
     shutil.copy2(src_txt, label_dst)
     shutil.copy2(src_img, image_dst)
-    return jsonify(
-        {"status": f"✅ Copied {filename} and {image} to {sport} training folders."}
-    )
+    return jsonify({"status": f"�o. Copied {filename} and {image} to {dataset.get('slug')} training folders.", "dataset": dataset.get("slug")})
 
 
 @app.get("/healthz")

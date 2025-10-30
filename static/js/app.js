@@ -7,6 +7,43 @@
 try { window.__appJsLoaded = true; } catch { }
 try { window.DEFER_FE_SUMMARY = false; } catch { }
 
+function getActiveProjectMeta() {
+    try {
+        const mgr = window.viasonProjectManager;
+        if (mgr && typeof mgr.getActiveProject === 'function') {
+            const project = mgr.getActiveProject();
+            if (project) return project;
+        }
+    } catch { /* ignore */ }
+    const fallback = window.__VIASON_ACTIVE_PROJECT;
+    if (!fallback) return null;
+    if (typeof fallback === 'object' && fallback) return fallback;
+    if (typeof fallback === 'string') return { slug: fallback };
+    return null;
+}
+
+function getWorkflowConfig() {
+    const project = getActiveProjectMeta();
+    return (project && typeof project === 'object' && project.workflow) ? project.workflow : {};
+}
+
+function projectRequiresTargetSelection() {
+    const workflow = getWorkflowConfig();
+    return workflow.requiresTargetSelection !== false;
+}
+
+function getWorkflowCountdownSeconds() {
+    const workflow = getWorkflowConfig();
+    const val = Number(workflow.countdownSeconds);
+    return Number.isFinite(val) ? val : 5;
+}
+
+function getWorkflowReadyPrompt() {
+    const workflow = getWorkflowConfig();
+    if (workflow.readyPrompt) return workflow.readyPrompt;
+    return workflow.attemptLabel === 'swing' ? 'Swing when ready.' : 'Shoot when ready.';
+}
+
 function computePoseScoreFallback(snapshot, baseWeighted = null, debugTag = null, opts = {}) {
     if (!snapshot || typeof snapshot !== 'object') return null;
 
@@ -1976,6 +2013,9 @@ function setPoseIfMissing(shotId, snap) {
             stabilityEvidence: null,
         };
 
+        const workflow = (typeof getWorkflowConfig === 'function') ? (getWorkflowConfig() || {}) : {};
+        const requiresBallInHand = workflow.requiresBallInHand !== false;
+
         const pushAttempt = (released, extra = {}) => {
             if (!attemptEntry) return released;
             const entry = {
@@ -2045,8 +2085,11 @@ function setPoseIfMissing(shotId, snap) {
                 return rejectAndReturn('COOLDOWN_ACTIVE', { remainingMs: cooldownUntil - now });
             }
 
-            const hoopBox = (window.getLockedHoopBox?.()) || (typeof getLockedHoopBox === 'function' ? getLockedHoopBox() : null);
-            if (!hoopBox) {
+            const requiresTarget = projectRequiresTargetSelection();
+            const hoopBox = requiresTarget
+                ? ((window.getLockedHoopBox?.()) || (typeof getLockedHoopBox === 'function' ? getLockedHoopBox() : null))
+                : (window.__virtualHoopBox || null);
+            if (requiresTarget && !hoopBox) {
                 return rejectAndReturn('BLOCKED_WRONG_RIM_ROI', { hoopLocked: false });
             }
 
@@ -2133,32 +2176,48 @@ function setPoseIfMissing(shotId, snap) {
                 return rejectAndReturn('TRACK_NOT_BOUND', { reason: poseBinding?.mode || 'pose-unbound', poseRect, appearanceScore: poseBinding?.score ?? null, visibility: poseBinding?.visibility || null });
             }
 
-            const ballCheck = (typeof window.computeBallInHand === 'function')
-                ? window.computeBallInHand(window.playerState?.keypoints || null, { history: recentHistory, side: gateResult.tests?.side, balls: opts.ballCandidates, frameIdx: fnum })
-                : { ok: true, metrics: {}, reasons: [], side: gateResult.tests?.side || null };
+            let ballCheck;
+            if (requiresBallInHand) {
+                ballCheck = (typeof window.computeBallInHand === 'function')
+                    ? window.computeBallInHand(window.playerState?.keypoints || null, { history: recentHistory, side: gateResult.tests?.side, balls: opts.ballCandidates, frameIdx: fnum })
+                    : { ok: true, metrics: {}, reasons: [], side: gateResult.tests?.side || null };
+            } else {
+                ballCheck = {
+                    ok: true,
+                    metrics: {},
+                    reasons: [],
+                    side: gateResult.tests?.side || null,
+                    bypass: true,
+                };
+            }
 
             const ballReasons = ballCheck?.reasons || [];
             const strongBinding = !!poseBinding && ['face-lock', 'lock-overlap', 'appearance', 'pose-continuation', 'pose-stable'].includes(poseBinding.mode);
-            const fallbackPoseOnly = (window.POSE_FIRST_ONLY === true)
+            const fallbackPoseOnly = requiresBallInHand
+                && (window.POSE_FIRST_ONLY === true)
                 && ballReasons.length
                 && ballReasons.every(r => r === 'BALL_NOT_FOUND' || r === 'HAND_KEYPOINTS_MISSING' || r === 'POSE_MISSING' || r === 'HAND_NOT_CLOSED')
                 && Number(gateResult.score || 0) >= Number(window.REL_CFG?.scoreThresh ?? 0.75)
                 && strongBinding;
             if (attemptEntry) {
                 attemptEntry.ball = {
+                    required: requiresBallInHand,
                     ok: !!ballCheck?.ok,
                     reasons: Array.isArray(ballReasons) ? [...ballReasons] : [],
                     metrics: ballCheck?.metrics && typeof ballCheck.metrics === 'object' ? { ...ballCheck.metrics } : {},
                     side: ballCheck?.side ?? null,
                     recent: ballCheck?.metrics?.ballRecent ?? null,
+                    bypass: requiresBallInHand ? false : true,
                 };
                 attemptEntry.fallbackPoseOnly = !!fallbackPoseOnly;
             }
-            if (!ballCheck?.ok && !fallbackPoseOnly) {
-                return rejectAndReturn('NO_ARM_NO_BALLINHAND', { reasons: ballReasons, metrics: ballCheck?.metrics || {}, side: ballCheck?.side || null });
-            }
-            if (ballCheck.metrics?.ballRecent === false && !fallbackPoseOnly) {
-                return rejectAndReturn('NO_ARM_NO_BALLINHAND', { reasons: (ballCheck?.reasons || []).concat(['BALL_STALE']), metrics: ballCheck?.metrics || {}, side: ballCheck?.side || null });
+            if (requiresBallInHand) {
+                if (!ballCheck?.ok && !fallbackPoseOnly) {
+                    return rejectAndReturn('NO_ARM_NO_BALLINHAND', { reasons: ballReasons, metrics: ballCheck?.metrics || {}, side: ballCheck?.side || null });
+                }
+                if (ballCheck.metrics?.ballRecent === false && !fallbackPoseOnly) {
+                    return rejectAndReturn('NO_ARM_NO_BALLINHAND', { reasons: (ballCheck?.reasons || []).concat(['BALL_STALE']), metrics: ballCheck?.metrics || {}, side: ballCheck?.side || null });
+                }
             }
 
             window.__releaseReject = null;
@@ -2173,12 +2232,14 @@ function setPoseIfMissing(shotId, snap) {
                 tests: gateResult.tests || {},
                 features: gateResult.features || {},
                 ballInHand: {
-                    ok: ballCheck.ok || usedBallFallback,
+                    required: requiresBallInHand,
+                    ok: requiresBallInHand ? (ballCheck.ok || usedBallFallback) : true,
                     metrics: ballCheck.metrics || {},
                     reasons: ballCheck.reasons || [],
                     checksPassed: ballCheck.checksPassed ?? null,
                     side: ballCheck.side || null,
                     fallbackPoseOnly: usedBallFallback,
+                    bypass: requiresBallInHand ? false : true,
                 },
                 gate_reason: gateResult.reason || null,
                 rim_px_width: window.__preflightMetrics?.rimPxWidth ?? null,
@@ -2470,7 +2531,10 @@ window.armAfterArmDown = window.armAfterArmDown || armAfterArmDown;
 function scheduleArmWhenReady(delay = 200) {
     clearTimeout(window.__armTimer);
     window.__armTimer = setTimeout(async () => {
-        const hoop = getLockedHoopBox?.(); if (!hoop) return;
+        if (projectRequiresTargetSelection()) {
+            const hoop = getLockedHoopBox?.();
+            if (!hoop) return;
+        }
         let streak = 0, need = Number(window.POSE_STREAK_NEED || 2), t0 = performance.now();
         while (performance.now() - t0 < 1200 && streak < need) {
             const res = await poseDetectSerial();
@@ -2896,14 +2960,407 @@ function startPreDetectWarm(videoEl) {
     if (window.__poseSamplerInstalled) return;
     window.__poseSamplerInstalled = true;
 
+    if (typeof window.SWING_DEBUG === 'undefined') window.SWING_DEBUG = false;
+
+    const SWING_DEFAULTS = Object.freeze({
+        shoulderMargin: 14,
+        hipMargin: 20,
+        shoulderRatio: 0.2,
+        hipRatio: 0.12,
+        belowMemoryFrames: 96,
+        minBackswingFrames: 4,
+        maxSwingFrames: 150,
+        cooldownMs: 1400,
+    });
+
+    function createSwingState() {
+        return {
+            phase: 'idle',
+            seenBelow: false,
+            lastBackswingFrame: null,
+            lastDownFrame: null,
+            lastBelowFrame: null,
+            highWater: null,
+            lowWater: null,
+            lastReleaseFrame: null,
+            lastReleaseTime: 0,
+            cooldownUntil: 0,
+            missingFrames: 0,
+        };
+    }
+
+    function ensureSwingState() {
+        if (!window.__swingGateState) {
+            window.__swingGateState = createSwingState();
+        }
+        return window.__swingGateState;
+    }
+
+    function clearSwingState(state, options = {}) {
+        const keepCooldown = options.keepCooldown === true;
+        const cooldownUntil = keepCooldown ? state.cooldownUntil || 0 : 0;
+        Object.assign(state, createSwingState());
+        state.cooldownUntil = cooldownUntil;
+        return state;
+    }
+
+    function resetSwingState(options = {}) {
+        const state = ensureSwingState();
+        clearSwingState(state, { keepCooldown: options.keepCooldown === true });
+        return state;
+    }
+
+    function getSwingDetectionConfig(workflow = {}) {
+        const cfg = workflow.swingDetection || {};
+        return {
+            shoulderMargin: Number.isFinite(cfg.shoulderMargin) ? cfg.shoulderMargin : SWING_DEFAULTS.shoulderMargin,
+            hipMargin: Number.isFinite(cfg.hipMargin) ? cfg.hipMargin : SWING_DEFAULTS.hipMargin,
+            shoulderRatio: Number.isFinite(cfg.shoulderRatio) ? cfg.shoulderRatio : SWING_DEFAULTS.shoulderRatio,
+            hipRatio: Number.isFinite(cfg.hipRatio) ? cfg.hipRatio : SWING_DEFAULTS.hipRatio,
+            belowMemoryFrames: Number.isFinite(cfg.belowMemoryFrames) ? cfg.belowMemoryFrames : SWING_DEFAULTS.belowMemoryFrames,
+            minBackswingFrames: Math.max(1, Number.isFinite(cfg.minBackswingFrames) ? cfg.minBackswingFrames : SWING_DEFAULTS.minBackswingFrames),
+            maxSwingFrames: Math.max(8, Number.isFinite(cfg.maxSwingFrames) ? cfg.maxSwingFrames : SWING_DEFAULTS.maxSwingFrames),
+            cooldownMs: Math.max(400, Number.isFinite(cfg.cooldownMs) ? cfg.cooldownMs : SWING_DEFAULTS.cooldownMs),
+        };
+    }
+
+    function evaluateSwingGate(frameHistory, workflow = {}) {
+        const state = ensureSwingState();
+        const cfg = getSwingDetectionConfig(workflow);
+        const hist = Array.isArray(frameHistory) ? frameHistory : [];
+        const latest = hist.at?.(-1) || null;
+        const now = performance.now();
+
+        const tests = {
+            phase: state.phase,
+            wristAbove: false,
+            wristsBelow: false,
+        };
+
+        if (state.cooldownUntil && now < state.cooldownUntil) {
+            return {
+                released: false,
+                reason: 'cooldown',
+                score: 0,
+                tests: {
+                    ...tests,
+                    cooldownMs: Math.max(0, Math.round(state.cooldownUntil - now)),
+                },
+            };
+        }
+
+        if (!latest || !latest.keypoints || latest.keypoints.length < 33) {
+            state.missingFrames = (state.missingFrames || 0) + 1;
+            if (state.missingFrames > 6) {
+                clearSwingState(state);
+            }
+            return {
+                released: false,
+                reason: 'no-pose',
+                score: 0,
+                tests,
+            };
+        }
+
+        state.missingFrames = 0;
+        const kp = latest.keypoints;
+        const idx = window.LANDMARKS || window.playerState?.LANDMARKS || {};
+        const LEFT_SHOULDER = typeof idx.LEFT_SHOULDER === 'number' ? idx.LEFT_SHOULDER : 11;
+        const RIGHT_SHOULDER = typeof idx.RIGHT_SHOULDER === 'number' ? idx.RIGHT_SHOULDER : 12;
+        const LEFT_WRIST = typeof idx.LEFT_WRIST === 'number' ? idx.LEFT_WRIST : 15;
+        const RIGHT_WRIST = typeof idx.RIGHT_WRIST === 'number' ? idx.RIGHT_WRIST : 16;
+        const LEFT_HIP = typeof idx.LEFT_HIP === 'number' ? idx.LEFT_HIP : 23;
+        const RIGHT_HIP = typeof idx.RIGHT_HIP === 'number' ? idx.RIGHT_HIP : 24;
+
+        const isVisible = (point) => point && Number.isFinite(point.x) && Number.isFinite(point.y) && (Number(point.visibility ?? point.score ?? point.presence ?? 1) >= 0.15);
+
+        const leftShoulder = kp[LEFT_SHOULDER];
+        const rightShoulder = kp[RIGHT_SHOULDER];
+        const leftHip = kp[LEFT_HIP];
+        const rightHip = kp[RIGHT_HIP];
+        const wrists = [];
+        if (isVisible(kp[LEFT_WRIST])) wrists.push(kp[LEFT_WRIST]);
+        if (isVisible(kp[RIGHT_WRIST])) wrists.push(kp[RIGHT_WRIST]);
+
+        const shouldersVisible = isVisible(leftShoulder) && isVisible(rightShoulder);
+        const hipsVisible = isVisible(leftHip) && isVisible(rightHip);
+        const wristsVisible = wrists.length > 0;
+
+        if (!shouldersVisible || !hipsVisible || !wristsVisible) {
+            state.missingFrames = (state.missingFrames || 0) + 1;
+            if (state.missingFrames > 6) {
+                clearSwingState(state);
+            }
+            return {
+                released: false,
+                reason: 'tracking',
+                score: 0,
+                tests: {
+                    ...tests,
+                    wristsVisible,
+                    shouldersVisible,
+                    hipsVisible,
+                },
+            };
+        }
+
+        const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+        const hipY = (leftHip.y + rightHip.y) / 2;
+        const torsoHeight = Math.max(1, Math.abs(hipY - shoulderY));
+        const shoulderMarginPx = Math.max(cfg.shoulderMargin, torsoHeight * (cfg.shoulderRatio ?? SWING_DEFAULTS.shoulderRatio));
+        const hipMarginPx = Math.max(cfg.hipMargin, torsoHeight * (cfg.hipRatio ?? SWING_DEFAULTS.hipRatio));
+
+        const shoulderThreshold = shoulderY - shoulderMarginPx;
+        const hipThreshold = hipY + hipMarginPx;
+        const wristYs = wrists.map((w) => w.y);
+        const minWristY = Math.min(...wristYs);
+        const maxWristY = Math.max(...wristYs);
+
+        const wristAboveShoulder = minWristY <= shoulderThreshold;
+        const wristsBelowHip = maxWristY >= hipThreshold;
+        const dropBaseline = (state.highWater != null) ? state.highWater : minWristY;
+        const dropThreshold = dropBaseline + Math.max(hipMarginPx * 0.5, torsoHeight * 0.12, 18);
+        const dropSinceHigh = state.highWater != null ? Math.max(0, maxWristY - state.highWater) : 0;
+
+        tests.wristAbove = wristAboveShoulder;
+        tests.wristsBelow = wristsBelowHip;
+        tests.minWristY = Number(minWristY.toFixed(1));
+        tests.maxWristY = Number(maxWristY.toFixed(1));
+        tests.shoulderY = Number(shoulderY.toFixed(1));
+        tests.hipY = Number(hipY.toFixed(1));
+        tests.shoulderThreshold = Number(shoulderThreshold.toFixed(1));
+        tests.hipThreshold = Number(hipThreshold.toFixed(1));
+        tests.torsoHeight = Number(torsoHeight.toFixed(1));
+        tests.dropThreshold = Number(dropThreshold.toFixed(1));
+        tests.highWater = state.highWater != null ? Number(Number(state.highWater).toFixed(1)) : null;
+        tests.lowWater = state.lowWater != null ? Number(Number(state.lowWater).toFixed(1)) : null;
+        tests.dropSinceHigh = Number(dropSinceHigh.toFixed(1));
+
+        const frame = Number.isFinite(latest.frame) ? latest.frame : window.playerState?.lastFrame ?? 0;
+        const totalSinceBack = state.lastBackswingFrame != null ? frame - state.lastBackswingFrame : null;
+
+        const resetToIdle = () => {
+            clearSwingState(state);
+            if (window.SWING_DEBUG) console.debug('[swing] reset->idle', { frame });
+        };
+
+        switch (state.phase) {
+            case 'idle': {
+                if (wristsBelowHip) {
+                    state.lastBelowFrame = frame;
+                    state.seenBelow = true;
+                }
+                if (wristAboveShoulder) {
+                    const recentBelow = state.lastBelowFrame != null
+                        && (frame - state.lastBelowFrame) <= cfg.belowMemoryFrames;
+                    if (recentBelow || state.seenBelow) {
+                        state.phase = 'backswing';
+                        state.lastBackswingFrame = frame;
+                        state.highWater = minWristY;
+                        state.lowWater = maxWristY;
+                        state.seenBelow = false;
+                        if (window.SWING_DEBUG) {
+                            console.debug('[swing] idle->backswing', {
+                                frame,
+                                minWristY,
+                                shoulderThreshold,
+                                recentBelow,
+                            });
+                        }
+                    }
+                }
+                if (window.SWING_DEBUG && wristsBelowHip) {
+                    console.debug('[swing] idle: wristsBelowHip', { frame, hipThreshold, maxWristY });
+                }
+                if (window.SWING_DEBUG && wristAboveShoulder) {
+                    console.debug('[swing] idle: wristAboveShoulder', { frame, shoulderThreshold, minWristY, recentBelow: state.lastBelowFrame, seenBelow: state.seenBelow });
+                }
+                break;
+            }
+
+            case 'backswing': {
+                if (wristAboveShoulder) {
+                    state.highWater = Math.min(state.highWater ?? minWristY, minWristY);
+                    if (state.lastBackswingFrame == null) state.lastBackswingFrame = frame;
+                }
+                const dropEnough = maxWristY >= dropThreshold;
+                if (wristsBelowHip || dropEnough) {
+                    state.phase = 'downswing';
+                    state.lastDownFrame = frame;
+                    state.lowWater = maxWristY;
+                    if (window.SWING_DEBUG) {
+                        console.debug('[swing] backswing->downswing', {
+                            frame,
+                            maxWristY,
+                            hipThreshold,
+                            dropThreshold,
+                            highWater: state.highWater,
+                            reason: wristsBelowHip ? 'hip-cross' : 'drop-enough',
+                        });
+                    }
+                } else if (totalSinceBack != null && totalSinceBack > cfg.maxSwingFrames) {
+                    resetToIdle();
+                }
+                break;
+            }
+
+            case 'downswing': {
+                if (wristsBelowHip) {
+                    state.lowWater = Math.max(state.lowWater ?? maxWristY, maxWristY);
+                    state.lastDownFrame = frame;
+                }
+                const regainedHeight = state.lowWater != null ? Math.max(0, state.lowWater - minWristY) : 0;
+                const regainedEnough = regainedHeight >= Math.max(shoulderMarginPx * 0.6, torsoHeight * 0.25, 22);
+                tests.regainedHeight = Number(regainedHeight.toFixed(1));
+                tests.regainedEnough = regainedEnough;
+                tests.releaseReady = wristAboveShoulder || regainedEnough;
+                if (tests.releaseReady) {
+                    const totalFrames = state.lastBackswingFrame != null ? frame - state.lastBackswingFrame : null;
+                    const downFrames = state.lastDownFrame != null ? frame - state.lastDownFrame : null;
+                    const validTotal = totalFrames != null
+                        && totalFrames >= cfg.minBackswingFrames
+                        && totalFrames <= cfg.maxSwingFrames;
+                    const validDown = downFrames != null
+                        && downFrames >= 1
+                        && downFrames <= cfg.maxSwingFrames;
+                    if (validTotal && validDown) {
+                        state.phase = 'cooldown';
+                        state.cooldownUntil = now + cfg.cooldownMs;
+                        state.lastReleaseFrame = frame;
+                        state.lastReleaseTime = now;
+                        if (window.SWING_DEBUG) {
+                            console.debug('[swing] release', {
+                                frame,
+                                totalFrames,
+                                downFrames,
+                                highWater: state.highWater,
+                                lowWater: state.lowWater,
+                                minWristY,
+                                maxWristY,
+                                shoulderThreshold,
+                                hipThreshold,
+                                regainedHeight,
+                            });
+                        }
+                        return {
+                            released: true,
+                            reason: 'swing-complete',
+                            score: 1,
+                            tests: {
+                                phase: 'release',
+                                totalFrames,
+                                downFrames,
+                                wristAbove: true,
+                                wristsBelow: wristsBelowHip,
+                                highWater: state.highWater,
+                                lowWater: state.lowWater,
+                                frame,
+                            },
+                        };
+                    }
+                    resetToIdle();
+                    if (window.SWING_DEBUG) {
+                        console.debug('[swing] downswing reset (not enough frames)', {
+                            frame,
+                            totalFrames,
+                            downFrames,
+                            validTotal,
+                            validDown,
+                        });
+                    }
+                } else if (totalSinceBack != null && totalSinceBack > cfg.maxSwingFrames) {
+                    resetToIdle();
+                    if (window.SWING_DEBUG) {
+                        console.debug('[swing] downswing reset (timeout)', {
+                            frame,
+                            totalSinceBack,
+                            maxSwingFrames: cfg.maxSwingFrames,
+                        });
+                    }
+                }
+                break;
+            }
+
+            case 'cooldown': {
+                if (!state.cooldownUntil || now >= state.cooldownUntil) {
+                    resetToIdle();
+                    if (window.SWING_DEBUG) {
+                        console.debug('[swing] cooldown -> idle', { frame });
+                    }
+                }
+                break;
+            }
+
+            default:
+                resetToIdle();
+                if (window.SWING_DEBUG) {
+                    console.debug('[swing] reset (default)', { frame });
+                }
+                break;
+        }
+
+        window.__swingGateState = state;
+        try {
+            const snapshot = { frame, phase: state.phase, tests: { ...tests } };
+            window.__swingGateLast = snapshot;
+            if (!Array.isArray(window.__swingGateHistory)) window.__swingGateHistory = [];
+            window.__swingGateHistory.push(snapshot);
+            while (window.__swingGateHistory.length > 120) window.__swingGateHistory.shift();
+        } catch { }
+
+        if (window.SWING_DEBUG) {
+            console.debug('[swing] await', {
+                phase: state.phase,
+                frame,
+                wristAboveShoulder,
+                wristsBelowHip,
+                highWater: state.highWater,
+                lowWater: state.lowWater,
+                lastBackswingFrame: state.lastBackswingFrame,
+                lastDownFrame: state.lastDownFrame,
+                lastBelowFrame: state.lastBelowFrame,
+            });
+        }
+        return {
+            released: false,
+            reason: 'awaiting-phase',
+            score: 0,
+            tests,
+        };
+    }
+
+    if (!window.__swingStateResetWired) {
+        window.__swingStateResetWired = true;
+        const reset = () => resetSwingState();
+        window.addEventListener('hud:start-session', reset, { passive: true });
+        window.addEventListener('hud:end-session', reset, { passive: true });
+        window.addEventListener('session:reset', reset, { passive: true });
+        resetSwingState();
+    }
+
     function tryRelease() {
         if (window.__shotTrackingArmed !== true) return;
         if (Date.now() < (window.__ENTRY_ARM_BLOCK_UNTIL || 0)) return;
-        const hist = (window.playerState?.frameHistory || []).slice(-8);
-        const gate = window.releaseGate ? window.releaseGate(hist) : { released: false };
+        const workflow = getWorkflowConfig();
+        const requiresTarget = projectRequiresTargetSelection();
+        const usingSwing = !requiresTarget && String(workflow?.attemptLabel || '').toLowerCase() === 'swing';
+        const frameHistory = window.playerState?.frameHistory || [];
+        const sliceCount = usingSwing ? Math.min(frameHistory.length, 45) : 8;
+        const hist = frameHistory.slice(-sliceCount);
+        const gate = usingSwing
+            ? evaluateSwingGate(hist, workflow)
+            : (window.releaseGate ? window.releaseGate(hist.slice(-8)) : { released: false });
+        if (usingSwing && window.SWING_DEBUG) {
+            console.debug('[swing] gate', gate);
+        }
         if (!gate.released) return;
         const f = window.playerState?.lastFrame ?? 0;
-        window.safeEmitRelease?.(f, 'pose-sampler', { gate, poseApproved: true, bypassGate: true });
+        window.safeEmitRelease?.(f, usingSwing ? 'swing-detector' : 'pose-sampler', {
+            gate,
+            poseApproved: true,
+            bypassGate: true,
+            attemptLabel: workflow?.attemptLabel || null,
+        });
     }
 
     function loop() { try { tryRelease(); } catch { } window.__poseSamplerT = setTimeout(loop, Number(window.COACH_POSE_MS || 120)); }
@@ -2997,9 +3454,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Re-arm when hoop is locked/confirmed
-    window.addEventListener('hoop:locked', () => { window.startShotTrackingCountdown?.(5); setTimeout(() => scheduleArmWhenReady(0), 5050); }, { passive: true });
-    window.addEventListener('hoop:confirmed', () => { window.startShotTrackingCountdown?.(5); setTimeout(() => scheduleArmWhenReady(0), 5050); }, { passive: true });
+    // Re-arm when hoop is locked/confirmed (basketball-style flows)
+    const handleHoopReady = () => {
+        if (!projectRequiresTargetSelection()) return;
+        const secondsRaw = getWorkflowCountdownSeconds();
+        const seconds = Number.isFinite(secondsRaw) && secondsRaw > 0 ? secondsRaw : 5;
+        const cue = getWorkflowReadyPrompt();
+        window.startShotTrackingCountdown?.(seconds, cue);
+        const delayMs = Math.max(0, Math.round(seconds * 1000) + 60);
+        setTimeout(() => scheduleArmWhenReady(0), delayMs);
+    };
+    window.addEventListener('hoop:locked', handleHoopReady, { passive: true });
+    window.addEventListener('hoop:confirmed', handleHoopReady, { passive: true });
 
     // Tiny paint loop
     function paint() { const last = window.lastDetectedFrame || {}; callOverlay(last.objects || [], playerState); requestAnimationFrame(paint); }

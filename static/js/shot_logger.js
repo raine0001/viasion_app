@@ -12,6 +12,22 @@ import { markRelease, freezeShot } from './ball_tracker.js';
 import { getLockedHoopBox } from '/static/arc_mm/hoop_tracker.js';
 
 
+const ACTIVE_PROJECT_SLUG = 'basketball';
+
+function isBasketballProjectActive() {
+  try {
+    const project =
+      window.__VIASON_ACTIVE_PROJECT ||
+      (typeof window.viasonProjectManager?.getActiveProject === 'function'
+        ? window.viasonProjectManager.getActiveProject()
+        : null);
+    const slug = project?.slug;
+    return !slug || slug === ACTIVE_PROJECT_SLUG;
+  } catch (err) {
+    return true;
+  }
+}
+
 // lazy accessor breaks the TDZ on cyclic imports
 function BS() {
   return (window.ballState || (window.ballState = {}));
@@ -395,6 +411,7 @@ let __lingerActive     = false;
 let __lingerStartFrame = -1;
 
 export function checkShotConditions(ballStateRef, hoopBox, frameIndex) {
+  if (!isBasketballProjectActive()) return false;
   // Hard arm guard: never start a shot unless user armed + hoop confirmed
   try {
     if (window.__shotTrackingArmed !== true) return false;
@@ -881,6 +898,7 @@ window.autoTuneFromCorrection = autoTuneFromCorrection;
  * Returns a plain record or null.
  */
 export function summarizeShot(trail, __frameIdx, hoopBox, opts = {}) {
+  if (!isBasketballProjectActive()) return null;
   if (!trail || trail.length < 3 || !hoopBox) return null;
 
   // Normalize frames to a strictly increasing series
@@ -1010,6 +1028,7 @@ export function summarizeShot(trail, __frameIdx, hoopBox, opts = {}) {
   };
 }
 export function detectAndLogShot(trail, __frameIdx, hoopBox, opts = {}) {
+  if (!isBasketballProjectActive()) return null;
   // Delegate to the canonical logging entry
   return results(trail, __frameIdx, hoopBox, opts);
 }
@@ -1018,6 +1037,7 @@ export function detectAndLogShot(trail, __frameIdx, hoopBox, opts = {}) {
 // Returns the shot record pushed to `shotLog` and updates UI/coach hooks.
 // Keeps compatibility by delegating to detectAndLogShot.
 export function results(trail, frameIndex, hoopBox, opts = {}) {
+  if (!isBasketballProjectActive()) return null;
   if (!trail || trail.length < 3 || !hoopBox) return null;
 
   // de-dupe by frame/time/hash — but allow a forced call (from finalize)
@@ -1368,6 +1388,7 @@ function hasNetEvidence(trail, hoopBox) {
 
 
 export function scoringTick(__frameIdx) {
+  if (!isBasketballProjectActive()) return;
   // If FBF is not active and we’re not in TRACKING or FROZEN finalize pass, do nothing
   if (!window.__fbf?.active) {
     const s = BS();
@@ -1767,3 +1788,14 @@ function countTubeHits(trail, hoop) {
 }
 
 
+try {
+  const mgr = window?.viasonProjectManager;
+  if (mgr?.registerModule) {
+    mgr.registerModule('basketball/shot-logger', {
+      project: ACTIVE_PROJECT_SLUG,
+      init() {
+        // shot_logger exports remain available; guards ensure basketball-only activation.
+      }
+    });
+  }
+} catch {}

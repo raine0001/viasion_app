@@ -1,0 +1,410 @@
+{
+  "defaultProject": "basketball",
+  "projects": {
+    "basketball": {
+      "name": "Basketball Shot Coaching",
+      "description": "Original Viason experience focused on basketball shot analysis.",
+      "datasets": [
+        {
+          "slug": "basketball_pose",
+          "label": "Basketball Pose / Shot Dataset",
+          "type": "pose",
+          "root": "datasets/viason_seg",
+          "frameCacheRoot": "frame_cache",
+          "framesRoot": "frames",
+          "labelTrainRoot": "datasets/viason_seg/labels/train",
+          "imagesTrainRoot": "datasets/viason_seg/images/train",
+          "labels": [
+            "basketball",
+            "hoop",
+            "net",
+            "player"
+          ],
+          "detector": "runs/detect/g_pose_20251027_171605/weights/best.pt"
+        }
+      ],
+      "modules": {
+        "assistant": "basketball/coach-assistant",
+        "trackers": [
+          "basketball/ball-tracker",
+          "basketball/hoop-tracker",
+          "basketball/release-gate"
+        ],
+        "metrics": [
+          "basketball/shot-logger"
+        ]
+      },
+      "workflow": {
+        "defaultTemplate": "practice10",
+        "shotAlias": "shot",
+        "sessionTemplates": {
+          "practice10": {
+            "label": "Practice (10 shots)",
+            "shots": 10
+          },
+          "streak20": {
+            "label": "Game prep (20 shots)",
+            "shots": 20
+          }
+        },
+        "defaultCoachingCue": "Eyes on the rim. Hold your finish.",
+        "mutedMessage": "Coach voice muted; toggle audio to resume feedback.",
+        "requiresTargetSelection": true,
+        "countdownSeconds": 3,
+        "attemptLabel": "shot",
+        "attemptsLabel": "Shots Taken",
+        "readyPrompt": "Shoot when ready."
+      },
+      "analysis": {
+        "metrics": [
+          {
+            "id": "release_angle",
+            "label": "Release Angle",
+            "description": "Vertical angle of the ball at release.",
+            "units": "deg",
+            "group": "shooting",
+            "calculator": "basketball.releaseAngle",
+            "poseKeys": [
+              "releaseAngle",
+              "shoulderToWristAngle"
+            ],
+            "targets": {
+              "min": 44,
+              "max": 55
+            },
+            "defaultWeight": 0.35
+          },
+          {
+            "id": "arc_height",
+            "label": "Arc Height",
+            "description": "Peak ball height relative to rim.",
+            "units": "cm",
+            "group": "shooting",
+            "calculator": "basketball.arcHeight",
+            "poseKeys": [
+              "arcHeight",
+              "arc_height"
+            ],
+            "targets": {
+              "min": 40,
+              "max": 75
+            },
+            "defaultWeight": 0.25
+          },
+          {
+            "id": "release_time",
+            "label": "Release Timing",
+            "description": "Milliseconds from gather to release.",
+            "units": "ms",
+            "group": "tempo",
+            "calculator": "basketball.releaseTiming",
+            "poseKeys": [
+              "releaseMs",
+              "gatherToReleaseMs"
+            ],
+            "targets": {
+              "max": 650
+            },
+            "defaultWeight": 0.2
+          },
+          {
+            "id": "follow_through",
+            "label": "Follow Through Hold",
+            "description": "Duration the wrist stays locked after release.",
+            "units": "ms",
+            "group": "fundamentals",
+            "calculator": "basketball.followThrough",
+            "poseKeys": [
+              "followThroughHoldFrames"
+            ],
+            "targets": {
+              "min": 300
+            },
+            "defaultWeight": 0.2
+          }
+        ],
+        "responses": [
+          {
+            "id": "release_low",
+            "message": "Lift the release. Aim to finish at eye level or higher.",
+            "severity": "coach_tip",
+            "voice": true,
+            "triggers": [
+              {
+                "metric": "release_angle",
+                "operator": "<",
+                "value": 44,
+                "window": "recent"
+              }
+            ]
+          },
+          {
+            "id": "flat_arc",
+            "message": "Add more arc. Think high rainbow over the rim.",
+            "severity": "focus",
+            "voice": true,
+            "triggers": [
+              {
+                "metric": "arc_height",
+                "operator": "<",
+                "value": 40,
+                "window": "rolling_3"
+              }
+            ]
+          },
+          {
+            "id": "slow_release",
+            "message": "Speed up the gather-to-release. Snap through quicker.",
+            "severity": "caution",
+            "voice": false,
+            "triggers": [
+              {
+                "metric": "release_time",
+                "operator": ">",
+                "value": 700,
+                "window": "recent"
+              }
+            ]
+          },
+          {
+            "id": "great_finish",
+            "message": "Great follow-through. Keep that wrist locked.",
+            "severity": "celebrate",
+            "voice": false,
+            "triggers": [
+              {
+                "metric": "follow_through",
+                "operator": ">=",
+                "value": 320,
+                "window": "recent"
+              }
+            ]
+          }
+        ],
+        "scoring": {
+          "enabled": true,
+          "aggregation": "weighted_sum",
+          "metricWeights": {
+            "release_angle": 0.35,
+            "arc_height": 0.25,
+            "release_time": 0.2,
+            "follow_through": 0.2
+          },
+          "tiers": [
+            {
+              "name": "Rookie",
+              "minScore": 0,
+              "message": "Dial in the fundamentals."
+            },
+            {
+              "name": "Elite",
+              "minScore": 850,
+              "message": "Elite rhythm. Keep pressing."
+            }
+          ]
+        }
+      }
+    },
+    "golf": {
+      "name": "golf_pose",
+      "description": "golf shot pose analysis",
+      "datasets": [
+        {
+          "slug": "g_pose",
+          "label": "G Dataset",
+          "root": "datasets/g_pose",
+          "frameCacheRoot": "frame_cache/g_pose",
+          "framesRoot": "frames/g_pose",
+          "labelTrainRoot": "datasets/g_pose/labels/train",
+          "imagesTrainRoot": "datasets/g_pose/images/train",
+          "labels": [
+            "player",
+            "club",
+            "ball",
+            "tee",
+            "Driver",
+            "putter",
+            "Wedge",
+            "Flag",
+            "hole",
+            "iron"
+          ],
+          "project": "golf",
+          "detector": "runs/detect/g_pose_20251028_123053/weights/best.pt"
+        }
+      ],
+      "modules": {
+        "assistant": "golf/swing-assistant",
+        "metrics": [
+          "golf/swing-metrics"
+        ]
+      },
+      "workflow": {
+        "defaultTemplate": "range10",
+        "shotAlias": "swing",
+        "sessionTemplates": {
+          "range10": {
+            "label": "Driving range (10 swings)",
+            "shots": 10
+          },
+          "range18": {
+            "label": "Course sim (18 tee shots)",
+            "shots": 18
+          }
+        },
+        "defaultCoachingCue": "Breathe, smooth tempo. Finish balanced.",
+        "mutedMessage": "Voice feedback is off. Toggle audio when ready.",
+        "requiresTargetSelection": false,
+        "requiresBallInHand": false,
+        "countdownSeconds": 5,
+        "attemptLabel": "swing",
+        "attemptsLabel": "Swings Taken",
+        "readyPrompt": "Swing when ready."
+      },
+      "analysis": {
+        "metrics": [
+          {
+            "id": "backswing_plane",
+            "label": "Backswing Plane",
+            "description": "Club shaft deviation from neutral plane at top of backswing.",
+            "units": "deg",
+            "group": "swing_plane",
+            "calculator": "golf.backswingPlane",
+            "poseKeys": [
+              "backswingPlaneDeg"
+            ],
+            "targets": {
+              "max": 12
+            },
+            "defaultWeight": 0.0
+          },
+          {
+            "id": "downswing_plane",
+            "label": "Downswing Plane",
+            "description": "Club shaft deviation entering impact zone.",
+            "units": "deg",
+            "group": "swing_plane",
+            "calculator": "golf.downswingPlane",
+            "poseKeys": [
+              "downswingPlaneDeg"
+            ],
+            "targets": {
+              "max": 8
+            },
+            "defaultWeight": 0.0
+          },
+          {
+            "id": "tempo_ratio",
+            "label": "Tempo Ratio",
+            "description": "Backswing to downswing duration ratio.",
+            "units": "ratio",
+            "group": "tempo",
+            "calculator": "golf.tempoRatio",
+            "poseKeys": [
+              "tempoRatio"
+            ],
+            "targets": {
+              "ideal": 3.0,
+              "tolerance": 0.5
+            },
+            "defaultWeight": 0.0
+          },
+          {
+            "id": "impact_posture",
+            "label": "Impact Posture",
+            "description": "Spine angle retention at impact (deg).",
+            "units": "deg",
+            "group": "posture",
+            "calculator": "golf.impactPosture",
+            "poseKeys": [
+              "impactSpineAngle"
+            ],
+            "targets": {
+              "min": 30,
+              "max": 45
+            },
+            "defaultWeight": 0.0
+          },
+          {
+            "id": "finish_balance",
+            "label": "Finish Balance",
+            "description": "Center of mass sway at finish (cm).",
+            "units": "cm",
+            "group": "balance",
+            "calculator": "golf.finishBalance",
+            "poseKeys": [
+              "finishBalanceCm"
+            ],
+            "targets": {
+              "max": 7
+            },
+            "defaultWeight": 0.0
+          }
+        ],
+        "responses": [
+          {
+            "id": "steep_backswing",
+            "message": "Soften the backswing plane. Feel the club sweep around, not up.",
+            "severity": "coach_tip",
+            "voice": true,
+            "triggers": [
+              {
+                "metric": "backswing_plane",
+                "operator": ">",
+                "value": 12,
+                "window": "recent"
+              }
+            ]
+          },
+          {
+            "id": "over_the_top",
+            "message": "Club is coming over the top. Drop the trail elbow to shallow.",
+            "severity": "focus",
+            "voice": true,
+            "triggers": [
+              {
+                "metric": "downswing_plane",
+                "operator": ">",
+                "value": 10,
+                "window": "rolling_3"
+              }
+            ]
+          },
+          {
+            "id": "tempo_fast",
+            "message": "Tempo rushed. Count to three on the backswing before transition.",
+            "severity": "coach_tip",
+            "voice": false,
+            "triggers": [
+              {
+                "metric": "tempo_ratio",
+                "operator": "<",
+                "value": 2.6,
+                "window": "recent"
+              }
+            ]
+          },
+          {
+            "id": "great_balance",
+            "message": "Great balance at finish. Hold that pose.",
+            "severity": "celebrate",
+            "voice": false,
+            "triggers": [
+              {
+                "metric": "finish_balance",
+                "operator": "<=",
+                "value": 5,
+                "window": "recent"
+              }
+            ]
+          }
+        ],
+        "scoring": {
+          "enabled": false,
+          "aggregation": "weighted_sum",
+          "metricWeights": {}
+        }
+      }
+    }
+  }
+}
