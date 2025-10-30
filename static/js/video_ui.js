@@ -1631,8 +1631,15 @@ function handleHudStartSession(event) {
         try { window.__hoopConfirmed = true; } catch { }
         try { window.resumeHoopTracking?.(); } catch {}
         setTimeout(() => {
-            try { window.startShotTrackingCountdown?.(countdownSec, readyPrompt); }
-            catch (err) { console.warn('[hud] countdown failed', err); }
+            let started = false;
+            try {
+                if (typeof window.startShotTrackingCountdown === 'function') {
+                    started = window.startShotTrackingCountdown(countdownSec, readyPrompt) === true;
+                }
+            } catch (err) {
+                console.warn('[hud] countdown failed', err);
+            }
+            if (!started) return;
             const delayMs = Math.max(0, countdownSec * 1000 + 60);
             setTimeout(() => {
                 try { window.scheduleArmWhenReady?.(0); } catch { }
@@ -1680,10 +1687,23 @@ function showCenterPrompt(msg) {
 }
 window.showCenterPrompt = showCenterPrompt;
 
-function startShotTrackingCountdown(sec = 5, readyText) {
+function startShotTrackingCountdown(sec = 5, readyText, options) {
+    try { if (typeof window.__sessionCountdownDone === 'undefined') window.__sessionCountdownDone = false; } catch { }
+    let promptOverride = readyText;
+    let opts = options;
+    if (readyText && typeof readyText === 'object' && !Array.isArray(readyText)) {
+        opts = readyText;
+        promptOverride = undefined;
+    }
+    const force = !!(opts && opts.force);
     const countdown = Number.isFinite(sec) ? sec : (Number(window.__sessionCountdownSecs) || getCountdownSeconds());
-    const prompt = readyText || window.__sessionReadyPrompt || getReadyPrompt();
-    if (window.__armCountdownActive) return; window.__armCountdownActive = true;
+    const prompt = promptOverride || window.__sessionReadyPrompt || getReadyPrompt();
+
+    if (!force && window.__sessionCountdownDone === true) return false;
+    if (window.__armCountdownActive) return false;
+    window.__armCountdownActive = true;
+    window.__sessionCountdownDone = true;
+
     try { window.__shotTrackingArmed = false; } catch { }
     try { window.dispatchEvent(new CustomEvent('hud:arm-countdown', { detail: { sec: countdown } })); } catch { }
 
@@ -1724,6 +1744,8 @@ function startShotTrackingCountdown(sec = 5, readyText) {
             window.__armCountdownActive = false;
         }
     })();
+
+    return true;
 }
 if (typeof window.startShotTrackingCountdown !== 'function') window.startShotTrackingCountdown = startShotTrackingCountdown;
 
@@ -1803,6 +1825,12 @@ export function initHUDForVideo(videoEl) {
 
     window.addEventListener('hud:end-session', () => {
         try { if (window.__hudTimeTimer) { clearInterval(window.__hudTimeTimer); window.__hudTimeTimer = null; } } catch { }
+        try { window.__sessionCountdownDone = false; } catch { }
+        try { window.__armCountdownActive = false; } catch { }
+    });
+    window.addEventListener('session:reset', () => {
+        try { window.__sessionCountdownDone = false; } catch { }
+        try { window.__armCountdownActive = false; } catch { }
     });
 }
 window.initHUDForVideo = initHUDForVideo;
@@ -1810,7 +1838,16 @@ window.initHUDForVideo = initHUDForVideo;
 function kickoffCountdownArmFromHoop() {
     const sec = Number(window.__sessionCountdownSecs || getCountdownSeconds());
     const prompt = window.__sessionReadyPrompt || getReadyPrompt();
-    window.startShotTrackingCountdown?.(sec, prompt);
+    try { window.__sessionCountdownDone = false; } catch { }
+    let started = false;
+    try {
+        if (typeof window.startShotTrackingCountdown === 'function') {
+            started = window.startShotTrackingCountdown(sec, prompt, { force: true }) === true;
+        }
+    } catch (err) {
+        console.warn('[hud] countdown failed', err);
+    }
+    if (!started) return;
     const delayMs = Math.max(0, (Number.isFinite(sec) ? sec : 5) * 1000 + 60);
     setTimeout(() => {
         try { window.scheduleArmWhenReady?.(0); } catch { }

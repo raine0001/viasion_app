@@ -48,13 +48,13 @@ function composeGolfCue(snap) {
     if (Number.isFinite(tempo)) {
         if (tempo < 2.6) {
             push(18 + ((2.6 - tempo) * 8), [
-                `Tempo ${tempo.toFixed(2)}:1 - give the backswing more time before you transition.`,
-                'Slow the takeaway and count to three to the top.'
+                'Let the backswing breathe for a beat before you change directions.',
+                'Ease the takeaway and count a smooth “one-two” before starting down.'
             ]);
         } else if (tempo > 3.6) {
             push(18 + ((tempo - 3.6) * 8), [
-                `Tempo ${tempo.toFixed(2)}:1 - smooth the transition into the downswing.`,
-                'Blend the change of direction; start the downswing as the backswing finishes.'
+                'Blend the change at the top so there is no long pause.',
+                'Start the downswing as the backswing finishes – keep it flowing.'
             ]);
         }
     }
@@ -62,16 +62,16 @@ function composeGolfCue(snap) {
     const backswingPlane = Number.isFinite(snap?.backswingPlaneDeg) ? Number(snap.backswingPlaneDeg) : null;
     if (backswingPlane != null && backswingPlane > 12) {
         push(16 + (backswingPlane - 12), [
-            `Backswing ${backswingPlane.toFixed(0)} deg steep - rotate around the spine instead of lifting.`,
-            'Keep the club on plane by turning the shoulders, not picking the arms up.'
+            'Turn your shoulders to take the club back instead of lifting the arms straight up.',
+            'Feel the club travel around your body, not straight over it.'
         ]);
     }
 
     const downswingPlane = Number.isFinite(snap?.downswingPlaneDeg) ? Number(snap.downswingPlaneDeg) : null;
     if (downswingPlane != null && downswingPlane > 8) {
         push(20 + (downswingPlane - 8), [
-            `Downswing ${downswingPlane.toFixed(0)} deg over plane - let the trail elbow shallow.`,
-            'Drop the trail elbow in transition so the club shallows before impact.'
+            'Let the trail elbow glide down so the club approaches the ball from the inside.',
+            'Drop the elbow under your lead arm as you start down.'
         ]);
     }
 
@@ -81,13 +81,13 @@ function composeGolfCue(snap) {
     if (spineAngle != null) {
         if (spineAngle > 45) {
             push(14 + (spineAngle - 45), [
-                `Impact tilt ${spineAngle.toFixed(0)} deg - stay taller through strike.`,
-                'Hold the spine angle; avoid diving forward at impact.'
+                'Stay tall through impact; avoid diving toward the ball.',
+                'Keep the chest steady and let the club swing past you.'
             ]);
         } else if (spineAngle < 28) {
             push(10 + (28 - spineAngle), [
-                `Impact tilt ${spineAngle.toFixed(0)} deg - keep some forward bend.`,
-                'Maintain posture; don\'t jump early out of the shot.'
+                'Keep a little forward bend through impact; don’t pop up early.',
+                'Hold your posture until the ball has gone.'
             ]);
         }
     }
@@ -95,24 +95,24 @@ function composeGolfCue(snap) {
     const balanceCm = Number(snap?.finishBalanceCm);
     if (Number.isFinite(balanceCm) && balanceCm > 7) {
         push(12 + (balanceCm - 7), [
-            `Finish balance drift ${balanceCm.toFixed(1)} cm - post up on the lead side.`,
-            'Hold the finish stacked over the lead foot.'
+            'Finish stacked over the lead leg instead of drifting sideways.',
+            'Let your weight post up on the lead foot and hold the pose.'
         ]);
     }
 
     const indexDrop = Number(snap?.indexBelowWristPx);
     if (Number.isFinite(indexDrop) && indexDrop <= 0) {
         push(11, [
-            'Let the lead index finger sit under the grip at finish to square the face.',
-            'Relax the hands so the lead index finishes below the handle.'
+            'Soften the grip so the lead index finger sits under the handle at the finish.',
+            'Relax the hands and let the club face roll over naturally.'
         ]);
     }
 
     const holdFrames = Number(snap?.followThroughHoldFrames);
     if (Number.isFinite(holdFrames) && holdFrames < 2) {
         push(9, [
-            'Hold the finish for a full beat to control the face.',
-            'Freeze the follow-through for a breath longer.'
+            'Hold the finish for a heartbeat to steady the club face.',
+            'Freeze the follow-through long enough to pose for the camera.'
         ]);
     }
 
@@ -121,8 +121,8 @@ function composeGolfCue(snap) {
         const off = Math.max(0, 90 - forearmAngle);
         if (off > 6) {
             push(13 + off, [
-                `Lead forearm ${off.toFixed(0)} deg shy of vertical - extend up through impact.`,
-                'Stand the lead forearm tall at the finish.'
+                'Finish with the lead forearm pointing more up the target line.',
+                'Let the lead arm stretch up as you swing through.'
             ]);
         }
     }
@@ -147,16 +147,16 @@ function composeGolfCue(snap) {
 
     const positives = [];
     if (Number.isFinite(tempo) && tempo >= 2.6 && tempo <= 3.4) {
-        positives.push(`Tempo ${tempo.toFixed(2)}:1 is on point - keep that rhythm.`);
+        positives.push('Tempo feels smooth and connected – keep that rhythm.');
     }
     if (Number.isFinite(backswingPlane) && backswingPlane <= 12) {
-        positives.push('Backswing plane is neutral - great rotation.');
+        positives.push('Great job keeping the backswing on plane.');
     }
     if (Number.isFinite(downswingPlane) && downswingPlane <= 8) {
-        positives.push('Downswing is shallow and efficient - hold that feel.');
+        positives.push('Nice shallow downswing – keep that inside path.');
     }
     if (Number.isFinite(balanceCm) && balanceCm <= 7) {
-        positives.push('Balanced finish - stay posted over the lead side.');
+        positives.push('Solid finish over the lead side – hold that pose.');
     }
     if (positives.length) return choose(positives);
 
@@ -2403,18 +2403,24 @@ window.addEventListener('shot:feedback:request', (e) => {
             const list = Array.isArray(window.__shotList) ? window.__shotList : [];
             if (!list.length) return;
 
-            // Helper: safe average over numeric values
             const avg = (arr) => {
                 const a = arr.filter(Number.isFinite);
                 return a.length ? (a.reduce((s, v) => s + v, 0) / a.length) : null;
             };
             const round = (n, p = 0) => Number.isFinite(n) ? Number(n.toFixed(p)) : null;
 
-            // Collect snapshots with indices
-            const snaps = list.map((s, i) => ({ i: i + 1, snap: s.poseSnapshot || null })).filter(x => !!x.snap);
+            const snaps = list.map((row, idx) => {
+                const snap = {};
+                if (row && typeof row.poseSnapshot === 'object') Object.assign(snap, row.poseSnapshot);
+                if (row && typeof row.metrics === 'object') Object.assign(snap, row.metrics);
+                if (row && typeof row.pose === 'object') Object.assign(snap, row.pose);
+                return Object.keys(snap).length ? { i: idx + 1, snap } : null;
+            }).filter(Boolean);
             if (!snaps.length) return;
 
-            // Split into early / late halves to detect trends
+            const slug = getCoachSlug();
+            const labelPlural = slug === 'golf' ? 'swings' : 'shots';
+
             const mid = Math.max(1, Math.floor(snaps.length / 2));
             const early = snaps.slice(0, mid).map(x => x.snap);
             const late = snaps.slice(mid).map(x => x.snap);
@@ -2425,117 +2431,204 @@ window.addEventListener('shot:feedback:request', (e) => {
                 return vals.length ? (100 * vals.reduce((a, b) => a + b, 0) / vals.length) : null;
             };
 
-            const E = {
-                kneeFlex: pick(early, 'kneeFlex'), armVert: pick(early, 'armVerticalityDeg'), elbow: pick(early, 'elbowExtDeg'),
-                toes: pick(early, 'toeToHoopDeg'), feetDiff: pick(early, 'feetAngleDiff'), stagger: pick(early, 'footStagger'),
-                hold: pick(early, 'followThroughHoldFrames'), head: pick(early, 'headToHoopDeg'), fingers: pickBoolPct(early, 'fingersDown')
-            };
-            const L = {
-                kneeFlex: pick(late, 'kneeFlex'), armVert: pick(late, 'armVerticalityDeg'), elbow: pick(late, 'elbowExtDeg'),
-                toes: pick(late, 'toeToHoopDeg'), feetDiff: pick(late, 'feetAngleDiff'), stagger: pick(late, 'footStagger'),
-                hold: pick(late, 'followThroughHoldFrames'), head: pick(late, 'headToHoopDeg'), fingers: pickBoolPct(late, 'fingersDown')
+            const all = snaps.map(x => x.snap);
+            const A = (key) => avg(all.map(s => s?.[key]).filter(Number.isFinite));
+            const P = (key) => {
+                const vals = all.map(s => (typeof s?.[key] === 'boolean') ? (s[key] ? 1 : 0) : null).filter(v => v != null);
+                return vals.length ? (100 * vals.reduce((a, b) => a + b, 0) / vals.length) : null;
             };
 
             const trends = [];
-            // Improvements: knee flex (higher better)
-            if (Number.isFinite(E.kneeFlex) && Number.isFinite(L.kneeFlex) && (L.kneeFlex - E.kneeFlex) >= 6)
-                trends.push(`Knee flex improved late (${round(L.kneeFlex)} deg vs ${round(E.kneeFlex)} deg).`);
-            // Arm verticality (lower is better)
-            if (Number.isFinite(E.armVert) && Number.isFinite(L.armVert) && (E.armVert - L.armVert) >= 4)
-                trends.push(`Arm finished taller (vertical) late (${round(L.armVert)} deg vs ${round(E.armVert)} deg).`);
-            // Elbow extension (higher better)
-            if (Number.isFinite(E.elbow) && Number.isFinite(L.elbow) && (L.elbow - E.elbow) >= 5)
-                trends.push(`Elbow extension strengthened (${round(L.elbow)} deg vs ${round(E.elbow)} deg).`);
-            // Toes -> hoop (lower better)
-            if (Number.isFinite(E.toes) && Number.isFinite(L.toes) && (E.toes - L.toes) >= 5)
-                trends.push(`Feet more square to rim (${round(L.toes)} deg vs ${round(E.toes)} deg).`);
-            // Feet angle diff (lower better)
-            if (Number.isFinite(E.feetDiff) && Number.isFinite(L.feetDiff) && (E.feetDiff - L.feetDiff) >= 5)
-                trends.push(`Toe angles more parallel (${round(L.feetDiff)} deg vs ${round(E.feetDiff)} deg).`);
-            // Foot stagger (lower better)
-            if (Number.isFinite(E.stagger) && Number.isFinite(L.stagger) && (E.stagger - L.stagger) >= 6)
-                trends.push(`Stance stagger reduced (${round(L.stagger)}px vs ${round(E.stagger)}px).`);
-            // Follow-through hold (higher better)
-            if (Number.isFinite(E.hold) && Number.isFinite(L.hold) && (L.hold - E.hold) >= 1)
-                trends.push(`Better follow‑through hold late (${round(L.hold)} vs ${round(E.hold)} frames).`);
-            // Head on rim (lower better)
-            if (Number.isFinite(E.head) && Number.isFinite(L.head) && (E.head - L.head) >= 6)
-                trends.push(`Gaze held on rim more consistently (${round(L.head)} deg vs ${round(E.head)} deg).`);
-            // Fingers down (higher % better)
-            if (Number.isFinite(E.fingers) && Number.isFinite(L.fingers) && (L.fingers - E.fingers) >= 20)
-                trends.push(`Wrist snap improved - fingers down more often (${round(L.fingers)}% vs ${round(E.fingers)}%).`);
-
-            // Most limiting metrics vs simple targets across whole session
-            const all = snaps.map(x => x.snap);
-            const A = (key) => avg(all.map(s => s?.[key]).filter(Number.isFinite));
-            const P = (key) => pickBoolPct(all, key);
             const lim = [];
-            const armVert = A('armVerticalityDeg'); if (Number.isFinite(armVert) && armVert > 14) lim.push('Get the forearm more vertical on finish.');
-            const elbow = A('elbowExtDeg'); if (Number.isFinite(elbow) && elbow < 150) lim.push('Finish with stronger elbow extension.');
-            const knee = A('kneeFlex'); if (Number.isFinite(knee) && knee < 28) lim.push('Add a bit more knee bend for power.');
-            const toes = A('toeToHoopDeg'); if (Number.isFinite(toes) && toes > 22) lim.push('Square toes a touch more to the rim.');
-            const fDiff = A('feetAngleDiff'); if (Number.isFinite(fDiff) && fDiff > 12) lim.push('Make your toes more parallel.');
-            const holdF = A('followThroughHoldFrames'); if (Number.isFinite(holdF) && holdF < 2) lim.push('Hold the follow‑through briefly.');
-            const gaze = A('headToHoopDeg'); if (Number.isFinite(gaze) && gaze > 25) lim.push('Keep eyes on the rim through release.');
-            const above = P('releaseAboveShoulder'); if (Number.isFinite(above) && above < 70) lim.push('Release above the shoulder line.');
+            let patternBullets = [];
+            const linesOut = [];
 
-            const lines = [];
-            if (trends.length) lines.push('Improvements: ' + trends.slice(0, 3).join(' '));
-            if (lim.length) lines.push('Focus next: ' + lim.slice(0, 3).join(' '));
-            if (!lines.length) lines.push(`${name}, your form is consistent - keep the rhythm and balance.`);
+            if (slug === 'golf') {
+                const tempoTarget = 3.0;
+                const tempoMin = 2.6;
+                const tempoMax = 3.6;
 
-            // Shot-specific groups (enumerate where key cues were off)
-            try {
-                const list = Array.isArray(window.__shotList) ? window.__shotList : [];
-                const shots = list.map((s, i) => ({ idx: i + 1, p: (s && s.poseSnapshot) || null })).filter(x => !!x.p);
-                if (shots.length) {
-                    const g = (window.viason_MEM?.get?.()?.golden) || { stanceWidthFeet: 120, kneeFlex: 28, toeToHoopDeg: 18, feetAngleDiff: 8, feetStagger: 6, shoulderToWristAngle: 55, releaseAboveShoulder: true };
-                    const pickIdx = (pred) => shots.filter(({ p }) => pred(p)).map(({ idx }) => idx);
-                    const followShort = pickIdx(p => Number.isFinite(p.followThroughHoldFrames) && p.followThroughHoldFrames < 2);
-                    const feetNarrow = pickIdx(p => Number.isFinite(p.stanceWidthFeet) && g.stanceWidthFeet && (p.stanceWidthFeet < g.stanceWidthFeet - 20));
-                    const feetWide = pickIdx(p => Number.isFinite(p.stanceWidthFeet) && g.stanceWidthFeet && (p.stanceWidthFeet > g.stanceWidthFeet + 20));
-                    const toesOff = pickIdx(p => (Number.isFinite(p.toeToHoopDeg) && p.toeToHoopDeg > 22) || (Number.isFinite(p.feetAngleDiff) && p.feetAngleDiff > (g.feetAngleDiff || 8) + 6));
-                    const staggerHi = pickIdx(p => Number.isFinite(p.footStagger) && p.footStagger > (g.feetStagger || 6) + 10);
-                    const armLow = pickIdx(p => (Number.isFinite(p.shoulderToWristAngle) && p.shoulderToWristAngle < (g.shoulderToWristAngle || 55) - 8) || (Number.isFinite(p.armVerticalityDeg) && p.armVerticalityDeg > 14));
-                    const elbowLow = pickIdx(p => Number.isFinite(p.elbowExtDeg) && p.elbowExtDeg < 150);
-                    const belowSh = pickIdx(p => (g.releaseAboveShoulder ?? true) && p.releaseAboveShoulder === false);
-                    const kneeLow = pickIdx(p => Number.isFinite(p.kneeFlex) && p.kneeFlex < (g.kneeFlex || 28) * 0.75);
-                    const gazeOff = pickIdx(p => Number.isFinite(p.headToHoopDeg) && p.headToHoopDeg > 25);
+                const E = {
+                    tempo: pick(early, 'tempoRatio'),
+                    back: pick(early, 'backswingPlaneDeg'),
+                    down: pick(early, 'downswingPlaneDeg'),
+                    spine: pick(early, 'impactSpineAngle'),
+                    balance: pick(early, 'finishBalanceCm'),
+                    hold: pick(early, 'followThroughHoldFrames'),
+                    index: pick(early, 'indexBelowWristPx'),
+                    forearm: pick(early, 'shoulderToWristAngle')
+                };
+                const L = {
+                    tempo: pick(late, 'tempoRatio'),
+                    back: pick(late, 'backswingPlaneDeg'),
+                    down: pick(late, 'downswingPlaneDeg'),
+                    spine: pick(late, 'impactSpineAngle'),
+                    balance: pick(late, 'finishBalanceCm'),
+                    hold: pick(late, 'followThroughHoldFrames'),
+                    index: pick(late, 'indexBelowWristPx'),
+                    forearm: pick(late, 'shoulderToWristAngle')
+                };
 
-                    const bullets = [];
-                    if (followShort.length) bullets.push('Follow-through was short on several shots; hold for 1-2 beats longer.');
-                    if (feetNarrow.length) bullets.push('Base was narrow on several shots; widen slightly.');
-                    if (feetWide.length) bullets.push('Base was wide on several shots; narrow slightly.');
-                    if (toesOff.length) bullets.push('Toes were off-square on several shots; align your feet to the rim.');
-                    if (staggerHi.length) bullets.push('Foot stagger showed up; level your base before you lift.');
-                    if (armLow.length) bullets.push('Finish taller with the forearm to stay on line.');
-                    if (elbowLow.length) bullets.push('Drive the elbow through and lock out at the top.');
-                    if (belowSh.length) bullets.push('Raise the release above the shoulder to get the ball up.');
-                    if (kneeLow.length) bullets.push('Add a little more knee bend to load power.');
-                    if (gazeOff.length) bullets.push('Keep your eyes glued to the rim through release.');
-
-                    if (bullets.length) {
-                        lines.push('Notable patterns: ' + bullets.slice(0, 3).join(' '));
-                    }
+                if (Number.isFinite(E.tempo) && Number.isFinite(L.tempo)) {
+                    const earlyDev = Math.abs(E.tempo - tempoTarget);
+                    const lateDev = Math.abs(L.tempo - tempoTarget);
+                    if (lateDev <= earlyDev - 0.2) trends.push('Tempo smoothed out as you went – great rhythm.');
                 }
-            } catch { }
+                if (Number.isFinite(E.back) && Number.isFinite(L.back) && (E.back - L.back) >= 3)
+                    trends.push('Backswing stayed closer to the plane later in the session.');
+                if (Number.isFinite(E.down) && Number.isFinite(L.down) && (E.down - L.down) >= 3)
+                    trends.push('Downswing started coming more from the inside as you practiced.');
+                if (Number.isFinite(E.balance) && Number.isFinite(L.balance) && (E.balance - L.balance) >= 1.5)
+                    trends.push('Finish balance improved over the lead leg toward the end.');
+                if (Number.isFinite(E.spine) && Number.isFinite(L.spine)) {
+                    const earlyDev = Math.abs(E.spine - 36);
+                    const lateDev = Math.abs(L.spine - 36);
+                    if (lateDev <= earlyDev - 2) trends.push('Spine angle stayed steadier through impact as the session went on.');
+                }
+                if (Number.isFinite(E.hold) && Number.isFinite(L.hold) && (L.hold - E.hold) >= 0.6)
+                    trends.push('You held the finish a little longer near the end – nice job.');
+
+                const tempoAvg = A('tempoRatio');
+                if (Number.isFinite(tempoAvg) && tempoAvg < tempoMin) lim.push('Let the backswing breathe; aim for roughly 3:1 tempo.');
+                if (Number.isFinite(tempoAvg) && tempoAvg > tempoMax) lim.push('Blend the transition so tempo stays near 3:1.');
+                const backAvg = A('backswingPlaneDeg'); if (Number.isFinite(backAvg) && backAvg > 12) lim.push('Keep the backswing on plane by turning the torso, not lifting the arms.');
+                const downAvg = A('downswingPlaneDeg'); if (Number.isFinite(downAvg) && downAvg > 8) lim.push('Let the downswing shallow with the trail elbow dropping under plane.');
+                const balanceAvg = A('finishBalanceCm'); if (Number.isFinite(balanceAvg) && balanceAvg > 7) lim.push('Post up over the lead side; reduce finish sway.');
+                const spineAvg = A('impactSpineAngle'); if (Number.isFinite(spineAvg) && spineAvg > 45) lim.push('Stay taller through impact; avoid diving toward the ball.');
+                if (Number.isFinite(spineAvg) && spineAvg < 28) lim.push('Maintain forward bend through impact; avoid early extension.');
+                const holdAvg = A('followThroughHoldFrames'); if (Number.isFinite(holdAvg) && holdAvg < 2) lim.push('Hold the finish for a full beat to control the face.');
+                const indexAvg = A('indexBelowWristPx'); if (Number.isFinite(indexAvg) && indexAvg <= 0) lim.push('Let the lead index settle under the grip at finish.');
+                const forearmAvg = A('shoulderToWristAngle'); if (Number.isFinite(forearmAvg) && forearmAvg < 85) lim.push('Stand the lead forearm tall through impact.');
+
+                const describeIndices = (arr, plural) => {
+                    const singular = plural.endsWith('s') ? plural.slice(0, -1) : plural;
+                    if (!arr.length) return `several ${plural}`;
+                    if (arr.length === 1) return `${singular} ${arr[0]}`;
+                    if (arr.length <= 3) return `${plural} ${arr.join(', ')}`;
+                    if (arr.length <= 6) return `${plural} ${arr.slice(0, 3).join(', ')} and others`;
+                    return `several ${plural}`;
+                };
+                const pickIdx = (pred) => snaps.filter(({ snap }) => pred(snap)).map(({ i }) => i);
+
+                const tempoQuick = pickIdx(p => Number.isFinite(p.tempoRatio) && p.tempoRatio < tempoMin);
+                if (tempoQuick.length) patternBullets.push(`Tempo rushed on ${describeIndices(tempoQuick, labelPlural)}.`);
+                const tempoSlow = pickIdx(p => Number.isFinite(p.tempoRatio) && p.tempoRatio > tempoMax);
+                if (tempoSlow.length) patternBullets.push(`Tempo lingered on ${describeIndices(tempoSlow, labelPlural)}.`);
+                const backSteep = pickIdx(p => Number.isFinite(p.backswingPlaneDeg) && p.backswingPlaneDeg > 14);
+                if (backSteep.length) patternBullets.push(`Backswing lifted straight up on ${describeIndices(backSteep, labelPlural)}.`);
+                const downOver = pickIdx(p => Number.isFinite(p.downswingPlaneDeg) && p.downswingPlaneDeg > 10);
+                if (downOver.length) patternBullets.push(`Downswing came over the top on ${describeIndices(downOver, labelPlural)}.`);
+                const balanceDrift = pickIdx(p => Number.isFinite(p.finishBalanceCm) && p.finishBalanceCm > 7);
+                if (balanceDrift.length) patternBullets.push(`Finish balance drifted off the lead side on ${describeIndices(balanceDrift, labelPlural)}.`);
+                const spineHigh = pickIdx(p => Number.isFinite(p.impactSpineAngle) && p.impactSpineAngle > 45);
+                if (spineHigh.length) patternBullets.push(`Upper body collapsed toward the ball on ${describeIndices(spineHigh, labelPlural)}.`);
+                const spineLow = pickIdx(p => Number.isFinite(p.impactSpineAngle) && p.impactSpineAngle < 28);
+                if (spineLow.length) patternBullets.push(`Early extension showed on ${describeIndices(spineLow, labelPlural)}.`);
+                const holdShort = pickIdx(p => Number.isFinite(p.followThroughHoldFrames) && p.followThroughHoldFrames < 2);
+                if (holdShort.length) patternBullets.push(`Finish released early on ${describeIndices(holdShort, labelPlural)}.`);
+                const indexHigh = pickIdx(p => Number.isFinite(p.indexBelowWristPx) && p.indexBelowWristPx <= 0);
+                if (indexHigh.length) patternBullets.push(`Lead index stayed above the grip on ${describeIndices(indexHigh, labelPlural)}.`);
+                const forearmLowIdx = pickIdx(p => Number.isFinite(p.shoulderToWristAngle) && p.shoulderToWristAngle < 85);
+                if (forearmLowIdx.length) patternBullets.push(`Lead forearm finished low on ${describeIndices(forearmLowIdx, labelPlural)}.`);
+            } else {
+                const E = {
+                    kneeFlex: pick(early, 'kneeFlex'), armVert: pick(early, 'armVerticalityDeg'), elbow: pick(early, 'elbowExtDeg'),
+                    toes: pick(early, 'toeToHoopDeg'), feetDiff: pick(early, 'feetAngleDiff'), stagger: pick(early, 'footStagger'),
+                    hold: pick(early, 'followThroughHoldFrames'), head: pick(early, 'headToHoopDeg'), fingers: pickBoolPct(early, 'fingersDown')
+                };
+                const L = {
+                    kneeFlex: pick(late, 'kneeFlex'), armVert: pick(late, 'armVerticalityDeg'), elbow: pick(late, 'elbowExtDeg'),
+                    toes: pick(late, 'toeToHoopDeg'), feetDiff: pick(late, 'feetAngleDiff'), stagger: pick(late, 'footStagger'),
+                    hold: pick(late, 'followThroughHoldFrames'), head: pick(late, 'headToHoopDeg'), fingers: pickBoolPct(late, 'fingersDown')
+                };
+
+                if (Number.isFinite(E.kneeFlex) && Number.isFinite(L.kneeFlex) && (L.kneeFlex - E.kneeFlex) >= 6)
+                    trends.push(`Knee flex improved late (${round(L.kneeFlex)} deg vs ${round(E.kneeFlex)} deg).`);
+                if (Number.isFinite(E.armVert) && Number.isFinite(L.armVert) && (E.armVert - L.armVert) >= 4)
+                    trends.push(`Arm finished taller (vertical) late (${round(L.armVert)} deg vs ${round(E.armVert)} deg).`);
+                if (Number.isFinite(E.elbow) && Number.isFinite(L.elbow) && (L.elbow - E.elbow) >= 5)
+                    trends.push(`Elbow extension strengthened (${round(L.elbow)} deg vs ${round(E.elbow)} deg).`);
+                if (Number.isFinite(E.toes) && Number.isFinite(L.toes) && (E.toes - L.toes) >= 5)
+                    trends.push(`Feet more square to rim (${round(L.toes)} deg vs ${round(E.toes)} deg).`);
+                if (Number.isFinite(E.feetDiff) && Number.isFinite(L.feetDiff) && (E.feetDiff - L.feetDiff) >= 5)
+                    trends.push(`Toe angles more parallel (${round(L.feetDiff)} deg vs ${round(E.feetDiff)} deg).`);
+                if (Number.isFinite(E.stagger) && Number.isFinite(L.stagger) && (E.stagger - L.stagger) >= 6)
+                    trends.push(`Stance stagger reduced (${round(L.stagger)}px vs ${round(E.stagger)}px).`);
+                if (Number.isFinite(E.hold) && Number.isFinite(L.hold) && (L.hold - E.hold) >= 1)
+                    trends.push(`Better follow-through hold late (${round(L.hold)} vs ${round(E.hold)} frames).`);
+                if (Number.isFinite(E.head) && Number.isFinite(L.head) && (E.head - L.head) >= 6)
+                    trends.push(`Gaze held on rim more consistently (${round(L.head)} deg vs ${round(E.head)} deg).`);
+                if (Number.isFinite(E.fingers) && Number.isFinite(L.fingers) && (L.fingers - E.fingers) >= 20)
+                    trends.push(`Wrist snap improved - fingers down more often (${round(L.fingers)}% vs ${round(E.fingers)}%).`);
+
+                const armVert = A('armVerticalityDeg'); if (Number.isFinite(armVert) && armVert > 14) lim.push('Get the forearm more vertical on finish.');
+                const elbow = A('elbowExtDeg'); if (Number.isFinite(elbow) && elbow < 150) lim.push('Finish with stronger elbow extension.');
+                const knee = A('kneeFlex'); if (Number.isFinite(knee) && knee < 28) lim.push('Add a bit more knee bend for power.');
+                const toes = A('toeToHoopDeg'); if (Number.isFinite(toes) && toes > 22) lim.push('Square toes a touch more to the rim.');
+                const fDiff = A('feetAngleDiff'); if (Number.isFinite(fDiff) && fDiff > 12) lim.push('Make your toes more parallel.');
+                const holdF = A('followThroughHoldFrames'); if (Number.isFinite(holdF) && holdF < 2) lim.push('Hold the follow-through briefly.');
+                const gaze = A('headToHoopDeg'); if (Number.isFinite(gaze) && gaze > 25) lim.push('Keep your eyes on the rim through release.');
+                const above = P('releaseAboveShoulder'); if (Number.isFinite(above) && above < 70) lim.push('Release above the shoulder line.');
+
+                try {
+                    const shots = list.map((s, i) => ({ idx: i + 1, p: s?.poseSnapshot || null })).filter(x => !!x.p);
+                    if (shots.length) {
+                        const g = (window.viason_MEM?.get?.()?.golden) || { stanceWidthFeet: 120, kneeFlex: 28, toeToHoopDeg: 18, feetAngleDiff: 8, feetStagger: 6, shoulderToWristAngle: 55, releaseAboveShoulder: true };
+                        const pickIdx = (pred) => shots.filter(({ p }) => pred(p)).map(({ idx }) => idx);
+                        const followShort = pickIdx(p => Number.isFinite(p.followThroughHoldFrames) && p.followThroughHoldFrames < 2);
+                        const feetNarrow = pickIdx(p => Number.isFinite(p.stanceWidthFeet) && g.stanceWidthFeet && (p.stanceWidthFeet < g.stanceWidthFeet - 20));
+                        const feetWide = pickIdx(p => Number.isFinite(p.stanceWidthFeet) && g.stanceWidthFeet && (p.stanceWidthFeet > g.stanceWidthFeet + 20));
+                        const toesOff = pickIdx(p => (Number.isFinite(p.toeToHoopDeg) && p.toeToHoopDeg > 22) || (Number.isFinite(p.feetAngleDiff) && p.feetAngleDiff > (g.feetAngleDiff || 8) + 6));
+                        const staggerHi = pickIdx(p => Number.isFinite(p.footStagger) && p.footStagger > (g.feetStagger || 6) + 10);
+                        const armLow = pickIdx(p => (Number.isFinite(p.shoulderToWristAngle) && p.shoulderToWristAngle < (g.shoulderToWristAngle || 55) - 8) || (Number.isFinite(p.armVerticalityDeg) && p.armVerticalityDeg > 14));
+                        const elbowLow = pickIdx(p => Number.isFinite(p.elbowExtDeg) && p.elbowExtDeg < 150);
+                        const belowSh = pickIdx(p => (g.releaseAboveShoulder ?? true) && p.releaseAboveShoulder === false);
+                        const kneeLow = pickIdx(p => Number.isFinite(p.kneeFlex) && p.kneeFlex < (g.kneeFlex || 28) * 0.75);
+                        const gazeOff = pickIdx(p => Number.isFinite(p.headToHoopDeg) && p.headToHoopDeg > 25);
+
+                        const bullets = [];
+                        if (followShort.length) bullets.push('Follow-through was short on several shots; hold for 1-2 beats longer.');
+                        if (feetNarrow.length) bullets.push('Base was narrow on several shots; widen slightly.');
+                        if (feetWide.length) bullets.push('Base was wide on several shots; narrow slightly.');
+                        if (toesOff.length) bullets.push('Toes were off-square on several shots; align your feet to the rim.');
+                        if (staggerHi.length) bullets.push('Foot stagger showed up; level your base before you lift.');
+                        if (armLow.length) bullets.push('Finish taller with the forearm to stay on line.');
+                        if (elbowLow.length) bullets.push('Drive the elbow through and lock out at the top.');
+                        if (belowSh.length) bullets.push('Raise the release above the shoulder to get the ball up.');
+                        if (kneeLow.length) bullets.push('Add a little more knee bend to load power.');
+                        if (gazeOff.length) bullets.push('Keep your eyes glued to the rim through release.');
+
+                        if (bullets.length) patternBullets = bullets;
+                    }
+                } catch { }
+            }
+
+            if (trends.length) linesOut.push('Improvements: ' + trends.slice(0, 3).join(' '));
+            if (lim.length) linesOut.push('Focus next: ' + lim.slice(0, 3).join(' '));
+            if (!linesOut.length) {
+                if (slug === 'golf') {
+                    linesOut.push(`${name}, tempo and balance stayed steady - keep rehearsing that motion.`);
+                } else {
+                    linesOut.push(`${name}, your form is consistent - keep the rhythm and balance.`);
+                }
+            }
+            if (patternBullets.length) linesOut.push('Notable patterns: ' + patternBullets.slice(0, 3).join(' '));
 
             try {
-                const list = Array.isArray(window.__shotList) ? window.__shotList : [];
                 const scores = list.map(s => Number(s?.weightedScore)).filter(Number.isFinite);
                 if (scores.length) {
-                    const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-                    const sessionScore = Math.round(avg * 100);
-                    lines.push(`Your total score this session was ${sessionScore}.`);
+                    const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+                    const sessionScore = Math.round(avgScore * 100);
+                    linesOut.push(`Your total score this session was ${sessionScore}.`);
                 }
             } catch { }
-            // Always deliver the session review regardless of viason_ONLY_REALTIME.
-            const out = `Session review. ${lines.join(' ')}`;
+
+            const out = `Session review. ${linesOut.join(' ')}`;
             try { window.__lastCoachText = out; } catch { }
             try { setCoachNotesContent(out, { zIndex: 10070, force: true }); } catch { }
             try {
                 window.dispatchEvent(new CustomEvent('viason:session-review', {
-                    detail: { summary: out, lines, trends, limiting: lim }
+                    detail: { summary: out, lines: linesOut, trends, limiting: lim }
                 }));
             } catch { }
             try {
@@ -2568,7 +2661,6 @@ window.addEventListener('shot:feedback:request', (e) => {
             } catch { }
         } catch { }
     }
-
     // Auto speak summary when HUD ends a session
     try {
         window.addEventListener('hud:end-session', () => {
