@@ -3460,9 +3460,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const secondsRaw = getWorkflowCountdownSeconds();
         const seconds = Number.isFinite(secondsRaw) && secondsRaw > 0 ? secondsRaw : 5;
         const cue = getWorkflowReadyPrompt();
-        try { window.__sessionCountdownDone = false; } catch { }
         try {
-            window.startShotTrackingCountdown?.(seconds, cue, { force: true });
+            window.startShotTrackingCountdown?.(seconds, cue);
         } catch (err) {
             console.warn('[hud] countdown failed', err);
         }

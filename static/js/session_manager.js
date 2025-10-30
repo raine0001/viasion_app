@@ -127,6 +127,9 @@ let __wired = false;
 let __sid = null;
 let __ended = false;
 let __startPromise = null;
+let __communityPendingSummary = null;
+let __communitySessionFinalized = false;
+let __communityPublishing = false;
 
 // Display name for voice (fallbacks)
 function getDisplayName() {
@@ -147,6 +150,10 @@ async function startSession() {
         __ended = false;
         __shotCounter = 0;
         __processedSummaries.clear();
+        __communityPendingSummary = null;
+        __communitySessionFinalized = false;
+        __communityPublishing = false;
+        try { window.__COMMUNITY_AUTOSHARE = null; } catch {}
 
         // choose cap once per session (URL > env > LS > default)
         let cap = (() => {
@@ -162,7 +169,21 @@ async function startSession() {
 
         let sessionId = null;
         try {
-            const res = await postJSON('/api/sessions/start', { device: navigator.userAgent });
+            const projectMeta = getActiveProjectMeta();
+            const qs = new URLSearchParams(location.search || '');
+            const datasetSlug = qs.get('dataset') || null;
+            const payload = {
+                device: navigator.userAgent,
+                project: projectMeta?.slug || null,
+                projectName: projectMeta?.name || null,
+                dataset: datasetSlug || (projectMeta?.datasets?.[0]?.slug ?? null),
+                tags: Array.isArray(projectMeta?.tags) ? projectMeta.tags : null
+            };
+            if (!payload.project) delete payload.project;
+            if (!payload.projectName) delete payload.projectName;
+            if (!payload.dataset) delete payload.dataset;
+            if (!payload.tags) delete payload.tags;
+            const res = await postJSON('/api/sessions/start', payload);
             sessionId = res?.id || null;
         } catch (err) {
             __sid = null;
@@ -425,6 +446,14 @@ async function persistShotFromSummary(detail) {
         releaseAngle: Number.isFinite(detail?.releaseAngle) ? Number(detail.releaseAngle) : null,
         pose: poseSnapshot || null   // optional, server can ignore
     };
+    const coachLine = typeof detail?.viason === 'string'
+        ? detail.viason.trim()
+        : (typeof detail?.coachLine === 'string'
+            ? detail.coachLine.trim()
+            : (typeof detail?.text === 'string' ? detail.text.trim() : ''));
+    if (coachLine) {
+        payload.coachNote = coachLine;
+    }
     if (normalizedPoseScore != null) {
         payload.poseScore = normalizedPoseScore;
     } else if (normalizedWeightedScore != null) {
@@ -495,6 +524,19 @@ async function endSession(reason = 'normal') {
         }
     } catch { }
 
+    if (__sid) {
+        try {
+            const res = await postJSON(`/api/sessions/${__sid}/end`, { reason });
+            if (res?.totals) {
+                try { window.__sessionTotals = res.totals; } catch { }
+            }
+        } catch (err) {
+            console.warn('[session] finalize endpoint failed', err);
+        }
+        __communitySessionFinalized = true;
+        publishCommunityRecapIfReady();
+    }
+
     return true;
 }
 function resetSessionForNewStart() {
@@ -550,4 +592,88 @@ window.viasonSession = {
     setCap: setSessionCap,
     get id() { return __sid; }
 };
+
+async function publishCommunityRecap(detail) {
+    const sid = window.__SESSION_ID;
+    if (!sid) return;
+    if (window.__COMMUNITY_AUTOSHARE === sid) return;
+    const shotsList = Array.isArray(window.__shotList) ? window.__shotList : [];
+    const attempts = shotsList.length;
+    const shots = shotsList.map((shot, idx) => {
+        const idx1 = Number.isFinite(shot?.shotId) && shot.shotId > 0 ? shot.shotId : (idx + 1);
+        const clipPath = (shot?.clip && typeof shot.clip.path === 'string')
+            ? shot.clip.path
+            : `/sessions/${sid}/clips/shot-${idx1}.webm`;
+        const poseScore = Number.isFinite(shot?.poseScore) ? Math.round(shot.poseScore) : null;
+        const weightedScore = Number.isFinite(shot?.weightedScore) ? shot.weightedScore : null;
+        const coachNote = typeof shot?.viason === 'string' && shot.viason.trim()
+            ? shot.viason.trim()
+            : (typeof shot?.coachLine === 'string' && shot.coachLine.trim() ? shot.coachLine.trim() : null);
+        return {
+            idx: idx1,
+            clip: clipPath,
+            poseScore,
+            weightedScore,
+            coachNote
+        };
+    });
+    const poseScores = shots.map(s => s.poseScore).filter(v => Number.isFinite(v));
+    const avgPose = poseScores.length ? Math.round(poseScores.reduce((a, b) => a + b, 0) / poseScores.length) : null;
+    const project = getActiveProjectMeta();
+    const qs = new URLSearchParams(location.search || '');
+    const datasetSlug = qs.get('dataset') || null;
+    const tags = new Set();
+    if (Array.isArray(detail?.tags)) detail.tags.forEach(t => tags.add(String(t)));
+    if (project?.slug) tags.add(project.slug);
+    if (datasetSlug) tags.add(datasetSlug);
+    const payload = {
+        sessionId: sid,
+        title: detail?.title || (project?.name ? `${project.name} recap` : 'Session recap'),
+        summary: detail?.summary || '',
+        highlights: Array.isArray(detail?.lines) ? detail.lines.slice(0, 3) : [],
+        author: name,
+        tags: Array.from(tags).filter(Boolean),
+        project: project?.slug || null,
+        projectName: project?.name || null,
+        dataset: datasetSlug,
+        stats: {
+            attempts,
+            poseAverage: avgPose,
+            accuracy: Number.isFinite(window.__sessionTotals?.accuracy) ? window.__sessionTotals.accuracy : null
+        },
+        shots
+    };
+    try {
+        const res = await fetch('/api/community/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const msg = await res.text().catch(() => res.statusText || 'publish failed');
+            throw new Error(msg || `HTTP ${res.status}`);
+        }
+        window.__COMMUNITY_AUTOSHARE = sid;
+        console.info('[community] recap published', { sid });
+    } catch (err) {
+        console.warn('[community] publish failed', err, { sid, payload });
+    }
+}
+
+function publishCommunityRecapIfReady() {
+    if (__communityPublishing) return;
+    if (!__communityPendingSummary) return;
+    if (!__communitySessionFinalized) return;
+    if (!window.__SESSION_ID) return;
+    if (window.__COMMUNITY_AUTOSHARE === window.__SESSION_ID) return;
+    __communityPublishing = true;
+    publishCommunityRecap(__communityPendingSummary).finally(() => {
+        __communityPublishing = false;
+    });
+}
+
+window.addEventListener('viason:session-review', (e) => {
+    __communityPendingSummary = e?.detail || null;
+    publishCommunityRecapIfReady();
+});
 

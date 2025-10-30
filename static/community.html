@@ -30,6 +30,7 @@
       --text:#f4f7fb;
       --text-soft:#a6adc6;
       --accent:#facc15;
+      --accent-soft:rgba(250,204,21,.16);
       --card-radius:18px;
       --gap:clamp(12px,3vw,24px);
     }
@@ -43,14 +44,20 @@
       font:14px/1.5 "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color:var(--text);
       padding-bottom:40px;
+      transition:background .3s ease;
     }
+    body.modal-open{overflow:hidden;}
     header{
-      padding:clamp(18px,5vw,32px) clamp(16px,5vw,48px) 0;
+      padding:clamp(20px,6vw,36px) clamp(16px,6vw,48px) 0;
+      display:flex;
+      flex-direction:column;
+      gap:16px;
     }
     h1{
-      margin:0 0 6px;
-      font:700 clamp(24px,5vw,36px)/1.1 "Bebas Neue", "Inter", sans-serif;
+      margin:0;
+      font:700 clamp(26px,6vw,38px)/1.1 "Bebas Neue", "Inter", sans-serif;
       letter-spacing:.04em;
+      text-transform:uppercase;
     }
     p.subtitle{
       margin:0;
@@ -62,9 +69,18 @@
       display:flex;
       flex-wrap:wrap;
       gap:10px;
-      margin:18px 0 clamp(12px,4vw,20px);
+      margin-right:auto;
     }
-    .filter-btn{
+    .tag-filter-group{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:-4px;
+      margin-bottom:clamp(16px,4vw,28px);
+      padding:0 clamp(16px,6vw,48px);
+    }
+    .filter-btn,
+    .tag-filter-btn{
       border:1px solid var(--border);
       background:var(--surface);
       color:var(--text-soft);
@@ -75,14 +91,23 @@
       transition:.18s ease;
     }
     .filter-btn.active,
-    .filter-btn:hover{
+    .tag-filter-btn.active,
+    .filter-btn:hover,
+    .tag-filter-btn:hover{
       background:var(--accent);
       color:#1c1a05;
       border-color:transparent;
     }
     main{
       flex:1 1 auto;
-      padding:0 clamp(16px,5vw,48px) clamp(32px,8vw,72px);
+      padding:0 clamp(16px,6vw,48px) clamp(32px,8vw,72px);
+    }
+    .status-message{
+      margin:32px auto 0;
+      max-width:480px;
+      text-align:center;
+      color:var(--text-soft);
+      font-size:15px;
     }
     .feed{
       display:grid;
@@ -97,11 +122,13 @@
       display:flex;
       flex-direction:column;
       position:relative;
-      transition:transform .2s ease, border .2s ease;
+      transition:transform .2s ease, border .2s ease, box-shadow .2s ease;
+      cursor:pointer;
     }
     article.post:hover{
       transform:translateY(-6px);
       border-color:var(--accent);
+      box-shadow:0 14px 32px rgba(250,204,21,.15);
     }
     .post-media{
       position:relative;
@@ -116,8 +143,19 @@
       height:100%;
       object-fit:cover;
     }
+    .post-media-placeholder{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--text-soft);
+      font-weight:600;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
     .post-body{
-      padding:18px 18px 20px;
+      padding:20px 20px 22px;
       display:flex;
       flex-direction:column;
       gap:14px;
@@ -126,267 +164,430 @@
       display:flex;
       justify-content:space-between;
       align-items:center;
-      gap:10px;
+      font-size:13px;
       color:var(--text-soft);
-      font-size:12px;
     }
     .post-title{
       margin:0;
-      font:600 18px/1.3 "Inter", sans-serif;
+      font-size:18px;
+      font-weight:600;
+    }
+    .post-summary{
+      margin:0;
+      color:var(--text-soft);
+      min-height:42px;
+    }
+    .post-stats{
+      margin:0;
+      padding:0;
+      list-style:none;
+      display:flex;
+      gap:12px;
+      font-size:13px;
+    }
+    .post-stats li{
+      background:var(--surface-soft);
+      border:1px solid var(--border-soft);
+      border-radius:12px;
+      padding:6px 10px;
+      display:flex;
+      gap:6px;
+      align-items:center;
+    }
+    .post-stats span{
+      color:var(--text-soft);
+    }
+    .post-stats strong{
+      color:var(--text);
+      font-size:14px;
     }
     .tags{
       display:flex;
       flex-wrap:wrap;
-      gap:6px;
+      gap:8px;
     }
     .tag{
-      font-size:11px;
-      padding:4px 8px;
-      border-radius:999px;
-      border:1px solid rgba(250,204,21,.45);
-      background:rgba(250,204,21,.08);
+      background:var(--accent-soft);
+      border:1px solid rgba(250,204,21,.3);
       color:var(--accent);
-      text-transform:uppercase;
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:12px;
       letter-spacing:.04em;
     }
     .post-footer{
       display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:10px;
-    }
-    .actions{
-      display:flex;
-      gap:8px;
-    }
-    .action-btn{
-      display:flex;
-      align-items:center;
-      gap:6px;
-      background:var(--surface-soft);
-      border:1px solid var(--border-soft);
-      color:var(--text-soft);
-      padding:8px 11px;
-      border-radius:12px;
-      cursor:pointer;
-      font-weight:600;
-    }
-    .action-btn:hover{
-      border-color:var(--accent);
-      color:var(--accent);
+      justify-content:flex-end;
     }
     .cta{
       border:none;
       background:var(--accent);
-      color:#161504;
+      color:#1c1a05;
+      padding:10px 18px;
+      border-radius:12px;
+      font-weight:700;
+      cursor:pointer;
+      transition:.18s ease;
+    }
+    .cta:hover{
+      transform:translateY(-1px);
+      box-shadow:0 8px 18px rgba(250,204,21,.3);
+    }
+    .modal{
+      position:fixed;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+      opacity:0;
+      transition:opacity .2s ease;
+      z-index:1000;
+    }
+    .modal.open{
+      pointer-events:auto;
+      opacity:1;
+    }
+    .modal-backdrop{
+      position:absolute;
+      inset:0;
+      background:rgba(0,0,0,.65);
+    }
+    .modal-dialog{
+      position:relative;
+      width:min(1040px, 96vw);
+      max-height:90vh;
+      background:var(--surface);
+      border-radius:22px;
+      border:1px solid var(--border);
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      z-index:1;
+      box-shadow:0 24px 48px rgba(0,0,0,.35);
+    }
+    .modal-close{
+      position:absolute;
+      top:14px;
+      right:16px;
+      border:none;
+      background:rgba(0,0,0,.45);
+      color:#fff;
+      width:34px;
+      height:34px;
+      border-radius:50%;
+      font-size:18px;
+      cursor:pointer;
+    }
+    .modal-header{
+      padding:22px 28px 12px;
+      border-bottom:1px solid var(--border);
+    }
+    .modal-header h2{
+      margin:0;
+      font-size:20px;
+    }
+    .modal-header p{
+      margin:6px 0 0;
+      color:var(--text-soft);
+      font-size:13px;
+    }
+    .modal-body{
+      display:grid;
+      grid-template-columns:minmax(0,2.1fr) minmax(0,1fr);
+      gap:0;
+      height:100%;
+      overflow:hidden;
+    }
+    .modal-media{
+      position:relative;
+      background:black;
+      min-height:360px;
+      display:flex;
+      flex-direction:column;
+      justify-content:flex-end;
+    }
+    .modal-media video{
+      width:100%;
+      max-height:60vh;
+      background:black;
+    }
+    .modal-overlay{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:rgba(8,11,18,.72);
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .2s ease;
+      padding:32px;
+      text-align:center;
+    }
+    .modal-overlay.show{
+      opacity:1;
+      pointer-events:auto;
+    }
+    .overlay-content{
+      max-width:420px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      background:rgba(17,24,39,.72);
+      border:1px solid rgba(250,204,21,.35);
+      border-radius:18px;
+      padding:24px;
+      color:var(--text);
+      box-shadow:0 12px 34px rgba(0,0,0,.45);
+    }
+    .overlay-content.final{
+      max-width:520px;
+    }
+    .overlay-content h4{
+      margin:0;
+      font-size:20px;
+    }
+    .overlay-score{
+      font-size:16px;
+      font-weight:600;
+      color:var(--accent);
+    }
+    .overlay-next{
+      align-self:center;
+      border:1px solid rgba(250,204,21,.6);
+      background:rgba(250,204,21,.15);
+      color:var(--accent);
+      border-radius:999px;
+      padding:8px 18px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .overlay-stats{
+      list-style:none;
+      margin:0;
+      padding:0;
+      display:flex;
+      gap:16px;
+      justify-content:center;
+    }
+    .overlay-stats li{
+      background:rgba(17,24,39,.65);
+      border-radius:12px;
       padding:10px 14px;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      min-width:92px;
+    }
+    .overlay-stats span{
+      color:var(--text-soft);
+      font-size:12px;
+    }
+    .overlay-stats strong{
+      font-size:18px;
+    }
+    .overlay-highlights{
+      list-style:none;
+      margin:0;
+      padding:0;
+      text-align:left;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .overlay-actions{
+      display:flex;
+      gap:10px;
+      justify-content:center;
+    }
+    .overlay-actions button{
+      border:none;
+      background:var(--accent);
+      color:#1c1a05;
+      padding:10px 18px;
       border-radius:12px;
       font-weight:700;
       cursor:pointer;
     }
-    @media (max-width:680px){
-      .filters{
-        gap:8px;
+    .modal-actions{
+      position:absolute;
+      bottom:14px;
+      right:18px;
+      display:flex;
+      gap:10px;
+      opacity:.85;
+    }
+    .modal-actions button{
+      border:1px solid rgba(250,204,21,.35);
+      background:rgba(8,11,18,.6);
+      color:var(--accent);
+      padding:6px 12px;
+      border-radius:999px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .modal-sidebar{
+      background:var(--surface-soft);
+      border-left:1px solid var(--border);
+      padding:24px 26px;
+      overflow-y:auto;
+    }
+    .modal-sidebar section{
+      margin-top:22px;
+    }
+    .modal-sidebar h4{
+      margin:0 0 10px;
+      font-size:15px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:var(--text-soft);
+    }
+    .modal-summary{
+      margin:0;
+      color:var(--text-soft);
+      font-size:14px;
+    }
+    .modal-stats{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(110px,1fr));
+      gap:12px;
+    }
+    .stat-item{
+      background:var(--surface);
+      border:1px solid var(--border-soft);
+      border-radius:14px;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .stat-item span{
+      color:var(--text-soft);
+      font-size:12px;
+    }
+    .stat-item strong{
+      font-size:18px;
+    }
+    .modal-highlights ul,
+    .modal-shots ul{
+      list-style:none;
+      margin:0;
+      padding:0;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .modal-highlights li{
+      background:var(--surface);
+      border-radius:10px;
+      padding:10px 12px;
+      color:var(--text);
+    }
+    .shot-row{
+      background:var(--surface);
+      border-radius:12px;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      border:1px solid transparent;
+      cursor:pointer;
+      transition:border .15s ease, background .15s ease;
+    }
+    .shot-row span{
+      font-weight:600;
+      font-size:13px;
+      color:var(--accent);
+    }
+    .shot-row .shot-score{
+      font-size:20px;
+      color:var(--text);
+    }
+    .shot-row p{
+      margin:0;
+      color:var(--text-soft);
+      font-size:13px;
+      line-height:1.5;
+    }
+    .shot-row.active{
+      border-color:var(--accent);
+      background:rgba(250,204,21,.08);
+    }
+    @media (max-width:960px){
+      .modal-body{
+        grid-template-columns:1fr;
       }
-      .filter-btn{
-        flex:1 1 calc(50% - 8px);
-        text-align:center;
+      .modal-sidebar{
+        border-left:none;
+        border-top:1px solid var(--border);
+        max-height:40vh;
       }
-      .post-footer{
-        flex-direction:column;
-        align-items:flex-start;
+      .modal-actions{
+        bottom:12px;
+        right:12px;
       }
-      .actions{
-        width:100%;
-        flex-wrap:wrap;
-      }
-      .action-btn{
-        flex:1 1 auto;
-        justify-content:center;
-      }
-      .cta{
-        width:100%;
-      }
+    }
+    @media (max-width:768px){
+      header{padding:24px 16px 0;}
+      main{padding:0 16px 48px;}
+      .tag-filter-group{padding:0 16px;}
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>Community Feed</h1>
-    <p class="subtitle">Stream highlights, form check-ins, and success stories from across the viason community. Open a session to replay the clips and review full training results.</p>
-    <div class="filters" id="filterButtons"></div>
+    <div>
+      <h2>viason community</h2>
+      
+    </div>
+    <div class="filters" data-community-filter></div>
   </header>
-
+  <div class="tag-filter-group" data-community-tag-filter></div>
   <main>
-    <section class="feed" id="feed"></section>
+    <p class="status-message" data-community-empty hidden>Sessions will appear as soon as someone wraps a training run.</p>
+    <section class="feed" data-community-feed></section>
   </main>
 
-  <script>
-    function goTo(path, hash = '') {
-      if (window.viasonNavigate) {
-        window.viasonNavigate(path, hash);
-      } else {
-        const anchor = hash && !hash.startsWith('#') ? '#' + hash : hash || '';
-        window.location.href = path + anchor;
-      }
-    }
+  <div class="modal" data-community-modal>
+    <div class="modal-backdrop" data-modal-backdrop></div>
+    <div class="modal-dialog">
+      <button type="button" class="modal-close" data-modal-close>&times;</button>
+      <div class="modal-header">
+        <h2 data-modal-title>Session recap</h2>
+        <p data-modal-meta></p>
+      </div>
+      <div class="modal-body">
+        <div class="modal-media">
+          <video data-modal-video preload="metadata" playsinline></video>
+          <div class="modal-overlay" data-modal-overlay></div>
+          <div class="modal-actions" data-modal-actions>
+            <button type="button" data-action="previous">&larr; Prev</button>
+            <button type="button" data-action="next">Next &rarr;</button>
+          </div>
+        </div>
+        <aside class="modal-sidebar">
+          <section>
+            <p class="modal-summary" data-modal-summary></p>
+          </section>
+          <section>
+            <h4>Session stats</h4>
+            <div class="modal-stats" data-modal-stats></div>
+          </section>
+          <section class="modal-highlights" hidden>
+            <h4>Highlights</h4>
+            <ul data-modal-highlights></ul>
+          </section>
+          <section class="modal-shots" hidden>
+            <h4>Swings</h4>
+            <ul data-modal-shots></ul>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </div>
 
-    const FEED = [
-      {
-        id: 'post-01',
-        title: 'Smooth tempo on the range',
-        athlete: 'Jordan R.',
-        sport: 'golf',
-        timestamp: '2 hours ago',
-        likes: 22,
-        comments: 4,
-        focus: ['golf', 'tempo', 'range'],
-        summary: 'Backswing-to-downswing ratio locked at 3:1, impact posture 92% consistent.',
-        thumb: '/static/img/feed_golf_01.jpg'
-      },
-      {
-        id: 'post-02',
-        title: '25/25 made free throws',
-        athlete: 'Skylar P.',
-        sport: 'basketball',
-        timestamp: '6 hours ago',
-        likes: 41,
-        comments: 9,
-        focus: ['basketball', 'arc', 'rhythm'],
-        summary: 'Release angle averaged 48°, follow-through hold +420ms over baseline.',
-        thumb: '/static/img/feed_hoops_02.jpg'
-      },
-      {
-        id: 'post-03',
-        title: 'Machine start-up certification',
-        athlete: 'Leon A.',
-        sport: 'industrial',
-        timestamp: 'yesterday',
-        likes: 15,
-        comments: 2,
-        focus: ['industrial', 'sequence'],
-        summary: 'Step compliance 100%, flagged an early lever reset in iteration one.',
-        thumb: '/static/img/feed_industrial_01.jpg'
-      },
-      {
-        id: 'post-04',
-        title: 'Vault prep session',
-        athlete: 'Nina L.',
-        sport: 'dance',
-        timestamp: '1 day ago',
-        likes: 33,
-        comments: 11,
-        focus: ['dance', 'balance'],
-        summary: 'Landing posture within 4° variance, finish balance score 0.96.',
-        thumb: '/static/img/feed_dance_01.jpg'
-      }
-    ];
-
-    const filters = [
-      { id: 'all', label: 'All activity' },
-      { id: 'golf', label: 'Golf' },
-      { id: 'basketball', label: 'Basketball' },
-      { id: 'industrial', label: 'Workforce' },
-      { id: 'dance', label: 'Dance & Movement' }
-    ];
-
-    const feedEl = document.getElementById('feed');
-    const filterEl = document.getElementById('filterButtons');
-    let activeFilter = 'all';
-
-    function renderFilters() {
-      filterEl.innerHTML = '';
-      filters.forEach(f => {
-        const btn = document.createElement('button');
-        btn.className = 'filter-btn' + (f.id === activeFilter ? ' active' : '');
-        btn.textContent = f.label;
-        btn.onclick = () => {
-          activeFilter = f.id;
-          renderFilters();
-          renderFeed();
-        };
-        filterEl.appendChild(btn);
-      });
-    }
-
-    function renderFeed() {
-      const items = FEED.filter(item => activeFilter === 'all' || item.focus.includes(activeFilter) || item.sport === activeFilter);
-      feedEl.innerHTML = '';
-      if (!items.length) {
-        const empty = document.createElement('article');
-        empty.className = 'post';
-        const body = document.createElement('div');
-        body.className = 'post-body';
-        body.innerHTML = '<h3 class="post-title">No posts yet</h3><p class="subtitle">Nobody has shared in this category. Record a session and publish the recap to appear here.</p>';
-        empty.appendChild(body);
-        feedEl.appendChild(empty);
-        return;
-      }
-
-      items.forEach(item => {
-        const card = document.createElement('article');
-        card.className = 'post';
-
-        const media = document.createElement('div');
-        media.className = 'post-media';
-        if (item.thumb) {
-          const img = document.createElement('img');
-          img.src = item.thumb;
-          img.alt = item.title;
-          media.appendChild(img);
-        }
-
-        const body = document.createElement('div');
-        body.className = 'post-body';
-
-        const meta = document.createElement('div');
-        meta.className = 'post-meta';
-        meta.innerHTML = `<span>${item.athlete}</span><span>${item.timestamp}</span>`;
-
-        const title = document.createElement('h3');
-        title.className = 'post-title';
-        title.textContent = item.title;
-
-        const summary = document.createElement('p');
-        summary.className = 'subtitle';
-        summary.textContent = item.summary;
-
-        const tags = document.createElement('div');
-        tags.className = 'tags';
-        item.focus.forEach(tag => {
-          const chip = document.createElement('span');
-          chip.className = 'tag';
-          chip.textContent = tag;
-          tags.appendChild(chip);
-        });
-
-        const footer = document.createElement('div');
-        footer.className = 'post-footer';
-
-        const actions = document.createElement('div');
-        actions.className = 'actions';
-        actions.innerHTML = `
-          <button class="action-btn" type="button">❤️ ${item.likes}</button>
-          <button class="action-btn" type="button">💬 ${item.comments}</button>
-          <button class="action-btn" type="button">🔁 Share</button>
-        `;
-
-        const cta = document.createElement('button');
-        cta.className = 'cta';
-        cta.type = 'button';
-        cta.textContent = 'Open Session';
-        cta.onclick = () => goTo('/static/my_sessions.html');
-
-        footer.append(actions, cta);
-        body.append(meta, title, summary, tags, footer);
-        card.append(media, body);
-        feedEl.appendChild(card);
-      });
-    }
-
-    renderFilters();
-    renderFeed();
-  </script>
+  <script src="/static/js/community_page.js"></script>
   <script src="/static/js/ui_menu.js"></script>
 </body>
 </html>

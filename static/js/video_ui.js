@@ -1683,22 +1683,16 @@ function showCenterPrompt(msg) {
 }
 window.showCenterPrompt = showCenterPrompt;
 
-function startShotTrackingCountdown(sec = 5, readyText, options) {
-    try { if (typeof window.__sessionCountdownDone === 'undefined') window.__sessionCountdownDone = false; } catch { }
+function startShotTrackingCountdown(sec = 5, readyText, _options) {
     let promptOverride = readyText;
-    let opts = options;
     if (readyText && typeof readyText === 'object' && !Array.isArray(readyText)) {
-        opts = readyText;
         promptOverride = undefined;
     }
-    const force = !!(opts && opts.force);
     const countdown = Number.isFinite(sec) ? sec : (Number(window.__sessionCountdownSecs) || getCountdownSeconds());
     const prompt = promptOverride || window.__sessionReadyPrompt || getReadyPrompt();
 
-    if (!force && window.__sessionCountdownDone === true) return false;
-    if (window.__armCountdownActive) return false;
+    if (window.__armCountdownActive) return;
     window.__armCountdownActive = true;
-    window.__sessionCountdownDone = true;
 
     try { window.__shotTrackingArmed = false; } catch { }
     try { window.dispatchEvent(new CustomEvent('hud:arm-countdown', { detail: { sec: countdown } })); } catch { }
@@ -1740,8 +1734,6 @@ function startShotTrackingCountdown(sec = 5, readyText, options) {
             window.__armCountdownActive = false;
         }
     })();
-
-    return true;
 }
 if (typeof window.startShotTrackingCountdown !== 'function') window.startShotTrackingCountdown = startShotTrackingCountdown;
 
@@ -1821,11 +1813,9 @@ export function initHUDForVideo(videoEl) {
 
     window.addEventListener('hud:end-session', () => {
         try { if (window.__hudTimeTimer) { clearInterval(window.__hudTimeTimer); window.__hudTimeTimer = null; } } catch { }
-        try { window.__sessionCountdownDone = false; } catch { }
         try { window.__armCountdownActive = false; } catch { }
     });
     window.addEventListener('session:reset', () => {
-        try { window.__sessionCountdownDone = false; } catch { }
         try { window.__armCountdownActive = false; } catch { }
     });
 }
@@ -1834,9 +1824,8 @@ window.initHUDForVideo = initHUDForVideo;
 function kickoffCountdownArmFromHoop() {
     const sec = Number(window.__sessionCountdownSecs || getCountdownSeconds());
     const prompt = window.__sessionReadyPrompt || getReadyPrompt();
-    try { window.__sessionCountdownDone = false; } catch { }
     try {
-        window.startShotTrackingCountdown?.(sec, prompt, { force: true });
+        window.startShotTrackingCountdown?.(sec, prompt);
     } catch (err) {
         console.warn('[hud] countdown failed', err);
     }

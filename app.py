@@ -1058,6 +1058,9 @@ def shot_summary():
 # ---------------------- Session API (demo-friendly) ----------------------
 SESSIONS_DIR = os.path.join(app.root_path, "sessions")
 os.makedirs(SESSIONS_DIR, exist_ok=True)
+COMMUNITY_DIR = os.path.join(SESSIONS_DIR, "_community")
+COMMUNITY_FEED_PATH = os.path.join(COMMUNITY_DIR, "feed.json")
+os.makedirs(COMMUNITY_DIR, exist_ok=True)
 
 
 def _session_path(sid: str):
@@ -1082,6 +1085,67 @@ def _write_session(sid: str, data: dict):
     p = _session_json_path(sid)
     with open(p, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def _community_detail_path(sid: str) -> str:
+    safe = secure_filename(sid) or sid
+    return os.path.join(COMMUNITY_DIR, f"{safe}.json")
+
+
+def _load_community_feed() -> list[dict]:
+    try:
+        with open(COMMUNITY_FEED_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            posts = data.get("posts", [])
+        else:
+            posts = data
+    except FileNotFoundError:
+        return []
+    except Exception as exc:
+        _trace("community:feed load error", exc)
+        return []
+    if not isinstance(posts, list):
+        return []
+    posts.sort(key=lambda x: x.get("createdAt") or 0, reverse=True)
+    return posts
+
+
+def _write_community_feed(posts: list[dict]):
+    tmp_path = COMMUNITY_FEED_PATH + ".tmp"
+    payload = {"version": 1, "posts": posts}
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, COMMUNITY_FEED_PATH)
+
+
+def _ensure_preview_image(sid: str) -> str | None:
+    preview_path = os.path.join(_session_path(sid), "preview.jpg")
+    if os.path.exists(preview_path):
+        return preview_path
+    clips_dir = Path(_session_path(sid)) / "clips"
+    if not clips_dir.exists():
+        return None
+    first_clip = None
+    for candidate in sorted(clips_dir.glob("shot-*")):
+        if candidate.is_file():
+            first_clip = candidate
+            break
+    if not first_clip:
+        return None
+    try:
+        import cv2  # type: ignore
+
+        cap = cv2.VideoCapture(str(first_clip))
+        success, frame = cap.read()
+        cap.release()
+        if not success or frame is None:
+            return None
+        cv2.imwrite(preview_path, frame)
+        return preview_path
+    except Exception as exc:
+        _trace("community:preview error", exc)
+        return None
 
 
 # ---------------------- ArcMM Auto-processing ----------------------
@@ -1491,6 +1555,25 @@ def api_session_start():
         "shots": [],
         "totals": {"attempts": 0, "made": 0, "accuracy": 0},
     }
+    extra_fields = {
+        "project": (b.get("project") or "").strip() or None,
+        "projectName": (b.get("projectName") or "").strip() or None,
+        "dataset": (b.get("dataset") or "").strip() or None,
+    }
+    tags_val = b.get("tags")
+    if isinstance(tags_val, list):
+        safe_tags = []
+        for tag in tags_val:
+            if not isinstance(tag, str):
+                continue
+            t = tag.strip()
+            if t:
+                safe_tags.append(t[:48])
+        if safe_tags:
+            extra_fields["tags"] = safe_tags
+    for key, val in extra_fields.items():
+        if val:
+            sess[key] = val
     if challenge_mode:
         sess["event"] = event_slug
         sess["challenge"] = True
@@ -1707,6 +1790,174 @@ def api_session_get(sid):
 @app.route("/sessions/<sid>/<path:filename>")
 def serve_session_file(sid, filename):
     return send_from_directory(_session_path(sid), filename)
+
+
+def _sanitize_tags(tags):
+    out = []
+    for tag in tags or []:
+        if not isinstance(tag, str):
+            continue
+        t = tag.strip()
+        if t:
+            out.append(t[:48])
+    return out
+
+
+@app.post("/api/community/publish")
+def api_community_publish():
+    data = request.get_json(force=True) or {}
+    sid = (data.get("sessionId") or "").strip()
+    if not sid:
+        return jsonify({"error": "sessionId required"}), 400
+    sess = _read_session(sid)
+    if not sess:
+        return jsonify({"error": "session not found"}), 404
+    now_ms = int(time.time() * 1000)
+    summary = (data.get("summary") or "").strip()
+    title = (data.get("title") or "").strip()
+    if not title:
+        project_name = sess.get("projectName") or sess.get("project")
+        title = f"{project_name or 'Session'} recap"
+    author = (data.get("author") or "").strip() or "Player"
+    highlights = data.get("highlights") if isinstance(data.get("highlights"), list) else []
+    tags = _sanitize_tags(data.get("tags") or sess.get("tags"))
+
+    # shots detail
+    incoming_shots = data.get("shots") if isinstance(data.get("shots"), list) else []
+    incoming_map = {}
+    for shot in incoming_shots:
+        try:
+            idx_val = int(shot.get("idx"))
+        except Exception:
+            continue
+        incoming_map[idx_val] = shot
+
+    session_shots = sess.get("shots") or []
+    detail_shots = []
+    pose_scores = []
+    for shot in session_shots:
+        try:
+            idx_server = int(shot.get("idx"))
+        except Exception:
+            continue
+        idx_display = idx_server + 1
+        entry = incoming_map.get(idx_display) or incoming_map.get(idx_server) or {}
+        clip_rel = entry.get("clip")
+        if not isinstance(clip_rel, str) or not clip_rel.strip():
+            clip_rel = f"/sessions/{sid}/clips/shot-{idx_display}.webm"
+        coach_note = entry.get("coachNote") or shot.get("coachNote")
+        if isinstance(coach_note, str):
+            coach_note = coach_note.strip()
+        else:
+            coach_note = None
+        pose_score = entry.get("poseScore")
+        if pose_score is None:
+            pose_score = shot.get("poseScore")
+        if isinstance(pose_score, (int, float)):
+            pose_scores.append(pose_score)
+        detail_shots.append(
+            {
+                "idx": idx_display,
+                "clip": clip_rel,
+                "poseScore": pose_score,
+                "weightedScore": entry.get("weightedScore", shot.get("weightedScore")),
+                "coachNote": coach_note,
+            }
+        )
+
+    totals = sess.get("totals") or {}
+    attempts = int(totals.get("attempts") or len(detail_shots) or 0)
+    accuracy = totals.get("accuracy")
+    pose_avg = None
+    if pose_scores:
+        pose_avg = round(sum(pose_scores) / max(1, len(pose_scores)))
+
+    preview_path = _ensure_preview_image(sid)
+    preview_rev = None
+    if preview_path and os.path.exists(preview_path):
+        try:
+            preview_rev = int(os.path.getmtime(preview_path))
+        except Exception:
+            preview_rev = int(time.time())
+
+    posts = _load_community_feed()
+    post_map = {item.get("sessionId"): item for item in posts}
+    existing = post_map.get(sid)
+    created_at = existing.get("createdAt") if isinstance(existing, dict) else None
+    if not created_at:
+        created_at = now_ms
+
+    summary_entry = {
+        "id": sid,
+        "sessionId": sid,
+        "title": title,
+        "summary": summary,
+        "author": author,
+        "tags": tags,
+        "createdAt": created_at,
+        "project": sess.get("project"),
+        "projectName": sess.get("projectName"),
+        "dataset": sess.get("dataset"),
+        "stats": {
+            "attempts": attempts,
+            "accuracy": accuracy,
+            "poseAverage": pose_avg,
+        },
+        "highlights": highlights,
+        "preview": f"/api/community/preview/{sid}.jpg" if preview_path else None,
+        "previewRev": preview_rev,
+    }
+
+    detail_payload = {
+        "id": sid,
+        "title": title,
+        "summary": summary,
+        "author": author,
+        "tags": tags,
+        "createdAt": created_at,
+        "highlights": highlights,
+        "project": sess.get("project"),
+        "projectName": sess.get("projectName"),
+        "dataset": sess.get("dataset"),
+        "stats": summary_entry["stats"],
+        "shots": detail_shots,
+    }
+    if summary_entry["preview"]:
+        detail_payload["preview"] = summary_entry["preview"]
+        detail_payload["previewRev"] = preview_rev
+
+    post_map[sid] = summary_entry
+    updated_posts = sorted(post_map.values(), key=lambda x: x.get("createdAt") or 0, reverse=True)
+    _write_community_feed(updated_posts)
+
+    with open(_community_detail_path(sid), "w", encoding="utf-8") as f:
+        json.dump(detail_payload, f, ensure_ascii=False, indent=2)
+
+    return jsonify({"ok": True, "post": summary_entry})
+
+
+@app.get("/api/community/feed")
+def api_community_feed():
+    posts = _load_community_feed()
+    return jsonify({"posts": posts})
+
+
+@app.get("/api/community/session/<sid>")
+def api_community_session_detail(sid):
+    detail_path = _community_detail_path(sid)
+    if not os.path.exists(detail_path):
+        return jsonify({"error": "session not published"}), 404
+    with open(detail_path, "r", encoding="utf-8") as f:
+        detail = json.load(f)
+    return jsonify(detail)
+
+
+@app.get("/api/community/preview/<sid>.jpg")
+def api_community_preview(sid):
+    preview_path = _ensure_preview_image(sid)
+    if not preview_path or not os.path.exists(preview_path):
+        abort(404)
+    return send_file(preview_path, mimetype="image/jpeg")
 
 
 # ---- Frontend release mark bridge ----------------------------------------
