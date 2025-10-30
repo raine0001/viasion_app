@@ -1394,6 +1394,37 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
     let lastChunkTime = performance.now();
 
+    function finalizeActiveCapture(reason = 'complete') {
+        if (!activeCapture) return null;
+        let parts = [];
+        try {
+            if (typeof activeCapture.buildParts === 'function') {
+                parts = activeCapture.buildParts(activeCapture.liveChunks || []);
+            } else {
+                const live = Array.isArray(activeCapture.liveChunks)
+                    ? activeCapture.liveChunks.slice()
+                    : [];
+                parts = initChunk
+                    ? [initChunk, ...live.filter(blob => blob !== initChunk)]
+                    : live;
+            }
+        } catch (err) {
+            console.warn('[landscapeRecorder] finalize failed to build parts', err, { reason });
+            parts = [];
+        }
+        if (!parts.length && initChunk) parts = [initChunk];
+        const clipBlob = new Blob(parts, { type: mimeType });
+        const resolver = activeCapture.resolve;
+        const rejecter = activeCapture.reject;
+        activeCapture = null;
+        if (clipBlob.size > 0) {
+            resolver?.(clipBlob);
+            return clipBlob;
+        }
+        rejecter?.(new Error('empty clip'));
+        return null;
+    }
+
 
 
     recorder.ondataavailable = (e) => {
@@ -1427,15 +1458,7 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
             activeCapture.remainingMs -= duration;
 
             if (activeCapture.remainingMs <= 0) {
-                const parts = typeof activeCapture.buildParts === 'function'
-                    ? activeCapture.buildParts(activeCapture.liveChunks)
-                    : activeCapture.liveChunks.slice();
-
-                const clipBlob = new Blob(parts, { type: mimeType });
-                const resolver = activeCapture.resolve;
-
-                activeCapture = null;
-                resolver(clipBlob);
+                finalizeActiveCapture('complete');
             }
         }
 
@@ -1447,15 +1470,7 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
         if (requestTimer) clearInterval(requestTimer);
 
-        if (activeCapture) {
-
-            const rejecter = activeCapture.reject;
-
-            activeCapture = null;
-
-            rejecter?.(new Error('recorder stopped'));
-
-        }
+        finalizeActiveCapture('recorder-stop');
 
     };
 
@@ -1595,20 +1610,19 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
             return Promise.resolve(new Blob(buildParts(), { type: mimeType }));
         }
 
-        return new Promise((resolve, reject) => {
-            if (activeCapture) {
-                activeCapture.reject?.(new Error('capture in progress'));
-                activeCapture = null;
-            }
-            activeCapture = {
-                preChunks,
-                liveChunks: [],
-                remainingMs,
-                resolve,
-                reject,
-                buildParts
-            };
-        });
+    return new Promise((resolve, reject) => {
+      if (activeCapture) {
+        finalizeActiveCapture('preempted');
+      }
+      activeCapture = {
+        preChunks,
+        liveChunks: [],
+        remainingMs,
+        resolve,
+        reject,
+        buildParts
+      };
+    });
 
     };
 
@@ -1626,23 +1640,17 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
             videoEl.removeEventListener?.('loadedmetadata', draw);
 
-            try { recorder.stop(); } catch { }
+        try { recorder.stop(); } catch { }
 
-            stream?.getTracks?.().forEach(track => track.stop());
+        stream?.getTracks?.().forEach(track => track.stop());
 
-            buffer.length = 0;
+        buffer.length = 0;
 
-            if (activeCapture) {
+        finalizeActiveCapture('stop-call');
 
-                activeCapture.reject?.(new Error('recorder stopped'));
+    }
 
-                activeCapture = null;
-
-            }
-
-        }
-
-    };
+  };
 
 }
 
