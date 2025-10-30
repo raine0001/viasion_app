@@ -971,11 +971,48 @@ def _get_dataset_detector(dataset_cfg):
     if not TORCH_AVAILABLE:
         raise RuntimeError("Torch runtime not available for detectors")
 
-    path = (dataset_cfg or {}).get("detector")
+    cfg = dataset_cfg or {}
+    path = cfg.get("detector")
+
+    # Allow environment overrides per dataset/project (e.g., VIASION_DETECTOR_G_POSE=/models/best.pt)
+    def _norm_env_key(value):
+        return re.sub(r"[^A-Z0-9]+", "_", str(value).upper())
+
+    env_candidates = []
+    slug = cfg.get("slug")
+    proj = cfg.get("project")
+    if slug:
+        key = _norm_env_key(slug)
+        env_candidates.extend(
+            [
+                f"VIASION_DETECTOR_{key}",
+                f"VIASION_DATASET_DETECTOR__{key}",
+            ]
+        )
+    if proj:
+        key = _norm_env_key(proj)
+        env_candidates.extend(
+            [
+                f"VIASION_DETECTOR_{key}",
+                f"VIASION_PROJECT_DETECTOR__{key}",
+            ]
+        )
+
+    for env_key in env_candidates:
+        override = os.getenv(env_key)
+        if override and override.strip():
+            path = override.strip()
+            print(f"[detector] override from {env_key} -> {path}")
+            break
+
     if not path:
         return model_det, (TRAINING_NAMES or [])
 
     abs_path = path if os.path.isabs(path) else os.path.join(app.root_path, path)
+    if not os.path.exists(abs_path):
+        print(f"[detector] missing {abs_path}; falling back to default detector")
+        return model_det, (TRAINING_NAMES or [])
+
     cached = _DETECTOR_CACHE.get(abs_path)
     if cached is None:
         try:

@@ -82,21 +82,43 @@
 
       z-index:5;
 
+      background:linear-gradient(180deg,#08080b 0%,#050506 100%);
+
+      border-bottom:1px solid var(--border-color);
+
+      padding:clamp(16px,4vw,28px) 0;
+
+    }
+
+    .header-shell{
+
+      width:min(1120px,100%);
+
+      margin:0 auto;
+
+      padding:0 clamp(20px,4vw,36px);
+
       display:flex;
 
       flex-wrap:wrap;
 
-      align-items:flex-start;
+      align-items:flex-end;
 
       justify-content:space-between;
 
       gap:var(--gap-sm);
 
-      padding:clamp(16px,4vw,28px);
+    }
 
-      background:linear-gradient(180deg,#08080b 0%,#050506 100%);
+    .header-main{
 
-      border-bottom:1px solid var(--border-color);
+      display:flex;
+
+      align-items:center;
+
+      gap:var(--gap-sm);
+
+      flex:1 1 260px;
 
     }
 
@@ -116,7 +138,7 @@
 
     }
 
-    header>h1{flex:1 0 220px;}
+    .header-main h1{flex:1 1 auto;}
 
     main.dashboard{
 
@@ -491,10 +513,6 @@
     }
 
     .metrics-row.metrics-row--three{
-
-      max-width:720px;
-
-      margin:0 auto;
 
       grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
 
@@ -1124,9 +1142,11 @@
 
       main.dashboard{padding:clamp(18px,5vw,28px);}
 
-      header{flex-direction:column;align-items:flex-start;}
+      .header-shell{flex-direction:column;align-items:stretch;padding:0 clamp(20px,6vw,32px);}
 
-      header h1{width:100%;}
+      .header-main{width:100%;justify-content:space-between;align-items:flex-start;}
+
+      .header-main h1{width:100%;margin-bottom:6px;}
 
       .toolbar{width:100%;justify-content:flex-start;}
 
@@ -1140,7 +1160,13 @@
 
       .score-total{font-size:40px;}
 
-      header{padding:20px;}
+      .header-shell{padding:0 20px;}
+
+      .header-main{flex-direction:column;align-items:stretch;gap:var(--gap-xs);}
+
+      .header-main .btn{width:100%;}
+
+      .toolbar{gap:var(--gap-xs);}
 
     }
 
@@ -3814,25 +3840,29 @@
 
   <header>
 
-    <div class="header-main">
+    <div class="header-shell">
+
+      <div class="header-main">
 
         <h1 id="dashboardGreeting">Hi, Athlete!</h1>
 
-      <button class="btn btn-primary" id="startSessionBtn">Start Session</button>
+        <button class="btn btn-primary" id="startSessionBtn">Start Session</button>
 
-    </div>
+      </div>
 
-    <div class="toolbar">
+      <div class="toolbar">
 
-      <input id="filterTxt" type="text" placeholder="Filter by ID..."/>
+        <input id="filterTxt" type="text" placeholder="Filter by ID..."/>
 
-      <select id="sortKey"><option value="startedAt">Sort: Date</option><option value="attempts">Sort: Attempts</option><option value="accuracy">Sort: Accuracy</option></select>
+        <select id="sortKey"><option value="startedAt">Sort: Date</option><option value="attempts">Sort: Attempts</option><option value="accuracy">Sort: Accuracy</option></select>
 
-      <select id="sortDir"><option value="desc">Desc</option><option value="asc">Asc</option></select>
+        <select id="sortDir"><option value="desc">Desc</option><option value="asc">Asc</option></select>
 
-      <button class="btn btn-tonal" id="exportAll">Export All</button>
+        <button class="btn btn-tonal" id="exportAll">Export All</button>
 
-      <button class="btn btn-tonal" id="btnRefresh">Refresh</button>
+        <button class="btn btn-tonal" id="btnRefresh">Refresh</button>
+
+      </div>
 
     </div>
 
