@@ -963,6 +963,14 @@ window.poseDetectSerial = poseDetectSerial;
                 window.updateShot?.(shotId, { clip: { status: 'error', reason: 'empty' } });
                 return false;
             }
+            if (window.DEBUG_MICROCLIP === true) {
+                try {
+                    const head = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+                    console.log('[microclip] head bytes', Array.from(head));
+                } catch (err) {
+                    console.warn('[microclip] head inspect failed', err);
+                }
+            }
             const fd = new FormData();
             fd.append('sessionId', window.__SESSION_ID || (`sess_${Date.now()}`));
             fd.append('shotId', String(shotId));

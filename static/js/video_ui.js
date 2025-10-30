@@ -1413,6 +1413,14 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
             parts = [];
         }
         if (!parts.length && initChunk) parts = [initChunk];
+        if (window.DEBUG_MICROCLIP === true) {
+            const sizes = parts.map(p => p?.size ?? 0);
+            console.log('[landscapeRecorder] finalize', reason, {
+                initSize: initChunk?.size ?? 0,
+                partSizes: sizes,
+                estimatedBytes: sizes.reduce((a, b) => a + b, 0)
+            });
+        }
         const clipBlob = new Blob(parts, { type: mimeType });
         const resolver = activeCapture.resolve;
         const rejecter = activeCapture.reject;
