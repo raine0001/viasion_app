@@ -6,6 +6,7 @@
   const FEED_ENDPOINT = '/api/community/feed';
   const DETAIL_ENDPOINT = sid => `/api/community/session/${encodeURIComponent(sid)}`;
   const OVERLAY_HOLD_MS = 6000;
+  const PLAYBACK_RATE = 0.3;
 
   const feedEl = document.querySelector('[data-community-feed]');
   const filterEl = document.querySelector('[data-community-filter]');
@@ -442,11 +443,14 @@
     if (!modalVideoEl) return;
     modalVideoEl.controls = false;
     modalVideoEl.muted = false;
+    modalVideoEl.defaultPlaybackRate = PLAYBACK_RATE;
+    modalVideoEl.playbackRate = PLAYBACK_RATE;
     stopOverlayTimer();
     state.activeShotIndex = -1;
     modalVideoEl.addEventListener('ended', onVideoEnded);
     modalVideoEl.addEventListener('error', onVideoError);
     modalVideoEl.addEventListener('loadeddata', () => {
+      modalVideoEl.playbackRate = PLAYBACK_RATE;
       modalVideoEl.play().catch(() => {});
     }, { once: true });
     nextShot();
@@ -487,6 +491,8 @@
     modalVideoEl.pause();
     modalVideoEl.src = `${shot.clip}${cacheBust}cb=${Date.now()}`;
     modalVideoEl.load();
+    modalVideoEl.defaultPlaybackRate = PLAYBACK_RATE;
+    modalVideoEl.playbackRate = PLAYBACK_RATE;
     modalVideoEl.play().catch(err => {
       console.warn('[community] auto play blocked', err);
     });

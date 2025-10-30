@@ -51,10 +51,37 @@
       width:min(1080px,100%);
       margin:0 auto;
       padding:clamp(20px,6vw,36px) clamp(16px,6vw,48px) 0;
+      box-sizing:border-box;
+    }
+    .header-shell{
       display:flex;
       flex-direction:column;
-      gap:16px;
-      box-sizing:border-box;
+      gap:clamp(16px,3vw,24px);
+    }
+    .header-intro{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .filter-bar{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:12px;
+      width:100%;
+    }
+    .chip-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      width:100%;
+    }
+    .chip-row--primary{
+      justify-content:flex-start;
+    }
+    .chip-row--tags{
+      gap:8px;
+      opacity:.95;
     }
     h1{
       margin:0;
@@ -67,21 +94,6 @@
       color:var(--text-soft);
       font-size:clamp(14px,3.6vw,16px);
       max-width:720px;
-    }
-    .filters{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      margin-right:auto;
-    }
-    .tag-filter-group{
-      width:min(1080px,100%);
-      margin:0 auto clamp(16px,4vw,28px);
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      padding:0 clamp(16px,6vw,48px);
-      box-sizing:border-box;
     }
     .filter-btn,
     .tag-filter-btn{
@@ -119,7 +131,10 @@
     .feed{
       display:grid;
       gap:var(--gap);
-      grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+      grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+      justify-content:center;
+      align-content:start;
+      width:100%;
     }
     article.post{
       background:var(--surface);
@@ -131,6 +146,8 @@
       position:relative;
       transition:transform .2s ease, border .2s ease, box-shadow .2s ease;
       cursor:pointer;
+      width:min(780px,100%);
+      justify-self:center;
     }
     article.post:hover{
       transform:translateY(-6px);
@@ -538,19 +555,25 @@
     @media (max-width:768px){
       header{padding:24px 16px 0;}
       main{padding:0 16px 48px;}
-      .tag-filter-group{padding:0 16px;}
+      .header-shell{gap:18px;}
+      .filter-bar{gap:10px;}
+      .chip-row{gap:8px;}
     }
   </style>
 </head>
 <body>
   <header>
-    <div>
-      <h2>viason community</h2>
-      
+    <div class="header-shell">
+      <div class="header-intro">
+        <h1>viason community</h1>
+        <p class="subtitle">Every completed session drops here. Review clips, pose callouts, and highlights from training bays, ranges, and industrial cells.</p>
+      </div>
+      <div class="filter-bar">
+        <div class="chip-row chip-row--primary" data-community-filter></div>
+        <div class="chip-row chip-row--tags" data-community-tag-filter></div>
+      </div>
     </div>
-    <div class="filters" data-community-filter></div>
   </header>
-  <div class="tag-filter-group" data-community-tag-filter></div>
   <main>
     <p class="status-message" data-community-empty hidden>Sessions will appear as soon as someone wraps a training run.</p>
     <section class="feed" data-community-feed></section>
