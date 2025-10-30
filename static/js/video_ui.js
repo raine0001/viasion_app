@@ -1416,10 +1416,19 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         if (!parts.length && initChunk) parts = [initChunk];
         if (window.DEBUG_MICROCLIP === true) {
             const sizes = parts.map(p => p?.size ?? 0);
-            console.log('[landscapeRecorder] finalize', reason, {
-                initSize: initChunk?.size ?? 0,
-                partSizes: sizes,
-                estimatedBytes: sizes.reduce((a, b) => a + b, 0)
+            const headBytesPromise = (async () => {
+                try {
+                    const buf = await parts[0]?.slice?.(0, 4)?.arrayBuffer?.();
+                    return buf ? Array.from(new Uint8Array(buf)) : null;
+                } catch { return null; }
+            })();
+            Promise.resolve(headBytesPromise).then((headBytes) => {
+                console.log('[landscapeRecorder] finalize', reason, {
+                    initSize: initChunk?.size ?? 0,
+                    partSizes: sizes,
+                    estimatedBytes: sizes.reduce((a, b) => a + b, 0),
+                    headBytes
+                });
             });
         }
         const clipBlob = new Blob(parts, { type: mimeType });
