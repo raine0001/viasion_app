@@ -13,7 +13,6 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
 
     <style>
-
         :root {
 
             color-scheme: dark;
@@ -273,7 +272,6 @@
             font-size: 12px;
 
         }
-
     </style>
 
 </head>
@@ -320,11 +318,11 @@
 
         window.DETECTOR_LABELS = ['basketball', 'hoop', 'net', 'backboard', 'player', 'rim'];
 
-        window.viason_SFX_ENABLED = !/android/i.test(navigator.userAgent || '');
+        window.viasion_SFX_ENABLED = !/android/i.test(navigator.userAgent || '');
 
         window.BALL_TRAIL_RAW_ONLY = true;
 
-        
+
 
 
 
@@ -3092,29 +3090,29 @@
 
             ), 1000);
 
-            try { window.__arcBeatAudio?.pause?.(); } catch {}
+            try { window.__arcBeatAudio?.pause?.(); } catch { }
 
 
 
             function arcmmCleanup() {
-                try { stopLoop(); } catch {}
-                try { if (window.__detBeat) clearInterval(window.__detBeat); } catch {}
+                try { stopLoop(); } catch { }
+                try { if (window.__detBeat) clearInterval(window.__detBeat); } catch { }
                 window.__detBeat = null;
                 try {
                     const vid = document.getElementById('videoPlayer');
                     if (vid) {
                         const tracks = vid.srcObject?.getTracks?.() || [];
-                        tracks.forEach(track => { try { track.stop(); } catch {} });
-                        try { vid.pause(); } catch {}
+                        tracks.forEach(track => { try { track.stop(); } catch { } });
+                        try { vid.pause(); } catch { }
                         vid.srcObject = null;
                         vid.removeAttribute('src');
                         vid.load?.();
                     }
-                } catch {}
-                try { window.__ballTrail = []; } catch {}
-                try { window.__ballTrailPersistent = []; } catch {}
-                try { window.__beat = 0; } catch {}
-                try { window.__PLAYBACK_TICK_COUNT = 0; } catch {}
+                } catch { }
+                try { window.__ballTrail = []; } catch { }
+                try { window.__ballTrailPersistent = []; } catch { }
+                try { window.__beat = 0; } catch { }
+                try { window.__PLAYBACK_TICK_COUNT = 0; } catch { }
             }
             if (!window.__arcmmCleanupWired) {
                 window.__arcmmCleanupWired = true;

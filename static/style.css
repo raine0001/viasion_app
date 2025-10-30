@@ -488,7 +488,7 @@ main {
   background: #e0a800;
 }
 
-/* === viason HUD (video overlay UI) ======================================= */
+/* === viasion HUD (video overlay UI) ======================================= */
 :root{
   --hud-bg: rgba(10,10,10,.70);
   --hud-border: rgba(255,255,255,.14);

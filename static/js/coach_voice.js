@@ -6,7 +6,7 @@ let __coachSpeechTail = Promise.resolve(false);
 let __coachSpeechActive = false;
 
 function webTtsAllowed() {
-    try { return window.viason_ALLOW_WEB_TTS === true; }
+    try { return window.viasion_ALLOW_WEB_TTS === true; }
     catch { return false; }
 }
 
@@ -51,7 +51,7 @@ try { window.waitForCoachSpeech = waitForCoachSpeech; } catch { }
 try { window.isCoachSpeaking = isCoachSpeaking; } catch { }
 
 // Who owns the intro line? 'session_manager' (default) or 'coach_voice'
-try { if (typeof window.PREF_GREETER_SOURCE === 'undefined') window.PREF_GREETER_SOURCE = 'session_manager'; } catch {}
+try { if (typeof window.PREF_GREETER_SOURCE === 'undefined') window.PREF_GREETER_SOURCE = 'session_manager'; } catch { }
 
 
 function isOverlayVisible(el) {
@@ -133,71 +133,71 @@ export function speak(text) {
 }
 
 function sanitizeName(n) {
-  return String(n ?? '')
-    .replace(/^[\s"'`]+|[\s"'`]+$/g, '')   // strip quotes and extra spaces
-    .trim();
+    return String(n ?? '')
+        .replace(/^[\s"'`]+|[\s"'`]+$/g, '')   // strip quotes and extra spaces
+        .trim();
 }
 
 // Display name for voice (fallbacks)
 function getDisplayName() {
-  try {
-    const raw = window.__USER_NAME || localStorage.getItem('firstname') || 'Player';
-    return sanitizeName(raw);
-  } catch {
-    return sanitizeName(window.__USER_NAME || 'Player');
-  }
+    try {
+        const raw = window.__USER_NAME || localStorage.getItem('firstname') || 'Player';
+        return sanitizeName(raw);
+    } catch {
+        return sanitizeName(window.__USER_NAME || 'Player');
+    }
 }
 const name = getDisplayName();
 
 // ===== Shared one-time greeter (iOS-safe) =====
-(function initCoachGreeter(){
-  if (window.coachGreetingOnce) return;
+(function initCoachGreeter() {
+    if (window.coachGreetingOnce) return;
 
-  let greeted = false;
+    let greeted = false;
 
-  function isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent||''); }
+    function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent || ''); }
 
-  // If session_manager finishes its own greeting, consider ours "done"
-  try {
-    window.addEventListener('coach:greeting-finished', () => { greeted = true; }, { passive: true });
-  } catch {}
+    // If session_manager finishes its own greeting, consider ours "done"
+    try {
+        window.addEventListener('coach:greeting-finished', () => { greeted = true; }, { passive: true });
+    } catch { }
 
-  window.resetCoachGreeting = function resetCoachGreeting(){
-    try { greeted = false; } catch {}
-  };
+    window.resetCoachGreeting = function resetCoachGreeting() {
+        try { greeted = false; } catch { }
+    };
 
-  window.coachGreetingOnce = async function coachGreetingOnce(text = `Hi ${name}, I'm listening and ready.`) {
-    if (greeted) return false;
-    if (window.__coachMuted) return false;
+    window.coachGreetingOnce = async function coachGreetingOnce(text = `Hi ${name}, I'm listening and ready.`) {
+        if (greeted) return false;
+        if (window.__coachMuted) return false;
 
-    try { await window.CoachAudio?.unlock(); } catch {}
+        try { await window.CoachAudio?.unlock(); } catch { }
 
-    const ok = await (window.viasonSpeak?.(text, { engine: isIOS() ? 'openai' : undefined }) || Promise.resolve(false));
-    if (ok !== false) {
-      greeted = true;
-      return true;
+        const ok = await (window.viasionSpeak?.(text, { engine: isIOS() ? 'openai' : undefined }) || Promise.resolve(false));
+        if (ok !== false) {
+            greeted = true;
+            return true;
+        }
+        return false;
+    };
+
+    // Only auto-poke this greeter if coach_voice is the chosen source
+    if (window.PREF_GREETER_SOURCE === 'coach_voice') {
+        // If user unmutes later, gently try once
+        window.addEventListener('hud:mute-toggle', (e) => {
+            if (e?.detail?.muted === false) {
+                setTimeout(() => { try { window.coachGreetingOnce(); } catch { } }, 150);
+            }
+        });
+
+        // Wake hooks help after bfcache/visibility
+        window.addEventListener('pageshow', () => {
+            if (!greeted) setTimeout(() => { try { window.coachGreetingOnce(); } catch { } }, 120);
+        }, { passive: true });
     }
-    return false;
-  };
 
-  // Only auto-poke this greeter if coach_voice is the chosen source
-  if (window.PREF_GREETER_SOURCE === 'coach_voice') {
-    // If user unmutes later, gently try once
-    window.addEventListener('hud:mute-toggle', (e) => {
-      if (e?.detail?.muted === false) {
-        setTimeout(() => { try { window.coachGreetingOnce(); } catch {} }, 150);
-      }
+    ['hud:end-session', 'session:reset', 'hud:arm-reset'].forEach(evt => {
+        window.addEventListener(evt, () => { try { greeted = false; } catch { } });
     });
-
-    // Wake hooks help after bfcache/visibility
-    window.addEventListener('pageshow', () => {
-      if (!greeted) setTimeout(() => { try { window.coachGreetingOnce(); } catch {} }, 120);
-    }, { passive: true });
-  }
-
-  ['hud:end-session','session:reset','hud:arm-reset'].forEach(evt => {
-    window.addEventListener(evt, () => { try { greeted = false; } catch {} });
-  });
 })();
 
 
@@ -438,25 +438,25 @@ const SILENT_PRIME_WAV = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEA
 
 function getPreferredVoice() {
     try {
-        const prefs = JSON.parse(localStorage.getItem('viason_tts') || '{}');
+        const prefs = JSON.parse(localStorage.getItem('viasion_tts') || '{}');
         if (prefs.voice) return prefs.voice;
         if (prefs.provider && prefs.provider !== 'server' && !webTtsAllowed()) {
-            const voice = prefs.voice || (window.viason && window.viason.voice) || 'alloy';
+            const voice = prefs.voice || (window.viasion && window.viasion.voice) || 'alloy';
             const next = { provider: 'server', voice };
-            localStorage.setItem('viason_tts', JSON.stringify(next));
+            localStorage.setItem('viasion_tts', JSON.stringify(next));
             return next.voice;
         }
     } catch { }
     try {
-        const stored = localStorage.getItem('viason_voice');
+        const stored = localStorage.getItem('viasion_voice');
         if (stored) return stored;
     } catch { }
-    return (window.viason && window.viason.voice) || 'alloy';
+    return (window.viasion && window.viasion.voice) || 'alloy';
 }
 
 function getTtsEngine() {
     try {
-        if (window.viason_FORCE_WEB_TTS === true && webTtsAllowed()) {
+        if (window.viasion_FORCE_WEB_TTS === true && webTtsAllowed()) {
             window.TTS_ENGINE = 'webspeech';
             return 'webspeech';
         }
@@ -553,7 +553,7 @@ async function speakViaWebSpeech(text) {
     }
 }
 
-async function viasonSpeakOnce(text, opts = {}) {
+async function viasionSpeakOnce(text, opts = {}) {
     // 1) iOS demands the ritual. Do this before choosing engines.
     try { await window.CoachAudio?.unlock(); } catch { }
 
@@ -571,7 +571,7 @@ async function viasonSpeakOnce(text, opts = {}) {
             const ok = await speakViaOpenAI(spoken, opts);
             if (ok) return true;
         } catch (err) {
-            try { console.warn('[coach] viasonSpeak openai failed', err); } catch { }
+            try { console.warn('[coach] viasionSpeak openai failed', err); } catch { }
         }
         return false;
     };
@@ -581,7 +581,7 @@ async function viasonSpeakOnce(text, opts = {}) {
             const ok = await speakViaWebSpeech(spoken);
             if (ok) return true;
         } catch (err) {
-            try { console.warn('[coach] viasonSpeak webspeech failed', err); } catch { }
+            try { console.warn('[coach] viasionSpeak webspeech failed', err); } catch { }
         }
         return false;
     };
@@ -601,7 +601,7 @@ async function viasonSpeakOnce(text, opts = {}) {
             }
         }
     } catch (err) {
-        try { console.warn('[coach] viasonSpeak engine error', err); } catch { }
+        try { console.warn('[coach] viasionSpeak engine error', err); } catch { }
     }
 
     // Final cross-check: if preferred engine failed, attempt the other one once.
@@ -611,35 +611,35 @@ async function viasonSpeakOnce(text, opts = {}) {
     return false;
 }
 
-function logviasonSpeakEvent(event, payload) {
+function logviasionSpeakEvent(event, payload) {
     try {
         if (window.reportClientEvent) {
             window.reportClientEvent(`tts:${event}`, payload);
         } else {
             console.debug(`[tts:${event}]`, payload);
         }
-    } catch {}
+    } catch { }
 }
 
-export function viasonSpeak(text, opts = {}) {
+export function viasionSpeak(text, opts = {}) {
     if (!text) {
-        logviasonSpeakEvent('skip-empty', {});
+        logviasionSpeakEvent('skip-empty', {});
         return Promise.resolve(false);
     }
     try {
         if (window.__coachMuted) {
-            logviasonSpeakEvent('skip-muted', { text });
+            logviasionSpeakEvent('skip-muted', { text });
             return Promise.resolve(false);
         }
     } catch { }
-    logviasonSpeakEvent('queue', { text, engine: opts.engine || getTtsEngine(), label: opts.label });
-    return queueCoachSpeech(() => viasonSpeakOnce(text, opts)
+    logviasionSpeakEvent('queue', { text, engine: opts.engine || getTtsEngine(), label: opts.label });
+    return queueCoachSpeech(() => viasionSpeakOnce(text, opts)
         .then((result) => {
-            logviasonSpeakEvent(result ? 'success' : 'fallback', { text, engine: getTtsEngine(), label: opts.label });
+            logviasionSpeakEvent(result ? 'success' : 'fallback', { text, engine: getTtsEngine(), label: opts.label });
             return result;
         })
         .catch((err) => {
-            logviasonSpeakEvent('error', { text, message: err?.message || String(err) });
+            logviasionSpeakEvent('error', { text, message: err?.message || String(err) });
             return false;
         }));
 }
@@ -686,13 +686,13 @@ let __micPriming = null;
 
 export async function ensureMicPrimed(constraints = { audio: true }) {
     if (!__micPrimed) {
-        try { __micPrimed = localStorage.getItem('viason_voice_mic_allowed') === '1'; } catch { }
+        try { __micPrimed = localStorage.getItem('viasion_voice_mic_allowed') === '1'; } catch { }
     }
     if (__micPrimed) return true;
     if (__micPriming) return __micPriming;
 
     const ua = (navigator.userAgent || '').toLowerCase();
-    if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) {
+    if (/android/.test(ua) && window.viasion_ENABLE_ANDROID_SR !== true) {
         return false;
     }
 
@@ -702,13 +702,13 @@ export async function ensureMicPrimed(constraints = { audio: true }) {
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             try { stream.getTracks().forEach((t) => t.stop()); } catch { }
             __micPrimed = true;
-            try { localStorage.setItem('viason_voice_mic_allowed', '1'); } catch { }
-            try { window.__viasonMicPrimed = true; } catch { }
+            try { localStorage.setItem('viasion_voice_mic_allowed', '1'); } catch { }
+            try { window.__viasionMicPrimed = true; } catch { }
             return true;
         } catch (err) {
             __micPrimed = false;
-            try { localStorage.removeItem('viason_voice_mic_allowed'); } catch { }
-            try { window.__viasonMicPrimed = false; } catch { }
+            try { localStorage.removeItem('viasion_voice_mic_allowed'); } catch { }
+            try { window.__viasionMicPrimed = false; } catch { }
             try { console.warn('[coach] mic prime failed', err); } catch { }
             return false;
         }
@@ -723,10 +723,10 @@ export async function ensureMicPrimed(constraints = { audio: true }) {
 
 try { window.ensureMicPrimed = ensureMicPrimed; } catch { }
 
-export function listenForEndSession(wakePhrase = 'hey viason, end the session', onEnd) {
+export function listenForEndSession(wakePhrase = 'hey viasion, end the session', onEnd) {
     try {
         const ua = (navigator.userAgent || '').toLowerCase();
-        if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) {
+        if (/android/.test(ua) && window.viasion_ENABLE_ANDROID_SR !== true) {
             try { window.__startCoachVoiceRecognition = () => false; } catch { }
             return () => { };
         }
@@ -858,7 +858,7 @@ export function listenForEndSession(wakePhrase = 'hey viason, end the session', 
                 const i = e.resultIndex;
                 const raw = (e.results[i][0].transcript || '').toLowerCase();
                 const t = raw.replace(/\s+/g, ' ').trim();
-                const wakePhrases = ['hey viason', 'hey coach'];
+                const wakePhrases = ['hey viasion', 'hey coach'];
                 const hasWake = wakePhrases.some((phrase) => t.includes(phrase));
                 const awaiting = (() => { try { return window.__AWAITING_NEW_SESSION_CONFIRM === true; } catch { return false; } })();
                 const isAffirmative = matchesPhrase(t, affirmativePhrases);
@@ -925,7 +925,7 @@ export function listenForEndSession(wakePhrase = 'hey viason, end the session', 
 }
 
 
-// Simple speak wrapper: use your existing viasonSpeak if present, fallback to Web Speech
+// Simple speak wrapper: use your existing viasionSpeak if present, fallback to Web Speech
 function coachSpeak(text) {
     if (window.__coachMuted) return;
     if (!text) return;
@@ -937,8 +937,8 @@ function coachSpeak(text) {
         window.__lastSpeak = { text: String(text), at: now };
     } catch { }
 
-    if (typeof viasonSpeak === 'function') {
-        try { viasonSpeak(text); return; } catch (e) { console.warn('[coach] viasonSpeak fail, fallback TTS', e); }
+    if (typeof viasionSpeak === 'function') {
+        try { viasionSpeak(text); return; } catch (e) { console.warn('[coach] viasionSpeak fail, fallback TTS', e); }
     }
 
     // Fallback browser TTS
@@ -950,6 +950,6 @@ function coachSpeak(text) {
     } catch { }
 }
 
-try { window.viasonSpeak = viasonSpeak; } catch { }
-try { window.coachSpeak = viasonSpeak; } catch { }
+try { window.viasionSpeak = viasionSpeak; } catch { }
+try { window.coachSpeak = viasionSpeak; } catch { }
 try { window.primeCoachAudio = primeCoachAudio; } catch { }

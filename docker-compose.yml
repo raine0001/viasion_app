@@ -13,7 +13,7 @@ services:
       - PYTHONUNBUFFERED=1
     command: python app.py
     networks:
-      - viason_net
+      - viasion_net
   playwright:
     build: 
       context: .
@@ -21,7 +21,7 @@ services:
     depends_on:
       - web
     networks:
-      - viason_net
+      - viasion_net
 networks:
-  viason_net:
+  viasion_net:
   

@@ -5,15 +5,12 @@ import cv2
 import numpy as np
 from filterpy.kalman import KalmanFilter
 
+
 class KalmanFilter2D:
     def __init__(self):
         self.kf = KalmanFilter(dim_x=4, dim_z=2)
-        self.kf.F = np.array([[1, 0, 1, 0],
-                              [0, 1, 0, 1],
-                              [0, 0, 1, 0],
-                              [0, 0, 0, 1]])
-        self.kf.H = np.array([[1, 0, 0, 0],
-                              [0, 1, 0, 0]])
+        self.kf.F = np.array([[1, 0, 1, 0], [0, 1, 0, 1], [0, 0, 1, 0], [0, 0, 0, 1]])
+        self.kf.H = np.array([[1, 0, 0, 0], [0, 1, 0, 0]])
         self.kf.R *= 5
         self.kf.P *= 10
         self.kf.Q *= 0.01
@@ -43,9 +40,12 @@ scored = False
 # Prepare video output writer
 ret, frame = cap.read()
 height, width = frame.shape[:2]
-out = cv2.VideoWriter('output.avi', cv2.VideoWriter_fourcc(*'XVID'), 20.0, (width, height))
+out = cv2.VideoWriter(
+    "output.avi", cv2.VideoWriter_fourcc(*"XVID"), 20.0, (width, height)
+)
 
 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # reset frame position
+
 
 def draw_scoring_zone(frame, hoop_box):
     global scoring_zone
@@ -56,7 +56,10 @@ def draw_scoring_zone(frame, hoop_box):
         zone_x1 = x1 + (x2 - x1) // 4
         zone_x2 = x2 - (x2 - x1) // 4
         scoring_zone = (zone_x1, zone_top, zone_x2, zone_bottom)
-        cv2.rectangle(frame, (zone_x1, zone_top), (zone_x2, zone_bottom), (255, 0, 0), 2)
+        cv2.rectangle(
+            frame, (zone_x1, zone_top), (zone_x2, zone_bottom), (255, 0, 0), 2
+        )
+
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -78,12 +81,28 @@ while cap.isOpened():
         if label == "basketball":
             ball_center = ((x1 + x2) // 2, (y1 + y2) // 2)
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 255), 2)
-            cv2.putText(frame, "ball", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+            cv2.putText(
+                frame,
+                "ball",
+                (x1, y1 - 5),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 255, 255),
+                2,
+            )
 
         if label == "hoop":
             hoop_box = (x1, y1, x2, y2)
             cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 100, 100), 2)
-            cv2.putText(frame, "hoop", (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 100, 100), 2)
+            cv2.putText(
+                frame,
+                "hoop",
+                (x1, y1 - 5),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 100, 100),
+                2,
+            )
 
     smoothed = kf.update(ball_center)
     trajectory.append(smoothed)
@@ -96,7 +115,15 @@ while cap.isOpened():
             x, y = pt
             zx1, zy1, zx2, zy2 = scoring_zone
             if zx1 < x < zx2 and zy1 < y < zy2:
-                cv2.putText(frame, "✅ Scored!", (x, y - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 3)
+                cv2.putText(
+                    frame,
+                    "✅ Scored!",
+                    (x, y - 20),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (0, 255, 0),
+                    3,
+                )
                 scored = True
                 break
 
@@ -104,9 +131,9 @@ while cap.isOpened():
         cv2.line(frame, trajectory[i - 1], trajectory[i], (0, 255, 0), 2)
 
     out.write(frame)
-    cv2.imshow("viason Shot Tracker", frame)
+    cv2.imshow("viasion Shot Tracker", frame)
 
-    if cv2.waitKey(50) & 0xFF == ord('q'):  # slow playback
+    if cv2.waitKey(50) & 0xFF == ord("q"):  # slow playback
         break
 
 cap.release()

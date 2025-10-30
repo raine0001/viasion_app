@@ -1,17 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>viason Dashboard</title>
+    <title>viasion Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
         body {
             font-family: 'Inter', sans-serif;
             background-color: #0d0d0d;
             color: #e5e5e5;
         }
+
         .sidebar {
             background-color: #1a1a1a;
             width: 250px;
@@ -22,10 +25,12 @@
             padding: 1rem;
             border-right: 1px solid #333;
         }
+
         .main-content {
             margin-left: 250px;
             padding: 2rem;
         }
+
         .card {
             background-color: #1a1a1a;
             border-radius: 12px;
@@ -33,6 +38,7 @@
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             border: 1px solid #333;
         }
+
         .stat-card {
             background-color: #1a1a1a;
             border-radius: 12px;
@@ -41,16 +47,19 @@
             border: 1px solid #333;
             flex-grow: 1;
         }
+
         .scrollable-row {
             overflow-x: auto;
             white-space: nowrap;
             -webkit-overflow-scrolling: touch;
         }
+
         .scrollable-card {
             display: inline-block;
             width: 220px;
             margin-right: 1rem;
         }
+
         .video-thumbnail {
             background-color: #333;
             height: 120px;
@@ -60,31 +69,48 @@
             justify-content: center;
             color: #888;
         }
+
         .orange-text {
-            color: #ff8c00; /* A distinct orange color for accents */
+            color: #ff8c00;
+            /* A distinct orange color for accents */
         }
+
         .orange-bg {
             background-color: #ff8c00;
         }
     </style>
 </head>
+
 <body class="bg-gray-900 text-gray-200">
 
     <!-- Sidebar Menu -->
     <div class="sidebar flex flex-col items-start space-y-4">
-        <div class="text-2xl font-bold orange-text mb-4">viason</div>
-        <a href="#" class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg bg-gray-800 text-white">Dashboard</a>
-        <a href="#" class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">Unleash a Session</a>
-        <a href="#" class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">My Account</a>
-        <a href="#" class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">viason Events</a>
-        <a href="#" class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">Community</a>
-        <a href="#" class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">My viason</a>
-        <a href="#" class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">Challenge/Awards</a>
-        <a href="#" class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">Download App</a>
+        <div class="text-2xl font-bold orange-text mb-4">viasion</div>
+        <a href="#"
+            class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg bg-gray-800 text-white">Dashboard</a>
+        <a href="#"
+            class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">Unleash
+            a Session</a>
+        <a href="#"
+            class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">My
+            Account</a>
+        <a href="#"
+            class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">viasion
+            Events</a>
+        <a href="#"
+            class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">Community</a>
+        <a href="#"
+            class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">My
+            viasion</a>
+        <a href="#"
+            class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">Challenge/Awards</a>
+        <a href="#"
+            class="w-full text-left font-medium text-lg px-4 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white">Download
+            App</a>
 
         <!-- Footer for Sidebar -->
         <div class="mt-auto pt-8 w-full text-center text-gray-500 text-sm">
-            <span>© 2024 viason</span>
+            <span>© 2024 viasion</span>
         </div>
     </div>
 
@@ -99,12 +125,15 @@
                     <a href="#" class="flex items-center space-x-2 text-gray-400 hover:text-white">
                         <span class="text-sm">Login Icon</span>
                         <div class="w-8 h-8 bg-gray-600 rounded-full flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" viewBox="0 0 20 20"
+                                fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                                    clip-rule="evenodd" />
                             </svg>
                         </div>
                     </a>
-                    <div class="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg py-1 z-50 invisible group-hover:visible">
+                    <div
+                        class="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg py-1 z-50 invisible group-hover:visible">
                         <a href="#" class="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700">Log Out</a>
                         <a href="#" class="block px-4 py-2 text-sm text-gray-300 hover:bg-gray-700">Preferences</a>
                     </div>
@@ -152,7 +181,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Sessions Overview Section -->
         <div class="mb-8">
             <h2 class="text-2xl font-semibold mb-4">Sessions Overview</h2>
@@ -205,10 +234,11 @@
                 <!-- Video Card 3 -->
                 <div class="scrollable-card card flex-none">
                     <div class="video-thumbnail">Video 3</div>
-                    <p class="mt-2 text-sm text-gray-400">From viason Events...</p>
+                    <p class="mt-2 text-sm text-gray-400">From viasion Events...</p>
                 </div>
             </div>
         </div>
     </div>
 </body>
+
 </html>

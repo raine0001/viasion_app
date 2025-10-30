@@ -253,7 +253,7 @@ export function handleHoopSelection(e, overlay, lastFrame, promptBar) {
     if (typeof window.drawLiveOverlay === 'function') {
         try { window.drawLiveOverlay(lastFrame?.objects || [], window.playerState); } catch { }
         try {
-            if (window.viason_OVERLAY_TRACE) {
+            if (window.viasion_OVERLAY_TRACE) {
                 console.log('[hoop:locked]', {
                     tap: { x: pick.x | 0, y: pick.y | 0 },
                     box: { x: lockedHoopBox?.x | 0, y: lockedHoopBox?.y | 0, w: lockedHoopBox?.w | 0, h: lockedHoopBox?.h | 0 },

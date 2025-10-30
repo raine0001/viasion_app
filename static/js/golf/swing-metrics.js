@@ -8,7 +8,7 @@
     const PROJECT_SLUG = 'golf';
     const POST_CAPTURE_DELAY_MS = 650;
     const HISTORY_LIMIT = 90;
-    const mgr = window.viasonProjectManager;
+    const mgr = window.viasionProjectManager;
 
     if (!mgr?.registerModule) {
         console.warn('[golf-metrics] project manager not present; module skipped');
@@ -33,7 +33,7 @@
     function isGolfActive() {
         try {
             const active = mgr.getActiveProject?.();
-            const slug = active?.slug || window.__VIASON_ACTIVE_PROJECT?.slug || window.__VIASON_ACTIVE_PROJECT;
+            const slug = active?.slug || window.__viasion_ACTIVE_PROJECT?.slug || window.__viasion_ACTIVE_PROJECT;
             return String(slug || '').toLowerCase() === PROJECT_SLUG;
         } catch {
             return false;
@@ -66,8 +66,8 @@
             frame: Number.isFinite(entry.frame) ? Number(entry.frame) : null,
             ts: Number.isFinite(entry.ts) ? Number(entry.ts)
                 : Number.isFinite(entry.timestamp) ? Number(entry.timestamp)
-                : Number.isFinite(entry.tMs) ? Number(entry.tMs)
-                : Date.now(),
+                    : Number.isFinite(entry.tMs) ? Number(entry.tMs)
+                        : Date.now(),
             keypoints
         };
     }
@@ -116,8 +116,8 @@
         if (!pt) return false;
         const vis = Number.isFinite(pt.visibility) ? pt.visibility
             : Number.isFinite(pt.score) ? pt.score
-            : Number.isFinite(pt.presence) ? pt.presence
-            : 1;
+                : Number.isFinite(pt.presence) ? pt.presence
+                    : 1;
         return vis >= min;
     }
 

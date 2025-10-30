@@ -1,4 +1,4 @@
-# Unified viason app.py — optimized for dual model use, cleaned init, and removed /detect_video_init
+# Unified viasion app.py — optimized for dual model use, cleaned init, and removed /detect_video_init
 
 from flask import (
     Flask,
@@ -119,11 +119,7 @@ ALLOW_STUB_AUTH = _truthy(
 
 # Simple trace flag (enable with VIASION_TRACE=1; legacy DOACH_TRACE still honored)
 try:
-    _TRACE = (
-        os.getenv("VIASION_TRACE")
-        or os.getenv("DOACH_TRACE")
-        or "1"
-    )
+    _TRACE = os.getenv("VIASION_TRACE") or os.getenv("DOACH_TRACE") or "1"
     TRACE_ON = _TRACE.lower() not in ("0", "false", "no", "off", "")
 except Exception:
     TRACE_ON = True
@@ -155,11 +151,11 @@ _PROJECT_MANIFEST_MTIME = None
 _DEFAULT_DATASET_FALLBACK = {
     "project": "basketball",
     "slug": "basketball_pose",
-    "root": "datasets/viason_seg",
+    "root": "datasets/viasion_seg",
     "frameCacheRoot": "frame_cache",
     "framesRoot": "frames",
-    "labelTrainRoot": "datasets/viason_seg/labels/train",
-    "imagesTrainRoot": "datasets/viason_seg/images/train",
+    "labelTrainRoot": "datasets/viasion_seg/labels/train",
+    "imagesTrainRoot": "datasets/viasion_seg/images/train",
 }
 
 
@@ -169,10 +165,7 @@ def _get_project_manifest():
         mtime = os.path.getmtime(PROJECT_MANIFEST_PATH)
     except OSError:
         return {"projects": {}, "defaultProject": None}
-    if (
-        _PROJECT_MANIFEST_CACHE is not None
-        and _PROJECT_MANIFEST_MTIME == mtime
-    ):
+    if _PROJECT_MANIFEST_CACHE is not None and _PROJECT_MANIFEST_MTIME == mtime:
         return _PROJECT_MANIFEST_CACHE
     try:
         with open(PROJECT_MANIFEST_PATH, "r", encoding="utf-8") as f:
@@ -188,7 +181,7 @@ def _normalize_dataset(project_slug, dataset_cfg):
     cfg = dict(dataset_cfg or {})
     cfg["project"] = project_slug or cfg.get("project") or "basketball"
     cfg["slug"] = cfg.get("slug") or f"{cfg['project']}_pose"
-    cfg["root"] = cfg.get("root") or "datasets/viason_seg"
+    cfg["root"] = cfg.get("root") or "datasets/viasion_seg"
     cfg["frameCacheRoot"] = cfg.get("frameCacheRoot") or "frame_cache"
     cfg["framesRoot"] = cfg.get("framesRoot") or "frames"
     if not cfg.get("labelTrainRoot"):
@@ -235,7 +228,11 @@ def _dataset_abs_path(dataset_cfg, key, *parts):
     root = dataset_cfg.get(key)
     if not root:
         return None
-    base = root if os.path.isabs(root) else os.path.abspath(os.path.join(app.root_path, root))
+    base = (
+        root
+        if os.path.isabs(root)
+        else os.path.abspath(os.path.join(app.root_path, root))
+    )
     return os.path.abspath(os.path.join(base, *parts))
 
 
@@ -252,7 +249,13 @@ def _send_dataset_label(dataset_cfg, filename):
 
 
 def _ensure_dataset_dirs(dataset_cfg):
-    for key in ("root", "frameCacheRoot", "framesRoot", "labelTrainRoot", "imagesTrainRoot"):
+    for key in (
+        "root",
+        "frameCacheRoot",
+        "framesRoot",
+        "labelTrainRoot",
+        "imagesTrainRoot",
+    ):
         path = dataset_cfg.get(key)
         if not path:
             continue
@@ -341,7 +344,9 @@ def _dataset_summary(dataset_cfg):
     return summary
 
 
-SUBSCRIPTIONS_CONFIG_PATH = os.path.join(app.root_path, "static", "config", "subscriptions.json")
+SUBSCRIPTIONS_CONFIG_PATH = os.path.join(
+    app.root_path, "static", "config", "subscriptions.json"
+)
 _SUBSCRIPTIONS_CACHE = None
 _SUBSCRIPTIONS_MTIME = None
 _DEFAULT_SUBSCRIPTIONS = {
@@ -572,8 +577,7 @@ def api_create_project():
         raw_datasets = [
             {
                 "slug": dataset_slug,
-                "label": payload.get("dataset_label")
-                or f"{name} Dataset",
+                "label": payload.get("dataset_label") or f"{name} Dataset",
                 "root": payload.get("dataset_root") or f"datasets/{dataset_slug}",
                 "frameCacheRoot": payload.get("frameCacheRoot")
                 or f"frame_cache/{dataset_slug}",
@@ -784,7 +788,9 @@ def _ensure_user_subscription_key(user_id):
 @app.post("/api/subscriptions/assign")
 def api_subscriptions_assign():
     payload = request.get_json(force=True, silent=True) or {}
-    user_key = _ensure_user_subscription_key(payload.get("user_id") or payload.get("user"))
+    user_key = _ensure_user_subscription_key(
+        payload.get("user_id") or payload.get("user")
+    )
     if not user_key:
         if ALLOW_STUB_AUTH:
             user_key = str(session.get("user_id") or "demo")
@@ -810,7 +816,9 @@ def api_subscriptions_assign():
 @app.post("/api/subscriptions/unassign")
 def api_subscriptions_unassign():
     payload = request.get_json(force=True, silent=True) or {}
-    user_key = _ensure_user_subscription_key(payload.get("user_id") or payload.get("user"))
+    user_key = _ensure_user_subscription_key(
+        payload.get("user_id") or payload.get("user")
+    )
     if not user_key:
         return jsonify({"error": "user_id required"}), 400
     plan_id = (payload.get("plan_id") or payload.get("id") or "").strip()
@@ -1540,7 +1548,7 @@ def _ensure_arcmm_worker_started() -> None:
         return
     # Start additional workers to reach desired count
     for i in range(len(_ARCMM_WORKER_THREADS), ARCMM_WORKER_COUNT):
-        worker_name = f"arcmm-worker-{i+1}"
+        worker_name = f"arcmm-worker-{i + 1}"
         t = threading.Thread(
             target=_arcmm_worker_loop, args=(i + 1,), name=worker_name, daemon=True
         )
@@ -1856,7 +1864,9 @@ def api_community_publish():
         project_name = sess.get("projectName") or sess.get("project")
         title = f"{project_name or 'Session'} recap"
     author = (data.get("author") or "").strip() or "Player"
-    highlights = data.get("highlights") if isinstance(data.get("highlights"), list) else []
+    highlights = (
+        data.get("highlights") if isinstance(data.get("highlights"), list) else []
+    )
     tags = _sanitize_tags(data.get("tags") or sess.get("tags"))
 
     # shots detail
@@ -1964,7 +1974,9 @@ def api_community_publish():
         detail_payload["previewRev"] = preview_rev
 
     post_map[sid] = summary_entry
-    updated_posts = sorted(post_map.values(), key=lambda x: x.get("createdAt") or 0, reverse=True)
+    updated_posts = sorted(
+        post_map.values(), key=lambda x: x.get("createdAt") or 0, reverse=True
+    )
     _write_community_feed(updated_posts)
 
     with open(_community_detail_path(sid), "w", encoding="utf-8") as f:
@@ -2291,11 +2303,16 @@ def _try_init_db():
             title = Column(String(255), nullable=False)
             description = Column(Text, nullable=False)
             last_update_at = Column(
-                DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+                DateTime,
+                nullable=False,
+                default=datetime.utcnow,
+                onupdate=datetime.utcnow,
             )
             assignee = Column(String(64))
             session_id = Column(
-                String(64), ForeignKey("sessions.sid", ondelete="SET NULL"), nullable=True
+                String(64),
+                ForeignKey("sessions.sid", ondelete="SET NULL"),
+                nullable=True,
             )
             meta = Column(MyJSON)
 
@@ -2332,7 +2349,9 @@ def _try_init_db():
                 Integer, ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
             )
             session_id = Column(
-                String(64), ForeignKey("sessions.sid", ondelete="SET NULL"), nullable=True
+                String(64),
+                ForeignKey("sessions.sid", ondelete="SET NULL"),
+                nullable=True,
             )
             shot_id = Column(String(64))
             created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -2456,7 +2475,9 @@ def _db_add_shot(sid, idx, payload):
                 try:
                     sess = session_obj.get(db["SessionRow"], session_id)
                     if not sess:
-                        sess = db["SessionRow"](sid=session_id, created_at=datetime.utcnow())
+                        sess = db["SessionRow"](
+                            sid=session_id, created_at=datetime.utcnow()
+                        )
                         session_obj.add(sess)
                 except Exception as e_sess:
                     _trace("db_add_shot: ensure session error:", e_sess)
@@ -3531,7 +3552,7 @@ def api_coach():
     )
 
     system = (
-        "You are viason, a concise basketball shooting coach. "
+        "You are viasion, a concise basketball shooting coach. "
         "Be supportive and specific; give 1–3 concrete cues (e.g., 'elbow under ball', "
         "'hold follow-through', 'higher arc' , 'feet placement', 'snap wrist', 'release point'). Keep it under ~6 sentences."
         + lang_hint
@@ -3726,7 +3747,14 @@ def list_frames(video_name):
     dataset = _resolve_dataset(request.args.get("dataset"))
     folder_path = _dataset_abs_path(dataset, "frameCacheRoot", video_name)
     if not folder_path or not os.path.exists(folder_path):
-        _trace("[list_frames]", "missing folder", "dataset=", dataset.get("slug"), "folder=", folder_path)
+        _trace(
+            "[list_frames]",
+            "missing folder",
+            "dataset=",
+            dataset.get("slug"),
+            "folder=",
+            folder_path,
+        )
         return jsonify({"error": "Folder not found"}), 404
 
     frames = [
@@ -3735,7 +3763,15 @@ def list_frames(video_name):
         if f.lower().endswith((".jpg", ".jpeg", ".png"))
     ]
     frames.sort()
-    _trace("[list_frames]", "dataset=", dataset.get("slug"), "folder=", folder_path, "count=", len(frames))
+    _trace(
+        "[list_frames]",
+        "dataset=",
+        dataset.get("slug"),
+        "folder=",
+        folder_path,
+        "count=",
+        len(frames),
+    )
     return jsonify({"frames": frames, "dataset": dataset.get("slug")})
 
 
@@ -4258,7 +4294,9 @@ def admin_session_debug(sid):
                     override = (
                         data.get("adminOverride") if isinstance(data, dict) else None
                     )
-                    arcmm_payload = data.get("arcmm") if isinstance(data, dict) else None
+                    arcmm_payload = (
+                        data.get("arcmm") if isinstance(data, dict) else None
+                    )
                     out["shotsDB"].append(
                         {
                             "idx": r.idx,
@@ -4928,7 +4966,7 @@ def compile_dataset(folder):
     data = request.get_json()
     yaml_text = data.get("yaml", "")
 
-    base_path = os.path.join("datasets", "viason_seg")
+    base_path = os.path.join("datasets", "viasion_seg")
     img_dir = os.path.join(base_path, "images", "train")
     label_dir = os.path.join(base_path, "labels", "train")
     os.makedirs(img_dir, exist_ok=True)
@@ -4969,12 +5007,11 @@ def _kickoff_training(folder=None):
         payload = {}
         if request.is_json:
             payload = request.get_json(silent=True) or {}
-        dataset_slug = (
-            (payload.get("dataset") or "").strip()
-            or (request.args.get("dataset") or "").strip()
-        )
+        dataset_slug = (payload.get("dataset") or "").strip() or (
+            request.args.get("dataset") or ""
+        ).strip()
         dataset = _resolve_dataset(dataset_slug or None)
-        dataset_slug = dataset.get("slug", "viason")
+        dataset_slug = dataset.get("slug", "viasion")
 
         val_ratio = payload.get("val_ratio", request.args.get("val_ratio", 0.1))
         try:
@@ -5044,7 +5081,7 @@ def _kickoff_training(folder=None):
                 indent=2,
             )
 
-        print('[train] Running:', cmd)
+        print("[train] Running:", cmd)
         subprocess.Popen(cmd, shell=True)
         return jsonify(
             {
@@ -5061,8 +5098,9 @@ def _kickoff_training(folder=None):
             }
         )
     except Exception as e:
-        print('[train] Training failed:', e)
+        print("[train] Training failed:", e)
         return jsonify({"status": "Training failed.", "error": str(e)}), 500
+
 
 # keep a route that accepts the old frontend shape with <folder>
 @app.route("/start_training/<folder>")
@@ -5356,8 +5394,8 @@ def rotate_frame():
             print("⚠️ label rotate failed:", e)
 
     # Invalidate dataset copies (if they exist) to prevent stale training
-    ds_lbl = os.path.join("datasets", "viason_seg", "labels", "train", label_name)
-    ds_img = os.path.join("datasets", "viason_seg", "images", "train", filename)
+    ds_lbl = os.path.join("datasets", "viasion_seg", "labels", "train", label_name)
+    ds_img = os.path.join("datasets", "viasion_seg", "images", "train", filename)
     for p in (ds_lbl, ds_img):
         if os.path.exists(p):
             try:
@@ -5495,8 +5533,8 @@ def label_frame():
         # ✅ Save label and return
         yolo_path = save_yolo_labels(abs_path, high_conf_boxes)
         # 🟡 Also copy label + image to YOLO training dataset
-        train_label_dir = "datasets/viason_seg/labels/train"
-        train_image_dir = "datasets/viason_seg/images/train"
+        train_label_dir = "datasets/viasion_seg/labels/train"
+        train_image_dir = "datasets/viasion_seg/images/train"
         os.makedirs(train_label_dir, exist_ok=True)
         os.makedirs(train_image_dir, exist_ok=True)
 
@@ -5539,12 +5577,14 @@ def auto_detect_frame_openai():
         fr_path = _dataset_abs_path(dataset, "framesRoot", folder)
         if fr_path:
             search_dirs.append(fr_path)
-        search_dirs.extend([
-            os.path.join(app.root_path, "frame_cache", folder),
-            os.path.join(app.root_path, "frames", folder),
-            os.path.join("frame_cache", folder),
-            os.path.join("frames", folder),
-        ])
+        search_dirs.extend(
+            [
+                os.path.join(app.root_path, "frame_cache", folder),
+                os.path.join(app.root_path, "frames", folder),
+                os.path.join("frame_cache", folder),
+                os.path.join("frames", folder),
+            ]
+        )
         image_path = None
         for d in search_dirs:
             p = os.path.join(d, filename)
@@ -5681,12 +5721,14 @@ def auto_detect_frame():
     fr_path = _dataset_abs_path(dataset, "framesRoot", folder)
     if fr_path:
         search_dirs.append(fr_path)
-    search_dirs.extend([
-        os.path.join(app.root_path, "frame_cache", folder),
-        os.path.join(app.root_path, "frames", folder),
-        os.path.join("frame_cache", folder),
-        os.path.join("frames", folder),
-    ])
+    search_dirs.extend(
+        [
+            os.path.join(app.root_path, "frame_cache", folder),
+            os.path.join(app.root_path, "frames", folder),
+            os.path.join("frame_cache", folder),
+            os.path.join("frames", folder),
+        ]
+    )
 
     image_path = None
     for d in search_dirs:
@@ -5717,7 +5759,9 @@ def auto_detect_frame():
             x1, y1, x2, y2 = map(float, b.xyxy[0].tolist())
             dets.append(
                 {
-                    "label": class_names[cid] if 0 <= cid < len(class_names) else f"class_{cid}",
+                    "label": class_names[cid]
+                    if 0 <= cid < len(class_names)
+                    else f"class_{cid}",
                     "confidence": float(b.conf[0]),
                     "box": [int(x1), int(y1), int(x2), int(y2)],
                 }
@@ -5773,7 +5817,7 @@ def fix_label_swap():
                     w.write("\n".join(new_lines) + ("\n" if new_lines else ""))
                 changed += 1
                 # also update dataset copy if exists
-                ds_path = os.path.join("datasets", "viason_seg", "labels", "train", fn)
+                ds_path = os.path.join("datasets", "viasion_seg", "labels", "train", fn)
                 if os.path.exists(ds_path):
                     with open(ds_path, "w") as w:
                         w.write("\n".join(new_lines) + ("\n" if new_lines else ""))
@@ -6024,7 +6068,7 @@ def set_detector_model():
 
 
 # route to serve training labels
-@app.route("/datasets/viason_seg/labels/train/<filename>")
+@app.route("/datasets/viasion_seg/labels/train/<filename>")
 def serve_dataset_label(filename):
     dataset = _resolve_dataset("basketball_pose")
     result = _send_dataset_label(dataset, filename)
@@ -6041,7 +6085,15 @@ def list_frame_folders():
     folders = []
     if root and os.path.exists(root):
         folders = [f for f in os.listdir(root) if os.path.isdir(os.path.join(root, f))]
-    _trace("[list_frame_folders]", "dataset=", dataset.get("slug"), "root=", root, "folders=", folders)
+    _trace(
+        "[list_frame_folders]",
+        "dataset=",
+        dataset.get("slug"),
+        "root=",
+        root,
+        "folders=",
+        folders,
+    )
     return jsonify({"folders": sorted(folders), "dataset": dataset.get("slug")})
 
 
@@ -6418,7 +6470,12 @@ def copy_label_to_dataset():
 
     shutil.copy2(src_txt, label_dst)
     shutil.copy2(src_img, image_dst)
-    return jsonify({"status": f"�o. Copied {filename} and {image} to {dataset.get('slug')} training folders.", "dataset": dataset.get("slug")})
+    return jsonify(
+        {
+            "status": f"�o. Copied {filename} and {image} to {dataset.get('slug')} training folders.",
+            "dataset": dataset.get("slug"),
+        }
+    )
 
 
 @app.get("/healthz")
@@ -7052,12 +7109,16 @@ def _event_to_dict(ev):
         "id": ev.id,
         "slug": ev.slug,
         "name": ev.name,
-        "start_date": ev.start_date.isoformat() if getattr(ev, "start_date", None) else None,
+        "start_date": ev.start_date.isoformat()
+        if getattr(ev, "start_date", None)
+        else None,
         "end_date": ev.end_date.isoformat() if getattr(ev, "end_date", None) else None,
         "daily_limit": ev.daily_limit,
         "min_shots": ev.min_shots,
         "tz": ev.tz,
-        "created_at": ev.created_at.isoformat() if getattr(ev, "created_at", None) else None,
+        "created_at": ev.created_at.isoformat()
+        if getattr(ev, "created_at", None)
+        else None,
     }
 
 
@@ -7137,7 +7198,9 @@ def admin_update_event(event_id):
         if slug:
             slug = slug.strip()
             if slug and slug != ev.slug:
-                exists = s.query(Event).filter(Event.slug == slug, Event.id != ev.id).first()
+                exists = (
+                    s.query(Event).filter(Event.slug == slug, Event.id != ev.id).first()
+                )
                 if exists:
                     return jsonify({"ok": False, "err": "slug already exists"}), 400
                 ev.slug = slug
@@ -7190,7 +7253,7 @@ def admin_delete_event(event_id):
 #  Support API (skeleton for in-app help interactions)
 # ----------------------------------------------------------
 
-SUPPORT_ALLOWED_ROLES = {"user", "viason", "admin"}
+SUPPORT_ALLOWED_ROLES = {"user", "viasion", "admin"}
 SUPPORT_RESULT_STATUSES = {
     "pending_user",
     "resolved",
@@ -7293,7 +7356,7 @@ def api_support_ingest():
 
     detected_intent = base_intent or "general"
     handler_result = None
-    viason_reply_dict = None
+    viasion_reply_dict = None
 
     if role == "user":
         if not base_intent:
@@ -7336,7 +7399,7 @@ def api_support_ingest():
                     user_id=user_id,
                     session_id=payload.get("session_id"),
                     shot_id=payload.get("shot_id"),
-                    role="viason",
+                    role="viasion",
                     message=handler_result.reply,
                     intent=detected_intent,
                     action_taken=handler_result.action_taken,
@@ -7347,7 +7410,7 @@ def api_support_ingest():
                 s.add(reply_row)
                 s.commit()
                 s.refresh(reply_row)
-                viason_reply_dict = reply_row.to_dict()
+                viasion_reply_dict = reply_row.to_dict()
 
     response_body = {
         "ok": True,
@@ -7356,8 +7419,8 @@ def api_support_ingest():
     }
     if handler_result:
         response_body["handler"] = handler_result.to_dict()
-    if viason_reply_dict:
-        response_body["response"] = viason_reply_dict
+    if viasion_reply_dict:
+        response_body["response"] = viasion_reply_dict
     return jsonify(response_body), 201
 
 
@@ -7565,7 +7628,7 @@ if __name__ == "__main__":
         port = int(os.getenv("PORT", "5001"))
     except Exception:
         port = 5001
-    print(f"Starting viason server on http://{host}:{port}")
+    print(f"Starting viasion server on http://{host}:{port}")
     try:
         app.run(host=host, port=port, debug=True, use_reloader=False, threaded=False)
     except OSError as e:

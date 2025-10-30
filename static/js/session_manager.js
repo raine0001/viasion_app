@@ -4,18 +4,18 @@
 // Emits:  hud:start-session (on explicit start), hud:end-session (on end)
 // Does NOT: generate releases, record clips, enforce UI, open tables automatically.
 
-import { viasonSpeak, primeCoachAudio, listenForEndSession } from '/static/js/coach_voice.js';
+import { viasionSpeak, primeCoachAudio, listenForEndSession } from '/static/js/coach_voice.js';
 
 /* ------------------------ project helpers ------------------------ */
 function getActiveProjectMeta() {
     try {
-        const mgr = window.viasonProjectManager;
+        const mgr = window.viasionProjectManager;
         if (mgr && typeof mgr.getActiveProject === 'function') {
             const project = mgr.getActiveProject();
             if (project) return project;
         }
     } catch { /* ignore */ }
-    const fallback = window.__VIASON_ACTIVE_PROJECT;
+    const fallback = window.__viasion_ACTIVE_PROJECT;
     if (!fallback) return null;
     if (typeof fallback === 'object' && fallback) return fallback;
     if (typeof fallback === 'string') return { slug: fallback };
@@ -74,11 +74,11 @@ function setSessionCap(n) {
         if (v) {
             window.__SESSION_CAP = v;
             window.SESSION_SIZE = v;               // UI reads this to show N/Cap
-            localStorage.setItem('viason.sessionCap', String(v));
+            localStorage.setItem('viasion.sessionCap', String(v));
         } else {
             window.__SESSION_CAP = undefined;
             window.SESSION_SIZE = undefined;
-            localStorage.removeItem('viason.sessionCap');
+            localStorage.removeItem('viasion.sessionCap');
         }
     } catch { }
 }
@@ -86,7 +86,7 @@ function getSessionCap() {
     try {
         if (Number.isFinite(window.__SESSION_CAP)) return Number(window.__SESSION_CAP);
         if (Number.isFinite(window.SESSION_SIZE)) return Number(window.SESSION_SIZE);
-        const ls = Number(localStorage.getItem('viason.sessionCap'));
+        const ls = Number(localStorage.getItem('viasion.sessionCap'));
         if (Number.isFinite(ls) && ls > 0) return ls;
     } catch { }
     return 10;
@@ -153,7 +153,7 @@ async function startSession() {
         __communityPendingSummary = null;
         __communitySessionFinalized = false;
         __communityPublishing = false;
-        try { window.__COMMUNITY_AUTOSHARE = null; } catch {}
+        try { window.__COMMUNITY_AUTOSHARE = null; } catch { }
 
         // choose cap once per session (URL > env > LS > default)
         let cap = (() => {
@@ -205,8 +205,8 @@ async function startSession() {
         let muted = false;
         try { window.__coachMuted = false; } catch { }
         try {
-            localStorage.setItem('viason_muted', 'false');
-            muted = localStorage.getItem('viason_muted') === 'true';
+            localStorage.setItem('viasion_muted', 'false');
+            muted = localStorage.getItem('viasion_muted') === 'true';
         } catch {
             muted = false;
         }
@@ -248,9 +248,9 @@ async function startSession() {
                 : `${name}, let's get started. ${fallbackPrompt}`;
             try { await primeCoachAudio?.(); } catch { }
             try {
-                if (typeof viasonSpeak === 'function') {
+                if (typeof viasionSpeak === 'function') {
                     try {
-                        const job = viasonSpeak(greeting);
+                        const job = viasionSpeak(greeting);
                         if (job && typeof job.then === 'function') {
                             try { window.__GREETING_PROMISE = greetingPromise || job; } catch { }
                             const ok = await job;
@@ -263,7 +263,7 @@ async function startSession() {
                         throw err;
                     }
                 } else {
-                    console.warn('[coach:greeting] viasonSpeak not available');
+                    console.warn('[coach:greeting] viasionSpeak not available');
                 }
             } catch { }
             finally {
@@ -446,8 +446,8 @@ async function persistShotFromSummary(detail) {
         releaseAngle: Number.isFinite(detail?.releaseAngle) ? Number(detail.releaseAngle) : null,
         pose: poseSnapshot || null   // optional, server can ignore
     };
-    const coachLine = typeof detail?.viason === 'string'
-        ? detail.viason.trim()
+    const coachLine = typeof detail?.viasion === 'string'
+        ? detail.viasion.trim()
         : (typeof detail?.coachLine === 'string'
             ? detail.coachLine.trim()
             : (typeof detail?.text === 'string' ? detail.text.trim() : ''));
@@ -508,15 +508,15 @@ async function endSession(reason = 'normal') {
 
     // optional voice cue
     try {
-        try { localStorage.setItem('viason_muted', 'false'); window.__coachMuted = false; } catch { }
-        if (localStorage.getItem('viason_muted') !== 'true') {
+        try { localStorage.setItem('viasion_muted', 'false'); window.__coachMuted = false; } catch { }
+        if (localStorage.getItem('viasion_muted') !== 'true') {
             const line = 'Session ended.';
             try { await primeCoachAudio?.(); } catch { }
             try {
-                if (typeof viasonSpeak === 'function') {
-                    await viasonSpeak(line);
+                if (typeof viasionSpeak === 'function') {
+                    await viasionSpeak(line);
                 } else {
-                    console.warn('[coach:end-session] viasonSpeak not available');
+                    console.warn('[coach:end-session] viasionSpeak not available');
                 }
             } catch {
                 console.warn('[coach:end-session] TTS failed');
@@ -578,13 +578,13 @@ function resetSessionForNewStart() {
 
     // Voice exit (optional; ignores if voice isn’t available)
     try {
-        const stopListen = listenForEndSession?.('hey viason, end the session', async () => { await endSession('voice'); });
+        const stopListen = listenForEndSession?.('hey viasion, end the session', async () => { await endSession('voice'); });
         window.__voiceEndHandle = stopListen;
     } catch { }
 })();
 
 /* ------------------------ exports (optional) ------------------------ */
-window.viasonSession = {
+window.viasionSession = {
     start: startSession,
     end: endSession,
     reset: resetSessionForNewStart,
@@ -606,8 +606,8 @@ async function publishCommunityRecap(detail) {
             : `/sessions/${sid}/clips/shot-${idx1}.webm`;
         const poseScore = Number.isFinite(shot?.poseScore) ? Math.round(shot.poseScore) : null;
         const weightedScore = Number.isFinite(shot?.weightedScore) ? shot.weightedScore : null;
-        const coachNote = typeof shot?.viason === 'string' && shot.viason.trim()
-            ? shot.viason.trim()
+        const coachNote = typeof shot?.viasion === 'string' && shot.viasion.trim()
+            ? shot.viasion.trim()
             : (typeof shot?.coachLine === 'string' && shot.coachLine.trim() ? shot.coachLine.trim() : null);
         return {
             idx: idx1,
@@ -672,7 +672,7 @@ function publishCommunityRecapIfReady() {
     });
 }
 
-window.addEventListener('viason:session-review', (e) => {
+window.addEventListener('viasion:session-review', (e) => {
     __communityPendingSummary = e?.detail || null;
     publishCommunityRecapIfReady();
 });

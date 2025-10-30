@@ -1,22 +1,24 @@
 // feedback_widget.js — Unified in-app support + diagnostics widget
 
 const SUPPORT_QUICK_ACTIONS = [
-  { label: 'Missed shot', message: "That last shot didn't log.", autosend: true },
-  { label: 'Call me…', message: () => {
-      const guess = (
-        window.__USER_NAME ||
-        window.__USER_DISPLAY_NAME ||
-        localStorage.getItem('firstname') ||
-        'Player'
-      );
-      return `Please call me ${guess}.`;
-    }, autosend: true },
-  { label: 'Camera setup', message: "Where do I setup the camera?", autosend: true },
-  { label: 'Progress', message: "How am I doing coach?", autosend: true },
-  { label: 'Tech check', message: "Any technical issue I should know about?", autosend: true },
-  { label: 'Account setup', message: "How do I setup my account?", autosend: true },
-  { label: 'Challenge', message: "How do I join a challenge?", autosend: true },
-  { label: 'Shot miscount', message: "That wasn't a shot.", autosend: true },
+    { label: 'Missed shot', message: "That last shot didn't log.", autosend: true },
+    {
+        label: 'Call me…', message: () => {
+            const guess = (
+                window.__USER_NAME ||
+                window.__USER_DISPLAY_NAME ||
+                localStorage.getItem('firstname') ||
+                'Player'
+            );
+            return `Please call me ${guess}.`;
+        }, autosend: true
+    },
+    { label: 'Camera setup', message: "Where do I setup the camera?", autosend: true },
+    { label: 'Progress', message: "How am I doing coach?", autosend: true },
+    { label: 'Tech check', message: "Any technical issue I should know about?", autosend: true },
+    { label: 'Account setup', message: "How do I setup my account?", autosend: true },
+    { label: 'Challenge', message: "How do I join a challenge?", autosend: true },
+    { label: 'Shot miscount', message: "That wasn't a shot.", autosend: true },
 ];
 
 const SUPPORT_MAX_LIMIT = 80;
@@ -30,50 +32,50 @@ function q(selector, root = document) { return root.querySelector(selector); }
 function qq(selector, root = document) { return Array.from(root.querySelectorAll(selector)); }
 
 function mk(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(attrs || {})) {
-    if (value == null) continue;
-    if (key === 'class') node.className = value;
-    else if (key === 'style' && typeof value === 'object') Object.assign(node.style, value);
-    else if (key.startsWith('on') && typeof value === 'function') node.addEventListener(key.slice(2), value);
-    else node.setAttribute(key, value);
-  }
-  children.flat().forEach((child) => {
-    if (child == null) return;
-    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
-  });
-  return node;
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(attrs || {})) {
+        if (value == null) continue;
+        if (key === 'class') node.className = value;
+        else if (key === 'style' && typeof value === 'object') Object.assign(node.style, value);
+        else if (key.startsWith('on') && typeof value === 'function') node.addEventListener(key.slice(2), value);
+        else node.setAttribute(key, value);
+    }
+    children.flat().forEach((child) => {
+        if (child == null) return;
+        node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    });
+    return node;
 }
 
 function niceTime(ts) {
-  try {
-    if (!ts) return '';
-    const d = typeof ts === 'number' ? new Date(ts) : new Date(String(ts));
-    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  } catch { return ''; }
+    try {
+        if (!ts) return '';
+        const d = typeof ts === 'number' ? new Date(ts) : new Date(String(ts));
+        return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    } catch { return ''; }
 }
 
 function getActiveSessionId() {
-  try { if (window.__SESSION_ID) return window.__SESSION_ID; } catch {}
-  try { return sessionStorage.getItem('viason_active_session') || null; } catch {}
-  return null;
+    try { if (window.__SESSION_ID) return window.__SESSION_ID; } catch { }
+    try { return sessionStorage.getItem('viasion_active_session') || null; } catch { }
+    return null;
 }
 
 function getLikelyShotId() {
-  try {
-    if (window.__SHOT_ID) return String(window.__SHOT_ID);
-    const list = window.__shotList || [];
-    if (list.length) return String(list[list.length - 1]?.shotId ?? list.length);
-  } catch {}
-  return null;
+    try {
+        if (window.__SHOT_ID) return String(window.__SHOT_ID);
+        const list = window.__shotList || [];
+        if (list.length) return String(list[list.length - 1]?.shotId ?? list.length);
+    } catch { }
+    return null;
 }
 
 function debounce(fn, ms = 200) {
-  let t = null;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn.apply(null, args), ms);
-  };
+    let t = null;
+    return (...args) => {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(null, args), ms);
+    };
 }
 
 // --------------------------------------------------------------------------- //
@@ -81,74 +83,74 @@ function debounce(fn, ms = 200) {
 // --------------------------------------------------------------------------- //
 
 const feedbackStore = {
-  logs: [],
-  push(entry) {
-    this.logs.push(entry);
-    if (this.logs.length > LOG_HISTORY_LIMIT) this.logs = this.logs.slice(-LOG_HISTORY_LIMIT);
-    saveLogs();
-    renderLogs();
-  },
-  clear() {
-    this.logs = [];
-    saveLogs();
-    renderLogs();
-  },
+    logs: [],
+    push(entry) {
+        this.logs.push(entry);
+        if (this.logs.length > LOG_HISTORY_LIMIT) this.logs = this.logs.slice(-LOG_HISTORY_LIMIT);
+        saveLogs();
+        renderLogs();
+    },
+    clear() {
+        this.logs = [];
+        saveLogs();
+        renderLogs();
+    },
 };
 
 function saveLogs() {
-  try { localStorage.setItem('viasonFeedbackLogs', JSON.stringify(feedbackStore.logs)); } catch {}
+    try { localStorage.setItem('viasionFeedbackLogs', JSON.stringify(feedbackStore.logs)); } catch { }
 }
 
 function loadLogs() {
-  try {
-    const raw = JSON.parse(localStorage.getItem('viasonFeedbackLogs') || '[]');
-    if (Array.isArray(raw)) feedbackStore.logs = raw;
-  } catch { feedbackStore.logs = []; }
+    try {
+        const raw = JSON.parse(localStorage.getItem('viasionFeedbackLogs') || '[]');
+        if (Array.isArray(raw)) feedbackStore.logs = raw;
+    } catch { feedbackStore.logs = []; }
 }
 
 function installGlobalLogCatcher() {
-  window.addEventListener('error', (ev) => {
-    feedbackStore.push({
-      type: 'error',
-      time: Date.now(),
-      message: ev?.error?.message || ev.message || 'Error',
-      stack: ev?.error?.stack || null,
-      source: ev?.filename,
-      line: ev?.lineno,
-      col: ev?.colno,
+    window.addEventListener('error', (ev) => {
+        feedbackStore.push({
+            type: 'error',
+            time: Date.now(),
+            message: ev?.error?.message || ev.message || 'Error',
+            stack: ev?.error?.stack || null,
+            source: ev?.filename,
+            line: ev?.lineno,
+            col: ev?.colno,
+        });
     });
-  });
 
-  window.addEventListener('unhandledrejection', (ev) => {
-    const reason = ev?.reason;
-    feedbackStore.push({
-      type: 'unhandledrejection',
-      time: Date.now(),
-      message: (reason && (reason.message || reason.toString())) || 'Unhandled rejection',
-      stack: reason?.stack || null,
+    window.addEventListener('unhandledrejection', (ev) => {
+        const reason = ev?.reason;
+        feedbackStore.push({
+            type: 'unhandledrejection',
+            time: Date.now(),
+            message: (reason && (reason.message || reason.toString())) || 'Unhandled rejection',
+            stack: reason?.stack || null,
+        });
     });
-  });
 
-  const origErr = console.error;
-  console.error = function (...args) {
-    try {
-      feedbackStore.push({
-        type: 'console.error',
-        time: Date.now(),
-        message: args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '),
-      });
-    } catch {}
-    origErr.apply(console, args);
-  };
+    const origErr = console.error;
+    console.error = function (...args) {
+        try {
+            feedbackStore.push({
+                type: 'console.error',
+                time: Date.now(),
+                message: args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '),
+            });
+        } catch { }
+        origErr.apply(console, args);
+    };
 
-  window.reportClientEvent = (label, data) => {
-    feedbackStore.push({
-      type: 'event',
-      time: Date.now(),
-      message: label,
-      data,
-    });
-  };
+    window.reportClientEvent = (label, data) => {
+        feedbackStore.push({
+            type: 'event',
+            time: Date.now(),
+            message: label,
+            data,
+        });
+    };
 }
 
 // --------------------------------------------------------------------------- //
@@ -156,11 +158,11 @@ function installGlobalLogCatcher() {
 // --------------------------------------------------------------------------- //
 
 const supportState = {
-  loaded: false,
-  loading: false,
-  sending: false,
-  thread: [],
-  lastLoadError: null,
+    loaded: false,
+    loading: false,
+    sending: false,
+    thread: [],
+    lastLoadError: null,
 };
 
 let panel,
@@ -176,18 +178,18 @@ let panel,
     fabButton;
 
 function ensureSupportCSS() {
-  if (document.getElementById('viason-support-css')) return;
-  const css = document.createElement('style');
-  css.id = 'viason-support-css';
-  css.textContent = `
-  .viason-fb-fab {
+    if (document.getElementById('viasion-support-css')) return;
+    const css = document.createElement('style');
+    css.id = 'viasion-support-css';
+    css.textContent = `
+  .viasion-fb-fab {
     position: fixed; right: 16px; bottom: 16px; z-index: 10060;
     width: 48px; height: 48px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     background: #2d6cff; color: #fff; font-size: 20px;
     border: 0; cursor: pointer; box-shadow: 0 12px 28px rgba(0,0,0,.35);
   }
-  .viason-fb-panel {
+  .viasion-fb-panel {
     position: fixed; right: 0; top: 0; bottom: 0; width: 460px;
     background: rgba(15,16,22,.96); color: #fff; z-index: 10055;
     transform: translateX(110%); transition: transform .22s ease;
@@ -195,360 +197,360 @@ function ensureSupportCSS() {
     box-shadow: -10px 0 24px rgba(0,0,0,.45);
     display: flex; flex-direction: column;
   }
-  .viason-fb-panel.open { transform: translateX(0); }
-  .viason-fb-fab.hidden { opacity: 0; pointer-events: none; transform: scale(0.92); }
-  .viason-fb-head {
+  .viasion-fb-panel.open { transform: translateX(0); }
+  .viasion-fb-fab.hidden { opacity: 0; pointer-events: none; transform: scale(0.92); }
+  .viasion-fb-head {
     padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
     border-bottom: 1px solid rgba(255,255,255,.08);
   }
-  .viason-fb-title { font: 600 16px/1 system-ui, -apple-system, Segoe UI, sans-serif; }
-  .viason-fb-tabs {
+  .viasion-fb-title { font: 600 16px/1 system-ui, -apple-system, Segoe UI, sans-serif; }
+  .viasion-fb-tabs {
     display: flex; padding: 6px 14px; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.08);
   }
-  .viason-fb-tab {
+  .viasion-fb-tab {
     border: 0; background: rgba(255,255,255,.08); color: #fff;
     padding: 6px 12px; border-radius: 999px; font: 600 13px system-ui;
     cursor: pointer; transition: background .15s;
   }
-  .viason-fb-tab.active { background: #2d6cff; }
-  .viason-fb-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-  .viason-support-view, .viason-logs-view { flex: 1; display: none; overflow: hidden; }
-  .viason-support-view.active, .viason-logs-view.active { display: flex; flex-direction: column; }
-  .viason-support-thread {
+  .viasion-fb-tab.active { background: #2d6cff; }
+  .viasion-fb-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .viasion-support-view, .viasion-logs-view { flex: 1; display: none; overflow: hidden; }
+  .viasion-support-view.active, .viasion-logs-view.active { display: flex; flex-direction: column; }
+  .viasion-support-thread {
     flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px;
   }
-  .viason-support-msg {
+  .viasion-support-msg {
     max-width: 92%; padding: 10px 14px; border-radius: 14px; font: 14px/1.5 system-ui;
     background: rgba(255,255,255,.08); position: relative; word-break: break-word;
   }
-  .viason-support-msg.user { margin-left: auto; background: #2d6cff; color: #fff; }
-  .viason-support-msg.viason { background: rgba(26,28,34,.95); border: 1px solid rgba(255,255,255,.08); }
-  .viason-support-msg .meta {
+  .viasion-support-msg.user { margin-left: auto; background: #2d6cff; color: #fff; }
+  .viasion-support-msg.viasion { background: rgba(26,28,34,.95); border: 1px solid rgba(255,255,255,.08); }
+  .viasion-support-msg .meta {
     display: block; margin-top: 6px; font: 11px/1 system-ui; opacity: .65;
   }
-  .viason-support-quick {
+  .viasion-support-quick {
     padding: 10px 16px 0; display: flex; gap: 8px; flex-wrap: wrap;
   }
-  .viason-support-chip {
+  .viasion-support-chip {
     background: rgba(255,255,255,.08); border: 0; color:#fff;
     border-radius: 999px; padding: 6px 12px; font: 600 12px system-ui;
     cursor: pointer; transition: background .15s;
   }
-  .viason-support-chip:hover { background: rgba(255,255,255,.18); }
-  .viason-support-input {
+  .viasion-support-chip:hover { background: rgba(255,255,255,.18); }
+  .viasion-support-input {
     padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.08);
     display: flex; flex-direction: column; gap: 8px;
   }
-  .viason-support-input textarea {
+  .viasion-support-input textarea {
     width: 100%; min-height: 72px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12);
     background: rgba(12,13,18,.92); color: #fff; padding: 10px 12px; resize: vertical;
     font: 14px/1.4 system-ui;
   }
-  .viason-support-actions {
+  .viasion-support-actions {
     display: flex; gap: 8px; justify-content: space-between; align-items: center;
   }
-  .viason-support-actions .left {
+  .viasion-support-actions .left {
     display: flex; align-items: center; gap: 10px; font: 12px system-ui;
     color: rgba(255,255,255,.65);
   }
-  .viason-support-send {
+  .viasion-support-send {
     background: #2d6cff; color: #fff; border: 0; padding: 8px 18px; border-radius: 999px;
     font: 600 14px system-ui; cursor: pointer; transition: opacity .15s;
   }
-  .viason-support-send[disabled] { opacity: .6; cursor: progress; }
-  .viason-support-status { font: 12px system-ui; color: rgba(255,255,255,.65); min-height: 16px; }
-  .viason-logs-view { padding: 16px; gap: 12px; overflow: hidden; }
-  .viason-logs-controls { display: flex; gap: 8px; align-items: center; }
-  .viason-logs-box {
+  .viasion-support-send[disabled] { opacity: .6; cursor: progress; }
+  .viasion-support-status { font: 12px system-ui; color: rgba(255,255,255,.65); min-height: 16px; }
+  .viasion-logs-view { padding: 16px; gap: 12px; overflow: hidden; }
+  .viasion-logs-controls { display: flex; gap: 8px; align-items: center; }
+  .viasion-logs-box {
     flex: 1; overflow-y: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
     padding: 10px;
     background: rgba(12,13,18,.92); font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace;
   }
-  .viason-log-row { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); white-space: pre-wrap; }
-  .viason-log-row:last-child { border-bottom: 0; }
-  .viason-checkbox { display:flex; align-items:center; gap:6px; cursor:pointer; }
-  .viason-close-btn {
+  .viasion-log-row { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); white-space: pre-wrap; }
+  .viasion-log-row:last-child { border-bottom: 0; }
+  .viasion-checkbox { display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .viasion-close-btn {
     border: 0; background: rgba(255,255,255,.1); color: #fff; padding: 6px 10px; border-radius: 8px; cursor: pointer;
   }
   `;
-  document.head.appendChild(css);
+    document.head.appendChild(css);
 }
 
 function createPanel() {
-  if (panel) return panel;
-  ensureSupportCSS();
-  loadLogs();
-  installGlobalLogCatcher();
+    if (panel) return panel;
+    ensureSupportCSS();
+    loadLogs();
+    installGlobalLogCatcher();
 
-  panel = mk('div', { class: 'viason-fb-panel', id: 'viasonSupportPanel' });
+    panel = mk('div', { class: 'viasion-fb-panel', id: 'viasionSupportPanel' });
 
-  const head = mk('div', { class: 'viason-fb-head' },
-    mk('div', { class: 'viason-fb-title' }, 'Help & Support'),
-    mk('button', { class: 'viason-close-btn', onclick: closeSupportPanel }, 'Close')
-  );
+    const head = mk('div', { class: 'viasion-fb-head' },
+        mk('div', { class: 'viasion-fb-title' }, 'Help & Support'),
+        mk('button', { class: 'viasion-close-btn', onclick: closeSupportPanel }, 'Close')
+    );
 
-  tabs = {
-    support: mk('button', { class: 'viason-fb-tab active', dataset: { tab: 'support' } }, 'Support'),
-    logs: mk('button', { class: 'viason-fb-tab', dataset: { tab: 'logs' } }, 'Diagnostics'),
-  };
-  const tabRow = mk('div', { class: 'viason-fb-tabs' }, tabs.support, tabs.logs);
-  tabs.support.addEventListener('click', () => showTab('support'));
-  tabs.logs.addEventListener('click', () => showTab('logs'));
+    tabs = {
+        support: mk('button', { class: 'viasion-fb-tab active', dataset: { tab: 'support' } }, 'Support'),
+        logs: mk('button', { class: 'viasion-fb-tab', dataset: { tab: 'logs' } }, 'Diagnostics'),
+    };
+    const tabRow = mk('div', { class: 'viasion-fb-tabs' }, tabs.support, tabs.logs);
+    tabs.support.addEventListener('click', () => showTab('support'));
+    tabs.logs.addEventListener('click', () => showTab('logs'));
 
-  const body = mk('div', { class: 'viason-fb-body' });
+    const body = mk('div', { class: 'viasion-fb-body' });
 
-  // Support view
-  const supportView = mk('div', { class: 'viason-support-view active' });
-  threadBox = mk('div', { class: 'viason-support-thread', id: 'viasonSupportThread' });
-  quickRow = mk('div', { class: 'viason-support-quick' });
-  renderQuickActions();
+    // Support view
+    const supportView = mk('div', { class: 'viasion-support-view active' });
+    threadBox = mk('div', { class: 'viasion-support-thread', id: 'viasionSupportThread' });
+    quickRow = mk('div', { class: 'viasion-support-quick' });
+    renderQuickActions();
 
-  supportStatus = mk('div', { class: 'viason-support-status' });
+    supportStatus = mk('div', { class: 'viasion-support-status' });
 
-  supportInput = mk('textarea', { placeholder: "Tell viason what's going on…" });
-  supportSendButton = mk('button', { class: 'viason-support-send' }, 'Send');
-  supportSendButton.addEventListener('click', handleSupportSend);
-  supportInput.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && !ev.shiftKey) {
-      ev.preventDefault();
-      handleSupportSend();
-    }
-  });
+    supportInput = mk('textarea', { placeholder: "Tell viasion what's going on…" });
+    supportSendButton = mk('button', { class: 'viasion-support-send' }, 'Send');
+    supportSendButton.addEventListener('click', handleSupportSend);
+    supportInput.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' && !ev.shiftKey) {
+            ev.preventDefault();
+            handleSupportSend();
+        }
+    });
 
-  includeLogsCheckbox = mk('input', { type: 'checkbox', checked: true });
-  includeStateCheckbox = mk('input', { type: 'checkbox', checked: true });
+    includeLogsCheckbox = mk('input', { type: 'checkbox', checked: true });
+    includeStateCheckbox = mk('input', { type: 'checkbox', checked: true });
 
-  const actionsRow = mk('div', { class: 'viason-support-actions' },
-    mk('div', { class: 'left' },
-      mk('label', { class: 'viason-checkbox' }, includeLogsCheckbox, 'Attach recent diagnostics'),
-      mk('label', { class: 'viason-checkbox' }, includeStateCheckbox, 'Attach session snapshot')
-    ),
-    supportSendButton
-  );
+    const actionsRow = mk('div', { class: 'viasion-support-actions' },
+        mk('div', { class: 'left' },
+            mk('label', { class: 'viasion-checkbox' }, includeLogsCheckbox, 'Attach recent diagnostics'),
+            mk('label', { class: 'viasion-checkbox' }, includeStateCheckbox, 'Attach session snapshot')
+        ),
+        supportSendButton
+    );
 
-  const inputWrap = mk('div', { class: 'viason-support-input' },
-    supportInput,
-    actionsRow,
-    supportStatus
-  );
+    const inputWrap = mk('div', { class: 'viasion-support-input' },
+        supportInput,
+        actionsRow,
+        supportStatus
+    );
 
-  supportView.append(threadBox, quickRow, inputWrap);
+    supportView.append(threadBox, quickRow, inputWrap);
 
-  // Logs view
-  const logsView = mk('div', { class: 'viason-logs-view' });
-  logsBox = mk('div', { class: 'viason-logs-box' });
-  const logsControls = mk('div', { class: 'viason-logs-controls' },
-    mk('button', { class: 'viason-support-send', onclick: () => feedbackStore.clear() }, 'Clear log'),
-    mk('button', {
-      class: 'viason-close-btn',
-      onclick: () => navigator.clipboard?.writeText(logsBox.innerText || '').catch(() => {}),
-    }, 'Copy')
-  );
-  logsView.append(logsControls, logsBox);
+    // Logs view
+    const logsView = mk('div', { class: 'viasion-logs-view' });
+    logsBox = mk('div', { class: 'viasion-logs-box' });
+    const logsControls = mk('div', { class: 'viasion-logs-controls' },
+        mk('button', { class: 'viasion-support-send', onclick: () => feedbackStore.clear() }, 'Clear log'),
+        mk('button', {
+            class: 'viasion-close-btn',
+            onclick: () => navigator.clipboard?.writeText(logsBox.innerText || '').catch(() => { }),
+        }, 'Copy')
+    );
+    logsView.append(logsControls, logsBox);
 
-  body.append(supportView, logsView);
-  panel.append(head, tabRow, body);
-  document.body.appendChild(panel);
+    body.append(supportView, logsView);
+    panel.append(head, tabRow, body);
+    document.body.appendChild(panel);
 
-  renderLogs();
-  renderSupportThread();
+    renderLogs();
+    renderSupportThread();
 
-  window.openSupportPanel = openSupportPanel;
-  return panel;
+    window.openSupportPanel = openSupportPanel;
+    return panel;
 }
 
 function renderQuickActions() {
-  if (!quickRow) return;
-  quickRow.innerHTML = '';
-  SUPPORT_QUICK_ACTIONS.forEach((action) => {
-    const btn = mk('button', { class: 'viason-support-chip' }, action.label);
-    btn.addEventListener('click', () => {
-      const text = typeof action.message === 'function' ? action.message() : action.message;
-      if (action.autosend) {
-        supportInput.value = text;
-        handleSupportSend();
-      } else {
-        supportInput.value = text;
-        supportInput.focus();
-      }
+    if (!quickRow) return;
+    quickRow.innerHTML = '';
+    SUPPORT_QUICK_ACTIONS.forEach((action) => {
+        const btn = mk('button', { class: 'viasion-support-chip' }, action.label);
+        btn.addEventListener('click', () => {
+            const text = typeof action.message === 'function' ? action.message() : action.message;
+            if (action.autosend) {
+                supportInput.value = text;
+                handleSupportSend();
+            } else {
+                supportInput.value = text;
+                supportInput.focus();
+            }
+        });
+        quickRow.append(btn);
     });
-    quickRow.append(btn);
-  });
 }
 
 function showTab(tabName) {
-  const supportView = q('.viason-support-view', panel);
-  const logsView = q('.viason-logs-view', panel);
-  if (!supportView || !logsView) return;
+    const supportView = q('.viasion-support-view', panel);
+    const logsView = q('.viasion-logs-view', panel);
+    if (!supportView || !logsView) return;
 
-  if (tabName === 'logs') {
-    supportView.classList.remove('active');
-    logsView.classList.add('active');
-    tabs.support.classList.remove('active');
-    tabs.logs.classList.add('active');
-    renderLogs();
-  } else {
-    supportView.classList.add('active');
-    logsView.classList.remove('active');
-    tabs.support.classList.add('active');
-    tabs.logs.classList.remove('active');
-    renderSupportThread();
-  }
+    if (tabName === 'logs') {
+        supportView.classList.remove('active');
+        logsView.classList.add('active');
+        tabs.support.classList.remove('active');
+        tabs.logs.classList.add('active');
+        renderLogs();
+    } else {
+        supportView.classList.add('active');
+        logsView.classList.remove('active');
+        tabs.support.classList.add('active');
+        tabs.logs.classList.remove('active');
+        renderSupportThread();
+    }
 }
 
 function renderLogs() {
-  if (!logsBox) return;
-  logsBox.innerHTML = '';
-  const rows = feedbackStore.logs.slice(-LOG_HISTORY_LIMIT);
-  if (!rows.length) {
-    logsBox.append(mk('div', { class: 'viason-log-row' }, 'No diagnostics captured yet.'));
-    return;
-  }
-  rows.forEach((row) => {
-    const t = new Date(row.time).toLocaleTimeString();
-    const body = `[${t}] ${row.type}: ${row.message || ''}${row.stack ? '\n' + row.stack : ''}`;
-    logsBox.append(mk('div', { class: 'viason-log-row' }, body));
-  });
+    if (!logsBox) return;
+    logsBox.innerHTML = '';
+    const rows = feedbackStore.logs.slice(-LOG_HISTORY_LIMIT);
+    if (!rows.length) {
+        logsBox.append(mk('div', { class: 'viasion-log-row' }, 'No diagnostics captured yet.'));
+        return;
+    }
+    rows.forEach((row) => {
+        const t = new Date(row.time).toLocaleTimeString();
+        const body = `[${t}] ${row.type}: ${row.message || ''}${row.stack ? '\n' + row.stack : ''}`;
+        logsBox.append(mk('div', { class: 'viasion-log-row' }, body));
+    });
 }
 
 function renderSupportThread() {
-  if (!threadBox) return;
-  threadBox.innerHTML = '';
-  if (supportState.loading) {
-    threadBox.append(mk('div', { class: 'viason-support-msg viason' }, 'Loading conversation…'));
-    return;
-  }
-  if (supportState.thread.length === 0) {
-    threadBox.append(mk('div', { class: 'viason-support-msg viason' }, 'Need a hand? Ask me anything about your session, setup, or account.'));
-    return;
-  }
-  supportState.thread.sort((a, b) => {
-    const ta = new Date(a.created_at || a.time || 0).getTime();
-    const tb = new Date(b.created_at || b.time || 0).getTime();
-    return ta - tb;
-  });
-  supportState.thread.forEach((msg) => {
-    const role = (msg.role || '').toLowerCase();
-    const bubble = mk('div', { class: `viason-support-msg ${role === 'user' ? 'user' : 'viason'}` },
-      msg.message || '(no message)'
-    );
-    const metaParts = [];
-    if (msg.created_at) metaParts.push(niceTime(msg.created_at));
-    if (msg.result_status && msg.result_status !== 'resolved') {
-      metaParts.push(msg.result_status.replace(/_/g, ' '));
+    if (!threadBox) return;
+    threadBox.innerHTML = '';
+    if (supportState.loading) {
+        threadBox.append(mk('div', { class: 'viasion-support-msg viasion' }, 'Loading conversation…'));
+        return;
     }
-    if (msg.related_ticket_id) metaParts.push(`ticket #${msg.related_ticket_id}`);
-    if (metaParts.length) bubble.append(mk('span', { class: 'meta' }, metaParts.join(' · ')));
-    threadBox.append(bubble);
-  });
-  threadBox.scrollTop = threadBox.scrollHeight;
+    if (supportState.thread.length === 0) {
+        threadBox.append(mk('div', { class: 'viasion-support-msg viasion' }, 'Need a hand? Ask me anything about your session, setup, or account.'));
+        return;
+    }
+    supportState.thread.sort((a, b) => {
+        const ta = new Date(a.created_at || a.time || 0).getTime();
+        const tb = new Date(b.created_at || b.time || 0).getTime();
+        return ta - tb;
+    });
+    supportState.thread.forEach((msg) => {
+        const role = (msg.role || '').toLowerCase();
+        const bubble = mk('div', { class: `viasion-support-msg ${role === 'user' ? 'user' : 'viasion'}` },
+            msg.message || '(no message)'
+        );
+        const metaParts = [];
+        if (msg.created_at) metaParts.push(niceTime(msg.created_at));
+        if (msg.result_status && msg.result_status !== 'resolved') {
+            metaParts.push(msg.result_status.replace(/_/g, ' '));
+        }
+        if (msg.related_ticket_id) metaParts.push(`ticket #${msg.related_ticket_id}`);
+        if (metaParts.length) bubble.append(mk('span', { class: 'meta' }, metaParts.join(' · ')));
+        threadBox.append(bubble);
+    });
+    threadBox.scrollTop = threadBox.scrollHeight;
 }
 
 function addOrUpdateMessages(list) {
-  if (!Array.isArray(list)) return;
-  const index = new Map(supportState.thread.map((m) => [m.id, m]));
-  let dirty = false;
-  list.forEach((msg) => {
-    if (!msg || typeof msg !== 'object') return;
-    if (msg.id && index.has(msg.id)) {
-      Object.assign(index.get(msg.id), msg);
-      dirty = true;
-    } else {
-      supportState.thread.push(msg);
-      dirty = true;
-    }
-  });
-  if (dirty) renderSupportThread();
+    if (!Array.isArray(list)) return;
+    const index = new Map(supportState.thread.map((m) => [m.id, m]));
+    let dirty = false;
+    list.forEach((msg) => {
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.id && index.has(msg.id)) {
+            Object.assign(index.get(msg.id), msg);
+            dirty = true;
+        } else {
+            supportState.thread.push(msg);
+            dirty = true;
+        }
+    });
+    if (dirty) renderSupportThread();
 }
 
 async function loadSupportHistory(force = false) {
-  if (supportState.loading || (supportState.loaded && !force)) return;
-  try {
-    supportState.loading = true;
-    renderSupportThread();
-    const params = new URLSearchParams();
-    params.set('limit', String(SUPPORT_MAX_LIMIT));
-    const sid = getActiveSessionId();
-    if (sid) params.set('session_id', sid);
-    const res = await fetch(`/api/support/history?${params.toString()}`, { credentials: 'include' });
-    if (res.status === 401) {
-      supportState.thread = [];
-      supportState.loaded = true;
-      supportState.lastLoadError = 'unauthorized';
-      return;
+    if (supportState.loading || (supportState.loaded && !force)) return;
+    try {
+        supportState.loading = true;
+        renderSupportThread();
+        const params = new URLSearchParams();
+        params.set('limit', String(SUPPORT_MAX_LIMIT));
+        const sid = getActiveSessionId();
+        if (sid) params.set('session_id', sid);
+        const res = await fetch(`/api/support/history?${params.toString()}`, { credentials: 'include' });
+        if (res.status === 401) {
+            supportState.thread = [];
+            supportState.loaded = true;
+            supportState.lastLoadError = 'unauthorized';
+            return;
+        }
+        if (!res.ok) {
+            supportState.lastLoadError = `http-${res.status}`;
+            return;
+        }
+        const data = await res.json();
+        supportState.thread = Array.isArray(data?.interactions) ? data.interactions : [];
+        supportState.loaded = true;
+        supportState.lastLoadError = null;
+    } catch (err) {
+        if (supportState.lastLoadError !== 'unauthorized') {
+            console.error('[support] history error', err);
+        }
+        supportState.lastLoadError = err?.message || String(err);
+    } finally {
+        supportState.loading = false;
+        renderSupportThread();
     }
-    if (!res.ok) {
-      supportState.lastLoadError = `http-${res.status}`;
-      return;
-    }
-    const data = await res.json();
-    supportState.thread = Array.isArray(data?.interactions) ? data.interactions : [];
-    supportState.loaded = true;
-    supportState.lastLoadError = null;
-  } catch (err) {
-    if (supportState.lastLoadError !== 'unauthorized') {
-      console.error('[support] history error', err);
-    }
-    supportState.lastLoadError = err?.message || String(err);
-  } finally {
-    supportState.loading = false;
-    renderSupportThread();
-  }
 }
 
 async function handleSupportSend() {
-  const text = (supportInput.value || '').trim();
-  if (!text || supportState.sending) return;
-  const attachLogs = includeLogsCheckbox?.checked;
-  const attachState = includeStateCheckbox?.checked;
+    const text = (supportInput.value || '').trim();
+    if (!text || supportState.sending) return;
+    const attachLogs = includeLogsCheckbox?.checked;
+    const attachState = includeStateCheckbox?.checked;
 
-  supportState.sending = true;
-  supportSendButton.disabled = true;
-  supportStatus.textContent = 'Sending…';
-  try {
-    const payload = {
-      message: text,
-      session_id: getActiveSessionId(),
-      shot_id: getLikelyShotId(),
-    };
-    if (attachLogs) payload.meta = { logs: feedbackStore.logs.slice(-12) };
-    if (attachState) {
-      try {
-        payload.action_taken = {
-          snapshot: {
-            shots: (window.__shotList || []).slice(-12),
-            totals: (window.__shotList || []).length,
-            prefs: window.viasonGetPrefs?.(),
-          },
+    supportState.sending = true;
+    supportSendButton.disabled = true;
+    supportStatus.textContent = 'Sending…';
+    try {
+        const payload = {
+            message: text,
+            session_id: getActiveSessionId(),
+            shot_id: getLikelyShotId(),
         };
-      } catch {}
+        if (attachLogs) payload.meta = { logs: feedbackStore.logs.slice(-12) };
+        if (attachState) {
+            try {
+                payload.action_taken = {
+                    snapshot: {
+                        shots: (window.__shotList || []).slice(-12),
+                        totals: (window.__shotList || []).length,
+                        prefs: window.viasionGetPrefs?.(),
+                    },
+                };
+            } catch { }
+        }
+        const res = await fetch('/api/support/ingest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(`Support request failed (${res.status})`);
+        const data = await res.json();
+        const messagesToAdd = [];
+        if (data?.interaction) messagesToAdd.push(data.interaction);
+        if (data?.response) messagesToAdd.push(data.response);
+        addOrUpdateMessages(messagesToAdd);
+        if (data?.handler?.result_status) {
+            supportStatus.textContent = `Status: ${data.handler.result_status.replace(/_/g, ' ')}`;
+        } else {
+            supportStatus.textContent = 'Sent.';
+        }
+        supportInput.value = '';
+    } catch (err) {
+        console.error('[support] send failed', err);
+        supportStatus.textContent = 'Failed to send. Try again in a moment.';
+    } finally {
+        supportState.sending = false;
+        supportSendButton.disabled = false;
+        setTimeout(() => { supportStatus.textContent = ''; }, 4000);
     }
-    const res = await fetch('/api/support/ingest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error(`Support request failed (${res.status})`);
-    const data = await res.json();
-    const messagesToAdd = [];
-    if (data?.interaction) messagesToAdd.push(data.interaction);
-    if (data?.response) messagesToAdd.push(data.response);
-    addOrUpdateMessages(messagesToAdd);
-    if (data?.handler?.result_status) {
-      supportStatus.textContent = `Status: ${data.handler.result_status.replace(/_/g, ' ')}`;
-    } else {
-      supportStatus.textContent = 'Sent.';
-    }
-    supportInput.value = '';
-  } catch (err) {
-    console.error('[support] send failed', err);
-    supportStatus.textContent = 'Failed to send. Try again in a moment.';
-  } finally {
-    supportState.sending = false;
-    supportSendButton.disabled = false;
-    setTimeout(() => { supportStatus.textContent = ''; }, 4000);
-  }
 }
 
 // --------------------------------------------------------------------------- //
@@ -556,33 +558,33 @@ async function handleSupportSend() {
 // --------------------------------------------------------------------------- //
 
 export function installFeedbackWidget() {
-  if (window.__viason_SUPPORT_WIDGET_READY) return;
-  const root = createPanel();
-  fabButton = mk('button', { class: 'viason-fb-fab', title: 'Help & Support' }, '💬');
-  fabButton.addEventListener('click', () => openSupportPanel());
-  document.body.appendChild(fabButton);
-  window.__viason_SUPPORT_WIDGET_READY = true;
+    if (window.__viasion_SUPPORT_WIDGET_READY) return;
+    const root = createPanel();
+    fabButton = mk('button', { class: 'viasion-fb-fab', title: 'Help & Support' }, '💬');
+    fabButton.addEventListener('click', () => openSupportPanel());
+    document.body.appendChild(fabButton);
+    window.__viasion_SUPPORT_WIDGET_READY = true;
 
-  // attempt to hydrate history quietly in the background
-  setTimeout(() => loadSupportHistory(), 1200);
+    // attempt to hydrate history quietly in the background
+    setTimeout(() => loadSupportHistory(), 1200);
 }
 
 function openSupportPanel() {
-  const root = createPanel();
-  root.classList.add('open');
-  if (fabButton) fabButton.classList.add('hidden');
-  renderLogs();
-  loadSupportHistory();
-  supportInput?.focus();
+    const root = createPanel();
+    root.classList.add('open');
+    if (fabButton) fabButton.classList.add('hidden');
+    renderLogs();
+    loadSupportHistory();
+    supportInput?.focus();
 }
 
 function closeSupportPanel() {
-  if (!panel) return;
-  panel.classList.remove('open');
-  if (fabButton) fabButton.classList.remove('hidden');
+    if (!panel) return;
+    panel.classList.remove('open');
+    if (fabButton) fabButton.classList.remove('hidden');
 }
 
 if (typeof window !== 'undefined') {
-  window.installFeedbackWidget = installFeedbackWidget;
-  window.openSupportPanel = openSupportPanel;
+    window.installFeedbackWidget = installFeedbackWidget;
+    window.openSupportPanel = openSupportPanel;
 }

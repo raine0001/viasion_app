@@ -14,518 +14,1243 @@
 
 
 
-<meta charset="utf-8"/>
+    <meta charset="utf-8" />
 
 
 
-<meta content="width=device-width, initial-scale=1" name="viewport"/>
+    <meta content="width=device-width, initial-scale=1" name="viewport" />
 
 
 
-<title>viason Admin</title>
+    <title>viasion Admin</title>
 
 
 
-<style>
+    <style>
+        :root {
+            color-scheme: dark;
+        }
 
 
 
-    :root { color-scheme: dark; }
+        body {
+            margin: 0;
+            font: 14px/1.4 system-ui, -apple-system, Segoe UI, Arial;
+            background: #0b0f14;
+            color: #e6edf3;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
 
 
 
-    body { margin:0; font:14px/1.4 system-ui, -apple-system, Segoe UI, Arial; background:#0b0f14; color:#e6edf3; min-height:100vh; display:flex; flex-direction:column; }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: #0f1621;
+            border-bottom: 1px solid #1f2a36;
+            flex-shrink: 0;
+        }
 
 
 
-    header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:#0f1621; border-bottom:1px solid #1f2a36; flex-shrink:0; }
+        h1 {
+            font-size: 18px;
+            margin: 0;
+        }
 
 
 
-    h1 { font-size:18px; margin:0; }
+        main {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            grid-auto-rows: minmax(0, 1fr);
+            gap: 14px;
+            padding: 14px;
+            flex: 1 1 auto;
+            box-sizing: border-box;
+            min-height: 0;
+            height: auto;
+        }
 
 
 
-    main { display:grid; grid-template-columns:380px 1fr; grid-auto-rows:minmax(0,1fr); gap:14px; padding:14px; flex:1 1 auto; box-sizing:border-box; min-height:0; height:auto; }
+        section {
+            background: #0f1621;
+            border: 1px solid #1f2a36;
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            max-height: none;
+        }
 
 
 
-    section { background:#0f1621; border:1px solid #1f2a36; border-radius:10px; overflow:hidden; display:flex; flex-direction:column; min-height:0; max-height:none; }
+        section>h2 {
+            font-size: 14px;
+            margin: 0;
+            padding: 10px 12px;
+            background: #111a25;
+            border-bottom: 1px solid #1f2a36;
+            flex-shrink: 0;
+        }
 
+        section .list,
+        section .shots-table-wrap,
+        .challenge-wrap {
+            flex: 1 1 auto;
+            overflow: auto;
+        }
 
 
-    section > h2 { font-size:14px; margin:0; padding:10px 12px; background:#111a25; border-bottom:1px solid #1f2a36; flex-shrink:0; }
-    section .list, section .shots-table-wrap, .challenge-wrap { flex:1 1 auto; overflow:auto; }
 
+        .list {
+            padding: 8px;
+            overflow: auto;
+            flex: 1 1 auto;
+        }
 
 
-    .list { padding:8px; overflow:auto; flex:1 1 auto; }
 
+        .row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            border-bottom: 1px solid #16202b;
+            cursor: pointer;
+            transition: background 0.2s ease, border-left 0.2s ease;
+        }
 
 
-    .row { display:flex; align-items:center; gap:8px; padding:8px; border-bottom:1px solid #16202b; cursor:pointer; transition:background 0.2s ease, border-left 0.2s ease; }
 
+        .row:hover {
+            background: #0d131c;
+        }
 
 
-    .row:hover { background:#0d131c; }
 
+        .row.active {
+            background: #122819;
+            border-left: 4px solid #2dd683;
+        }
 
 
-    .row.active { background:#122819; border-left:4px solid #2dd683; }
 
+        .row.active:hover {
+            background: #163121;
+        }
 
 
-    .row.active:hover { background:#163121; }
 
+        .row-live {
+            border-left: 4px solid #f97316;
+        }
 
 
-    .row-live { border-left:4px solid #f97316; }
 
+        .row-support-open {
+            border-left: 4px solid #ef4444;
+        }
 
 
-    .row-support-open { border-left:4px solid #ef4444; }
 
+        .row-support-pending {
+            border-left: 4px solid #f97316;
+        }
 
 
-    .row-support-pending { border-left:4px solid #f97316; }
 
+        .row.selected {
+            outline: 1px solid #2563eb;
+        }
 
 
-    .row.selected { outline:1px solid #2563eb; }
 
+        .session-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
 
 
-    .session-main { flex:1; display:flex; flex-direction:column; gap:2px; }
 
+        .session-meta {
+            text-align: right;
+            font-size: 12px;
+        }
 
 
-    .session-meta { text-align:right; font-size:12px; }
 
+        .info-line {
+            font-size: 12px;
+        }
 
 
-    .info-line { font-size:12px; }
 
+        .pill-live {
+            display: inline-block;
+            margin-left: 6px;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 999px;
+            border: 1px solid #f97316;
+            background: #431407;
+            color: #fb923c;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
 
 
-    .pill-live { display:inline-block; margin-left:6px; font-size:11px; padding:2px 6px; border-radius:999px; border:1px solid #f97316; background:#431407; color:#fb923c; text-transform:uppercase; letter-spacing:0.05em; }
 
+        .muted {
+            opacity: .8;
+        }
 
 
-    .muted { opacity:.8; }
 
+        .pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 12px;
+        }
 
 
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-weight:700; font-size:12px; }
 
+        .ok {
+            background: #11331f;
+            color: #34d399;
+            border: 1px solid #1e7a42;
+        }
 
 
-    .ok { background:#11331f; color:#34d399; border:1px solid #1e7a42; }
 
+        .bad {
+            background: #2a1111;
+            color: #f87171;
+            border: 1px solid #7a1e1e;
+        }
 
 
-    .bad { background:#2a1111; color:#f87171; border:1px solid #7a1e1e; }
 
+        .pending {
+            background: #1c1b24;
+            color: #d1d5db;
+            border: 1px solid #54535c;
+        }
 
 
-    .pending { background:#1c1b24; color:#d1d5db; border:1px solid #54535c; }
 
+        .btn {
+            background: #1a2533;
+            color: #dbe5ee;
+            border: 1px solid #283241;
+            padding: 6px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
 
 
-    .btn { background:#1a2533; color:#dbe5ee; border:1px solid #283241; padding:6px 10px; border-radius:8px; cursor:pointer; }
 
+        .btn:hover {
+            background: #223144;
+        }
 
 
-    .btn:hover { background:#223144; }
 
+        .btn-mini {
+            padding: 4px 8px;
+            font-size: 11px;
+            border-radius: 6px;
+        }
 
 
-    .btn-mini { padding:4px 8px; font-size:11px; border-radius:6px; }
 
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
 
 
-    .toolbar { display:flex; gap:8px; align-items:center; }
 
+        .debug-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
 
 
-    .debug-header { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
 
+        .debug-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
 
 
-    .debug-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 
+        #dbg-json {
+            background: #0b0f12;
+            color: #cfe8ff;
+            border: 1px solid #2a6;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 0;
+            flex: 0 1 auto;
+            min-height: 120px;
+            max-height: 35vh;
+            overflow: auto;
+            font: 12px/1.4 monospace;
+        }
 
 
-    #dbg-json { background:#0b0f12; color:#cfe8ff; border:1px solid #2a6; border-radius:8px; padding:12px; margin:0; flex:0 1 auto; min-height:120px; max-height:35vh; overflow:auto; font:12px/1.4 monospace; }
 
+        .shots-wrap {
+            margin: 0 0 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1 0 auto;
+            min-height: 480px;
+            max-height: 65vh;
+        }
 
 
-    .shots-wrap { margin:0 0 10px; display:flex; flex-direction:column; gap:8px; flex:1 0 auto; min-height:480px; max-height:65vh; }
 
+        .shots-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
 
 
-    .shots-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
 
+        .shots-header h3 {
+            margin: 0;
+            font-size: 14px;
+        }
 
 
-    .shots-header h3 { margin:0; font-size:14px; }
 
+        .shots-meta {
+            font-size: 12px;
+            color: #94a3b8;
+        }
 
 
-    .shots-meta { font-size:12px; color:#94a3b8; }
 
+        #shotsTableWrap,
 
 
-    #shotsTableWrap,
 
+        .shots-table-wrap {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            background: #0b0f12;
+        }
 
 
-    .shots-table-wrap { flex:1 1 auto; min-height:0; overflow:auto; border:1px solid #1f2a36; border-radius:8px; background:#0b0f12; }
 
+        #shotsTableWrap.shots-empty,
 
 
-    #shotsTableWrap.shots-empty,
 
+        .shots-table-wrap.shots-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            border-style: dashed;
+            color: #94a3b8;
+            font-style: italic;
+        }
 
 
-    .shots-table-wrap.shots-empty { display:flex; align-items:center; justify-content:center; padding:10px; border-style:dashed; color:#94a3b8; font-style:italic; }
 
+        .shots-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
 
 
-    .shots-table { width:100%; border-collapse:collapse; font-size:12px; }
 
+        .shots-table th,
+        .shots-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #1f2a36;
+            text-align: left;
+            vertical-align: top;
+        }
 
 
-    .shots-table th, .shots-table td { padding:6px 8px; border-bottom:1px solid #1f2a36; text-align:left; vertical-align:top; }
 
+        .shots-table tbody tr:hover {
+            background: #101a29;
+        }
 
 
-    .shots-table tbody tr:hover { background:#101a29; }
 
+        .clip-link {
+            color: #7dd3fc;
+            text-decoration: none;
+        }
 
 
-    .clip-link { color:#7dd3fc; text-decoration:none; }
 
+        .clip-link:hover {
+            text-decoration: underline;
+        }
 
 
-    .clip-link:hover { text-decoration:underline; }
 
+        .clip-link-disabled {
+            color: #94a3b8;
+            pointer-events: none;
+            text-decoration: none;
+        }
 
 
-    .clip-link-disabled { color:#94a3b8; pointer-events:none; text-decoration:none; }
 
+        .arcmm-cell {
+            min-width: 210px;
+        }
 
 
-    .arcmm-cell { min-width:210px; }
 
+        .arcmm-status {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
 
 
-    .arcmm-status { display:flex; flex-direction:column; gap:4px; }
 
+        .arcmm-line {
+            font-size: 12px;
+            line-height: 1.35;
+        }
 
 
-    .arcmm-line { font-size:12px; line-height:1.35; }
 
+        .arcmm-pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 11px;
+            border: 1px solid transparent;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
 
 
-    .arcmm-pill { display:inline-block; padding:2px 8px; border-radius:999px; font-weight:600; font-size:11px; border:1px solid transparent; text-transform:uppercase; letter-spacing:0.05em; }
 
+        .arcmm-pill.ok {
+            background: #11331f;
+            color: #34d399;
+            border-color: #1e7a42;
+        }
 
 
-    .arcmm-pill.ok { background:#11331f; color:#34d399; border-color:#1e7a42; }
 
+        .arcmm-pill.pending {
+            background: #1c1b24;
+            color: #d1d5db;
+            border-color: #54535c;
+        }
 
 
-    .arcmm-pill.pending { background:#1c1b24; color:#d1d5db; border-color:#54535c; }
 
+        .arcmm-pill.bad {
+            background: #2a1111;
+            color: #f87171;
+            border-color: #7a1e1e;
+        }
 
 
-    .arcmm-pill.bad { background:#2a1111; color:#f87171; border-color:#7a1e1e; }
 
+        .arcmm-pill.muted {
+            background: #10131a;
+            color: #94a3b8;
+            border-color: #2c3440;
+        }
 
 
-    .arcmm-pill.muted { background:#10131a; color:#94a3b8; border-color:#2c3440; }
 
+        .arcmm-metrics {
+            color: #cbd5f5;
+        }
 
 
-    .arcmm-metrics { color:#cbd5f5; }
 
+        .arcmm-message {
+            color: #fbbf24;
+        }
 
 
-    .arcmm-message { color:#fbbf24; }
 
+        .arcmm-message::before {
+            content: "WARN: ";
+            font-weight: 600;
+        }
 
 
-    .arcmm-message::before { content:"WARN: "; font-weight:600; }
 
+        .arcmm-overlay-link {
+            color: #7dd3fc;
+            text-decoration: none;
+        }
 
 
-    .arcmm-overlay-link { color:#7dd3fc; text-decoration:none; }
 
+        .arcmm-overlay-link:hover {
+            text-decoration: underline;
+        }
 
 
-    .arcmm-overlay-link:hover { text-decoration:underline; }
 
+        .arcmm-updated {
+            color: #64748b;
+            font-style: italic;
+        }
 
 
-    .arcmm-updated { color:#64748b; font-style:italic; }
 
+        .shots-empty {
+            padding: 10px;
+            font-style: italic;
+            color: #94a3b8;
+            border: 1px dashed #2a3a4a;
+            border-radius: 8px;
+        }
 
 
-    .shots-empty { padding:10px; font-style:italic; color:#94a3b8; border:1px dashed #2a3a4a; border-radius:8px; }
 
+        .shots-pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 11px;
+            border: 1px solid transparent;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
 
 
-    .shots-pill { display:inline-block; padding:2px 8px; border-radius:999px; font-weight:600; font-size:11px; border:1px solid transparent; text-transform:uppercase; letter-spacing:0.04em; }
 
+        .shots-pill.make {
+            border-color: #1e7a42;
+            background: #11331f;
+            color: #34d399;
+        }
 
 
-    .shots-pill.make { border-color:#1e7a42; background:#11331f; color:#34d399; }
 
+        .shots-pill.miss {
+            border-color: #7a1e1e;
+            background: #2a1111;
+            color: #f87171;
+        }
 
 
-    .shots-pill.miss { border-color:#7a1e1e; background:#2a1111; color:#f87171; }
 
+        .shots-pill.pending {
+            border-color: #54535c;
+            background: #1c1b24;
+            color: #d1d5db;
+        }
 
 
-    .shots-pill.pending { border-color:#54535c; background:#1c1b24; color:#d1d5db; }
 
+        .shots-pill.manual {
+            border-color: #f59e0b;
+            background: #422006;
+            color: #facc15;
+        }
 
 
-    .shots-pill.manual { border-color:#f59e0b; background:#422006; color:#facc15; }
 
+        .support-flag {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            margin-left: 6px;
+            position: relative;
+            top: -1px;
+        }
 
 
-    .support-flag { display:inline-block; width:9px; height:9px; border-radius:50%; margin-left:6px; position:relative; top:-1px; }
 
+        .support-flag-ticket {
+            background: #ef4444;
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+            animation: pulseTicket 1.5s infinite;
+        }
 
 
-    .support-flag-ticket { background:#ef4444; box-shadow:0 0 0 0 rgba(239,68,68,0.6); animation:pulseTicket 1.5s infinite; }
 
+        .support-flag-pending {
+            background: #f97316;
+        }
 
 
-    .support-flag-pending { background:#f97316; }
 
+        @keyframes pulseTicket {
 
 
-    @keyframes pulseTicket {
 
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6);
+            }
 
 
-      0% { box-shadow:0 0 0 0 rgba(239,68,68,0.6); }
 
+            70% {
+                box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+            }
 
 
-      70% { box-shadow:0 0 0 8px rgba(239,68,68,0); }
 
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
 
 
-      100% { box-shadow:0 0 0 0 rgba(239,68,68,0); }
 
+        }
 
 
-    }
 
+        #sessionPane {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            max-height: 100%;
+        }
 
 
-    #sessionPane { display:flex; flex-direction:column; min-height:0; max-height:100%; }
 
+        #sessionPane .list {
+            max-height: 100%;
+            overflow-y: auto;
+        }
 
 
-    #sessionPane .list { max-height:100%; overflow-y:auto; }
 
+        #sessionsList {
+            max-height: 100%;
+            overflow-y: auto;
+        }
 
 
-    #sessionsList { max-height:100%; overflow-y:auto; }
 
+        #viewer {
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: flex-start;
+            padding: 10px;
+            min-height: 0;
+            gap: 16px;
+        }
 
 
-    #viewer { flex:1 1 auto; display:flex; flex-direction:column; align-items:stretch; justify-content:flex-start; padding:10px; min-height:0; gap:16px; }
 
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 10px;
+            background: #0b0f14;
+            min-height: 0;
+        }
 
 
-    iframe { width:100%; height:100%; border:none; border-radius:10px; background:#0b0f14; min-height:0; }
 
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            padding: 10px;
+            flex-shrink: 0;
+        }
 
 
-    .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:10px; flex-shrink:0; }
 
+        pre {
+            background: #0b0f14;
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            padding: 8px;
+            overflow: auto;
+            max-height: 320px;
+        }
 
 
-    pre { background:#0b0f14; border:1px solid #1f2a36; border-radius:8px; padding:8px; overflow:auto; max-height:320px; }
 
+        input[type="text"] {
+            background: #0b0f14;
+            color: #e6edf3;
+            border: 1px solid #1f2a36;
+            padding: 6px 8px;
+            border-radius: 8px;
+            width: 200px;
+        }
 
 
-    input[type="text"] { background:#0b0f14; color:#e6edf3; border:1px solid #1f2a36; padding:6px 8px; border-radius:8px; width:200px; }
 
+        .shots-table td.actions-cell {
+            white-space: nowrap;
+        }
 
 
-    .shots-table td.actions-cell { white-space:nowrap; }
 
+        .shot-action-btn {
+            background: #1f2933;
+            color: #e2e8f0;
+            border: 1px solid #374151;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+        }
 
 
-    .shot-action-btn { background:#1f2933; color:#e2e8f0; border:1px solid #374151; padding:4px 10px; border-radius:6px; font-size:11px; cursor:pointer; }
 
+        .shot-action-btn:hover {
+            background: #273449;
+        }
 
 
-    .shot-action-btn:hover { background:#273449; }
 
+        .shot-action-btn:disabled {
+            opacity: .6;
+            cursor: default;
+        }
 
 
-    .shot-action-btn:disabled { opacity:.6; cursor:default; }
 
+        .override-note {
+            margin-top: 6px;
+            font-size: 11px;
+            color: #facc15;
+        }
 
+        .challenge-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+            overflow: auto;
+        }
 
-.override-note { margin-top:6px; font-size:11px; color:#facc15; }
-.challenge-wrap { display:flex; flex-direction:column; gap:10px; padding:12px; overflow:auto; }
-.challenge-list { border:1px solid #1f2a36; border-radius:8px; max-height:240px; overflow:auto; }
-.challenge-row { padding:8px 10px; border-bottom:1px solid #1b2735; cursor:pointer; display:flex; flex-direction:column; gap:2px; }
-.challenge-row:hover { background:#101926; }
-.challenge-row.active { background:#1f2a36; }
-.challenge-row:last-child { border-bottom:none; }
-.challenge-name { font-weight:600; font-size:13px; }
-.challenge-dates { font-size:11px; color:#94a3b8; }
-.challenge-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
-.challenge-form label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:#94a3b8; }
-.challenge-form input { background:#0b0f14; color:#e6edf3; border:1px solid #1f2a36; padding:6px 8px; border-radius:8px; }
-.challenge-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; margin-top:10px; }
-#challengeStatus { font-size:12px; color:#94a3b8; min-height:16px; }
-#challengePane { grid-column: span 2; }
+        .challenge-list {
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            max-height: 240px;
+            overflow: auto;
+        }
 
-.subscription-wrap { display:grid; grid-template-columns:260px minmax(280px,1fr) minmax(240px,0.85fr); gap:12px; padding:12px; flex:1 1 auto; overflow:auto; }
-.subscription-plans, .subscription-form, .subscription-users { background:#101721; border:1px solid #1f2a36; border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:12px; min-height:0; }
-.subscription-plan-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.subscription-plan-header h3 { margin:0; font-size:13px; }
-.subscription-plan-list { border:1px solid #1b2735; border-radius:8px; background:#0b0f14; flex:1 1 auto; overflow:auto; }
-.subscription-plan-item { padding:8px 10px; border-bottom:1px solid #1b2735; cursor:pointer; display:flex; flex-direction:column; gap:4px; transition:background .18s ease; }
-.subscription-plan-item:hover { background:#101c2a; }
-.subscription-plan-item.selected { background:#132946; border-left:4px solid #2563eb; }
-.subscription-plan-item.inactive { opacity:.65; }
-.subscription-plan-item .plan-title { font-weight:600; font-size:13px; color:#e6edf3; }
-.subscription-plan-item .plan-meta { font-size:12px; color:#94a3b8; display:flex; flex-wrap:wrap; gap:8px; }
-.subscription-plan-item .plan-pill { display:inline-flex; align-items:center; padding:2px 6px; border-radius:999px; border:1px solid #1f2a36; background:#121c2a; color:#a5b4c8; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
-.subscription-plan-item .plan-pill.active { background:#10251a; border-color:#1f5236; color:#4ade80; }
-.subscription-form form { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
-.subscription-form label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:#94a3b8; }
-.subscription-form input, .subscription-form select, .subscription-form textarea { background:#0b0f14; color:#e6edf3; border:1px solid #1f2a36; border-radius:8px; padding:6px 8px; font:600 13px/1.4 system-ui, -apple-system, Segoe UI, Arial; }
-.subscription-form textarea { resize:vertical; min-height:72px; grid-column:1 / -1; }
-.subscription-checkbox { flex-direction:row !important; align-items:center; gap:8px; }
-.subscription-actions { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; }
-.subscription-status { font-size:12px; min-height:16px; color:#94a3b8; }
-.subscription-status.success { color:#4ade80; }
-.subscription-status.error { color:#f87171; }
-.subscription-status.warn { color:#facc15; }
-.subscription-user-list { border:1px solid #1b2735; border-radius:8px; background:#0b0f14; flex:1 1 auto; overflow:auto; }
-.subscription-user-item { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 8px; border-bottom:1px solid #16202b; font-size:12px; }
-.subscription-user-item:last-child { border-bottom:none; }
-.subscription-assign { display:flex; gap:8px; }
-.subscription-assign input { flex:1 1 auto; }
-.subscription-users h3, .subscription-form h3, .subscription-plans h3 { margin:0; font-size:13px; }
-.subscription-empty { padding:8px; font-size:12px; color:#94a3b8; }
-.subscription-users button { align-self:flex-start; }
+        .challenge-row {
+            padding: 8px 10px;
+            border-bottom: 1px solid #1b2735;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
 
-@media (max-width:1250px) {
-  .subscription-wrap { grid-template-columns:minmax(240px,1fr) minmax(280px,1fr); }
-}
+        .challenge-row:hover {
+            background: #101926;
+        }
 
-@media (max-width:980px) {
-  .subscription-wrap { grid-template-columns:1fr; }
-}
+        .challenge-row.active {
+            background: #1f2a36;
+        }
 
+        .challenge-row:last-child {
+            border-bottom: none;
+        }
 
+        .challenge-name {
+            font-weight: 600;
+            font-size: 13px;
+        }
 
-    .support-pane { border:1px solid #1f2a36; border-radius:10px; background:#090d13; padding:12px; display:flex; flex-direction:column; gap:10px; }
+        .challenge-dates {
+            font-size: 11px;
+            color: #94a3b8;
+        }
 
+        .challenge-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+        }
 
+        .challenge-form label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
 
-    .support-header { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; }
+        .challenge-form input {
+            background: #0b0f14;
+            color: #e6edf3;
+            border: 1px solid #1f2a36;
+            padding: 6px 8px;
+            border-radius: 8px;
+        }
 
+        .challenge-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 10px;
+        }
 
+        #challengeStatus {
+            font-size: 12px;
+            color: #94a3b8;
+            min-height: 16px;
+        }
 
-    .support-header h3 { margin:0; font-size:14px; }
+        #challengePane {
+            grid-column: span 2;
+        }
 
+        .subscription-wrap {
+            display: grid;
+            grid-template-columns: 260px minmax(280px, 1fr) minmax(240px, 0.85fr);
+            gap: 12px;
+            padding: 12px;
+            flex: 1 1 auto;
+            overflow: auto;
+        }
 
+        .subscription-plans,
+        .subscription-form,
+        .subscription-users {
+            background: #101721;
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 0;
+        }
 
-    .support-status { font-size:12px; color:#94a3b8; }
+        .subscription-plan-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
 
+        .subscription-plan-header h3 {
+            margin: 0;
+            font-size: 13px;
+        }
 
+        .subscription-plan-list {
+            border: 1px solid #1b2735;
+            border-radius: 8px;
+            background: #0b0f14;
+            flex: 1 1 auto;
+            overflow: auto;
+        }
 
-    .support-tags { display:flex; gap:6px; flex-wrap:wrap; }
+        .subscription-plan-item {
+            padding: 8px 10px;
+            border-bottom: 1px solid #1b2735;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            transition: background .18s ease;
+        }
 
+        .subscription-plan-item:hover {
+            background: #101c2a;
+        }
 
+        .subscription-plan-item.selected {
+            background: #132946;
+            border-left: 4px solid #2563eb;
+        }
 
-    .support-tag { font-size:11px; text-transform:uppercase; letter-spacing:0.04em; padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,0.18); background:#111a25; color:#e2e8f0; }
+        .subscription-plan-item.inactive {
+            opacity: .65;
+        }
 
+        .subscription-plan-item .plan-title {
+            font-weight: 600;
+            font-size: 13px;
+            color: #e6edf3;
+        }
 
+        .subscription-plan-item .plan-meta {
+            font-size: 12px;
+            color: #94a3b8;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
 
-    .support-thread-box { flex:1 1 auto; min-height:160px; max-height:320px; overflow-y:auto; border:1px solid #1f2a36; border-radius:8px; background:#05080d; padding:10px; display:flex; flex-direction:column; gap:10px; }
+        .subscription-plan-item .plan-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 6px;
+            border-radius: 999px;
+            border: 1px solid #1f2a36;
+            background: #121c2a;
+            color: #a5b4c8;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
 
+        .subscription-plan-item .plan-pill.active {
+            background: #10251a;
+            border-color: #1f5236;
+            color: #4ade80;
+        }
 
+        .subscription-form form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+        }
 
-    .support-msg { background:#0f172a; border-radius:10px; padding:10px; font-size:13px; line-height:1.45; border:1px solid rgba(148,163,184,0.25); }
+        .subscription-form label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
 
+        .subscription-form input,
+        .subscription-form select,
+        .subscription-form textarea {
+            background: #0b0f14;
+            color: #e6edf3;
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            padding: 6px 8px;
+            font: 600 13px/1.4 system-ui, -apple-system, Segoe UI, Arial;
+        }
 
+        .subscription-form textarea {
+            resize: vertical;
+            min-height: 72px;
+            grid-column: 1 / -1;
+        }
 
-    .support-msg.user { background:#1e293b; }
+        .subscription-checkbox {
+            flex-direction: row !important;
+            align-items: center;
+            gap: 8px;
+        }
 
+        .subscription-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
 
+        .subscription-status {
+            font-size: 12px;
+            min-height: 16px;
+            color: #94a3b8;
+        }
 
-    .support-msg.viason { background:#082f49; border-color:rgba(56,189,248,0.35); }
+        .subscription-status.success {
+            color: #4ade80;
+        }
 
+        .subscription-status.error {
+            color: #f87171;
+        }
 
+        .subscription-status.warn {
+            color: #facc15;
+        }
 
-    .support-msg.admin { background:#2b1b07; border-color:rgba(251,191,36,0.35); }
+        .subscription-user-list {
+            border: 1px solid #1b2735;
+            border-radius: 8px;
+            background: #0b0f14;
+            flex: 1 1 auto;
+            overflow: auto;
+        }
 
+        .subscription-user-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 6px 8px;
+            border-bottom: 1px solid #16202b;
+            font-size: 12px;
+        }
 
+        .subscription-user-item:last-child {
+            border-bottom: none;
+        }
 
-    .support-msg .meta { display:block; margin-top:6px; font-size:11px; color:#94a3b8; }
+        .subscription-assign {
+            display: flex;
+            gap: 8px;
+        }
 
+        .subscription-assign input {
+            flex: 1 1 auto;
+        }
 
+        .subscription-users h3,
+        .subscription-form h3,
+        .subscription-plans h3 {
+            margin: 0;
+            font-size: 13px;
+        }
 
-    .support-empty { color:#94a3b8; font-style:italic; }
+        .subscription-empty {
+            padding: 8px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
 
+        .subscription-users button {
+            align-self: flex-start;
+        }
 
+        @media (max-width:1250px) {
+            .subscription-wrap {
+                grid-template-columns: minmax(240px, 1fr) minmax(280px, 1fr);
+            }
+        }
 
-    .support-actions textarea { width:100%; min-height:80px; border-radius:8px; border:1px solid #1f2a36; background:#070a11; color:#e6edf3; padding:8px; resize:vertical; }
+        @media (max-width:980px) {
+            .subscription-wrap {
+                grid-template-columns: 1fr;
+            }
+        }
 
 
 
-    .support-actions textarea:disabled { opacity:.6; }
+        .support-pane {
+            border: 1px solid #1f2a36;
+            border-radius: 10px;
+            background: #090d13;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
 
 
 
-    .support-actions-row { display:flex; gap:8px; justify-content:flex-end; }
+        .support-header {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            justify-content: space-between;
+        }
 
 
 
-    .support-actions-row .btn { background:#1f2736; }
+        .support-header h3 {
+            margin: 0;
+            font-size: 14px;
+        }
 
 
 
-    .support-actions-row .btn.primary { background:#2563eb; border-color:#2563eb; color:#fff; }
+        .support-status {
+            font-size: 12px;
+            color: #94a3b8;
+        }
 
 
 
-    .support-actions-row .btn.primary:hover { background:#1d4ed8; }
+        .support-tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
 
 
 
-    @media (max-width: 1040px) {
+        .support-tag {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: #111a25;
+            color: #e2e8f0;
+        }
 
 
 
-      main { grid-template-columns:1fr; }
+        .support-thread-box {
+            flex: 1 1 auto;
+            min-height: 160px;
+            max-height: 320px;
+            overflow-y: auto;
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            background: #05080d;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
 
 
 
-      #viewer { min-height:320px; }
+        .support-msg {
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 13px;
+            line-height: 1.45;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
 
 
 
-    }
+        .support-msg.user {
+            background: #1e293b;
+        }
 
 
 
-  </style>
+        .support-msg.viasion {
+            background: #082f49;
+            border-color: rgba(56, 189, 248, 0.35);
+        }
+
+
+
+        .support-msg.admin {
+            background: #2b1b07;
+            border-color: rgba(251, 191, 36, 0.35);
+        }
+
+
+
+        .support-msg .meta {
+            display: block;
+            margin-top: 6px;
+            font-size: 11px;
+            color: #94a3b8;
+        }
+
+
+
+        .support-empty {
+            color: #94a3b8;
+            font-style: italic;
+        }
+
+
+
+        .support-actions textarea {
+            width: 100%;
+            min-height: 80px;
+            border-radius: 8px;
+            border: 1px solid #1f2a36;
+            background: #070a11;
+            color: #e6edf3;
+            padding: 8px;
+            resize: vertical;
+        }
+
+
+
+        .support-actions textarea:disabled {
+            opacity: .6;
+        }
+
+
+
+        .support-actions-row {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+
+
+        .support-actions-row .btn {
+            background: #1f2736;
+        }
+
+
+
+        .support-actions-row .btn.primary {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+        }
+
+
+
+        .support-actions-row .btn.primary:hover {
+            background: #1d4ed8;
+        }
+
+
+
+        @media (max-width: 1040px) {
+
+
+
+            main {
+                grid-template-columns: 1fr;
+            }
+
+
+
+            #viewer {
+                min-height: 320px;
+            }
+
+
+
+        }
+    </style>
 
 
 
@@ -537,143 +1262,143 @@
 
 
 
-<header>
+    <header>
 
 
 
-<h1>viason Admin</h1>
+        <h1>viasion Admin</h1>
 
 
 
-<div class="toolbar">
+        <div class="toolbar">
 
 
 
-<input id="filterTxt" placeholder="Filter sessions..." type="text"/>
+            <input id="filterTxt" placeholder="Filter sessions..." type="text" />
 
 
 
-<button class="btn" id="btnRefresh">Refresh</button>
+            <button class="btn" id="btnRefresh">Refresh</button>
 
 
 
-</div>
+        </div>
 
 
 
-</header>
+    </header>
 
 
 
-<main>
+    <main>
 
 
 
-<section id="sessionPane">
+        <section id="sessionPane">
 
 
 
-<h2>Sessions</h2>
+            <h2>Sessions</h2>
 
 
 
-<div class="list" id="sessionsList"></div>
+            <div class="list" id="sessionsList"></div>
 
 
 
-</section>
+        </section>
 
 
 
-<section>
+        <section>
 
 
 
-<h2>Details</h2>
+            <h2>Details</h2>
 
 
 
-      <div id="viewer">
+            <div id="viewer">
 
 
 
-        <div class="shots-wrap">
+                <div class="shots-wrap">
 
 
 
-<div class="shots-header">
+                    <div class="shots-header">
 
 
 
-<h3>Shots</h3>
+                        <h3>Shots</h3>
 
 
 
-          <span class="shots-meta" id="shotsMeta">0 of 0 made</span>
+                        <span class="shots-meta" id="shotsMeta">0 of 0 made</span>
 
 
 
-</div>
+                    </div>
 
 
 
-<div class="shots-table-wrap shots-empty" id="shotsTableWrap">Select a session to view shots.</div>
+                    <div class="shots-table-wrap shots-empty" id="shotsTableWrap">Select a session to view shots.</div>
 
 
 
-</div>
+                </div>
 
 
 
-<div class="debug-header">
+                <div class="debug-header">
 
 
 
-<div>
+                    <div>
 
 
 
-<h2 style="margin:0;">viason Live Debug</h2>
+                        <h2 style="margin:0;">viasion Live Debug</h2>
 
 
 
-<div class="muted" id="dbg-session-label" style="font-size:12px;">No session selected.</div>
+                        <div class="muted" id="dbg-session-label" style="font-size:12px;">No session selected.</div>
 
 
 
-</div>
+                    </div>
 
 
 
-<div class="debug-actions">
+                    <div class="debug-actions">
 
 
 
-<button disabled="" id="dbg-open-observe">Observe</button>
+                        <button disabled="" id="dbg-open-observe">Observe</button>
 
 
 
-<button disabled="" id="dbg-open-json">Open JSON</button>
+                        <button disabled="" id="dbg-open-json">Open JSON</button>
 
 
 
-<button disabled="" id="adm-dbg-download">Download</button>
+                        <button disabled="" id="adm-dbg-download">Download</button>
 
 
 
-<button disabled="" id="dbg-copy">Copy</button>
+                        <button disabled="" id="dbg-copy">Copy</button>
 
 
 
-</div>
+                    </div>
 
 
 
-</div>
+                </div>
 
 
 
-<pre id="dbg-json">(select a session to load debug details)</pre>
+                <pre id="dbg-json">(select a session to load debug details)</pre>
 
 
 
@@ -681,75 +1406,76 @@
 
 
 
-<div class="support-pane" id="supportPane">
+                <div class="support-pane" id="supportPane">
 
 
 
-  <div class="support-header">
+                    <div class="support-header">
 
 
 
-    <h3>Support Thread</h3>
+                        <h3>Support Thread</h3>
 
 
 
-    <span class="support-status" id="supportStatusLabel">Select a session to view support history.</span>
+                        <span class="support-status" id="supportStatusLabel">Select a session to view support
+                            history.</span>
 
 
 
-    <div class="support-tags" id="supportTicketTags"></div>
+                        <div class="support-tags" id="supportTicketTags"></div>
 
 
 
-  </div>
+                    </div>
 
 
 
-  <div class="support-thread-box" id="supportThreadBox">
+                    <div class="support-thread-box" id="supportThreadBox">
 
 
 
-    <div class="support-empty">No session selected.</div>
+                        <div class="support-empty">No session selected.</div>
 
 
 
-  </div>
+                    </div>
 
 
 
-  <div class="support-actions">
+                    <div class="support-actions">
 
 
 
-    <textarea id="supportReplyInput" placeholder="Reply as adminâ€¦" disabled></textarea>
+                        <textarea id="supportReplyInput" placeholder="Reply as adminâ€¦" disabled></textarea>
 
 
 
-    <div class="support-actions-row">
+                        <div class="support-actions-row">
 
 
 
-      <button class="btn" id="supportRefreshBtn" type="button">Refresh Support</button>
+                            <button class="btn" id="supportRefreshBtn" type="button">Refresh Support</button>
 
 
 
-      <button class="btn" id="supportResolveBtn" type="button" disabled>Mark Resolved</button>
+                            <button class="btn" id="supportResolveBtn" type="button" disabled>Mark Resolved</button>
 
 
 
-      <button class="btn primary" id="supportReplySend" type="button" disabled>Send Reply</button>
+                            <button class="btn primary" id="supportReplySend" type="button" disabled>Send Reply</button>
 
 
 
-    </div>
+                        </div>
 
 
 
-  </div>
+                    </div>
 
 
 
-</div>
+                </div>
 
 
 
@@ -757,126 +1483,127 @@
 
 
 
-</div>
+            </div>
 
 
 
-</section>
+        </section>
 
 
 
-<section id="challengePane">
-  <h2>Challenge Management</h2>
-  <div class="challenge-wrap">
-    <div class="challenge-list" id="challengeList">
-      <div class="muted" style="padding:8px;">No challenges loaded.</div>
-    </div>
-    <form class="challenge-form" id="challengeForm">
-      <label>Slug
-        <input id="challengeSlug" type="text" placeholder="autumn-shootout" required />
-      </label>
-      <label>Name
-        <input id="challengeName" type="text" placeholder="Autumn Shootout" required />
-      </label>
-      <label>Start Date
-        <input id="challengeStart" type="date" />
-      </label>
-      <label>End Date
-        <input id="challengeEnd" type="date" />
-      </label>
-      <label>Daily Limit
-        <input id="challengeDailyLimit" type="number" min="0" />
-      </label>
-      <label>Min Shots
-        <input id="challengeMinShots" type="number" min="0" />
-      </label>
-      <label>Time Zone
-        <input id="challengeTz" type="text" placeholder="America/New_York" />
-      </label>
-    </form>
-    <div id="challengeStatus"></div>
-    <div class="challenge-actions">
-      <button class="btn" type="button" id="challengeNewBtn">New</button>
-      <button class="btn" type="button" id="challengeDeleteBtn" disabled>Delete</button>
-      <button class="btn primary" type="button" id="challengeSaveBtn">Save</button>
-    </div>
-  </div>
-</section>
+        <section id="challengePane">
+            <h2>Challenge Management</h2>
+            <div class="challenge-wrap">
+                <div class="challenge-list" id="challengeList">
+                    <div class="muted" style="padding:8px;">No challenges loaded.</div>
+                </div>
+                <form class="challenge-form" id="challengeForm">
+                    <label>Slug
+                        <input id="challengeSlug" type="text" placeholder="autumn-shootout" required />
+                    </label>
+                    <label>Name
+                        <input id="challengeName" type="text" placeholder="Autumn Shootout" required />
+                    </label>
+                    <label>Start Date
+                        <input id="challengeStart" type="date" />
+                    </label>
+                    <label>End Date
+                        <input id="challengeEnd" type="date" />
+                    </label>
+                    <label>Daily Limit
+                        <input id="challengeDailyLimit" type="number" min="0" />
+                    </label>
+                    <label>Min Shots
+                        <input id="challengeMinShots" type="number" min="0" />
+                    </label>
+                    <label>Time Zone
+                        <input id="challengeTz" type="text" placeholder="America/New_York" />
+                    </label>
+                </form>
+                <div id="challengeStatus"></div>
+                <div class="challenge-actions">
+                    <button class="btn" type="button" id="challengeNewBtn">New</button>
+                    <button class="btn" type="button" id="challengeDeleteBtn" disabled>Delete</button>
+                    <button class="btn primary" type="button" id="challengeSaveBtn">Save</button>
+                </div>
+            </div>
+        </section>
 
-<section id="subscriptionPane">
-  <h2>Subscriptions</h2>
-  <div class="subscription-wrap">
-    <div class="subscription-plans">
-      <div class="subscription-plan-header">
-        <h3>Plans</h3>
-        <button class="btn" id="subscriptionNewBtn" type="button">New Plan</button>
-      </div>
-      <div class="subscription-plan-list" id="subscriptionPlanList">
-        <div class="subscription-empty">No plans loaded.</div>
-      </div>
-    </div>
-    <div class="subscription-form">
-      <h3>Plan Details</h3>
-      <form id="subscriptionPlanForm">
-        <label>Plan ID
-          <input id="subscriptionPlanId" type="text" placeholder="golf_range_monthly" required />
-        </label>
-        <label>Name
-          <input id="subscriptionPlanName" type="text" placeholder="Golf Range Analyzer" />
-        </label>
-        <label>Dataset
-          <input id="subscriptionPlanDataset" type="text" placeholder="g_pose" required />
-        </label>
-        <label>Price
-          <input id="subscriptionPlanPrice" type="number" step="0.01" min="0" />
-        </label>
-        <label>Period
-          <select id="subscriptionPlanPeriod">
-            <option value="monthly">Monthly</option>
-            <option value="annual">Annual</option>
-            <option value="weekly">Weekly</option>
-            <option value="lifetime">Lifetime</option>
-          </select>
-        </label>
-        <label>Trial Days
-          <input id="subscriptionPlanTrial" type="number" min="0" />
-        </label>
-        <label class="subscription-checkbox">
-          <input id="subscriptionPlanActive" type="checkbox" checked />
-          Active
-        </label>
-        <label>Description
-          <textarea id="subscriptionPlanDescription" rows="3" placeholder="Describe included access"></textarea>
-        </label>
-      </form>
-      <div class="subscription-actions">
-        <button class="btn" type="button" id="subscriptionSaveBtn">Save Plan</button>
-        <button class="btn" type="button" id="subscriptionDeactivateBtn">Deactivate</button>
-      </div>
-      <div class="subscription-status" id="subscriptionStatus"></div>
-    </div>
-    <div class="subscription-users">
-      <h3>Assigned Users</h3>
-      <div class="subscription-user-list" id="subscriptionUserList">
-        <div class="subscription-empty">Select a plan to view assignments.</div>
-      </div>
-      <div class="subscription-assign">
-        <input id="subscriptionAssignUser" type="text" placeholder="user id or email" />
-        <button class="btn" type="button" id="subscriptionAssignBtn">Assign</button>
-      </div>
-      <button class="btn" type="button" id="subscriptionReloadBtn">Reload</button>
-    </div>
-  </div>
-</section>
+        <section id="subscriptionPane">
+            <h2>Subscriptions</h2>
+            <div class="subscription-wrap">
+                <div class="subscription-plans">
+                    <div class="subscription-plan-header">
+                        <h3>Plans</h3>
+                        <button class="btn" id="subscriptionNewBtn" type="button">New Plan</button>
+                    </div>
+                    <div class="subscription-plan-list" id="subscriptionPlanList">
+                        <div class="subscription-empty">No plans loaded.</div>
+                    </div>
+                </div>
+                <div class="subscription-form">
+                    <h3>Plan Details</h3>
+                    <form id="subscriptionPlanForm">
+                        <label>Plan ID
+                            <input id="subscriptionPlanId" type="text" placeholder="golf_range_monthly" required />
+                        </label>
+                        <label>Name
+                            <input id="subscriptionPlanName" type="text" placeholder="Golf Range Analyzer" />
+                        </label>
+                        <label>Dataset
+                            <input id="subscriptionPlanDataset" type="text" placeholder="g_pose" required />
+                        </label>
+                        <label>Price
+                            <input id="subscriptionPlanPrice" type="number" step="0.01" min="0" />
+                        </label>
+                        <label>Period
+                            <select id="subscriptionPlanPeriod">
+                                <option value="monthly">Monthly</option>
+                                <option value="annual">Annual</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="lifetime">Lifetime</option>
+                            </select>
+                        </label>
+                        <label>Trial Days
+                            <input id="subscriptionPlanTrial" type="number" min="0" />
+                        </label>
+                        <label class="subscription-checkbox">
+                            <input id="subscriptionPlanActive" type="checkbox" checked />
+                            Active
+                        </label>
+                        <label>Description
+                            <textarea id="subscriptionPlanDescription" rows="3"
+                                placeholder="Describe included access"></textarea>
+                        </label>
+                    </form>
+                    <div class="subscription-actions">
+                        <button class="btn" type="button" id="subscriptionSaveBtn">Save Plan</button>
+                        <button class="btn" type="button" id="subscriptionDeactivateBtn">Deactivate</button>
+                    </div>
+                    <div class="subscription-status" id="subscriptionStatus"></div>
+                </div>
+                <div class="subscription-users">
+                    <h3>Assigned Users</h3>
+                    <div class="subscription-user-list" id="subscriptionUserList">
+                        <div class="subscription-empty">Select a plan to view assignments.</div>
+                    </div>
+                    <div class="subscription-assign">
+                        <input id="subscriptionAssignUser" type="text" placeholder="user id or email" />
+                        <button class="btn" type="button" id="subscriptionAssignBtn">Assign</button>
+                    </div>
+                    <button class="btn" type="button" id="subscriptionReloadBtn">Reload</button>
+                </div>
+            </div>
+        </section>
 
 
 
-</main>
-<script src="/static/js/admin_dashboard.js"></script>
+    </main>
+    <script src="/static/js/admin_dashboard.js"></script>
 
 
 
-<script src="/static/js/d_admin_opg.js"></script>
+    <script src="/static/js/d_admin_opg.js"></script>
 
 
 
@@ -885,6 +1612,3 @@
 
 
 </html>
-
-
-

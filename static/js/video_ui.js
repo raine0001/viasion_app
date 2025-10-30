@@ -8,48 +8,48 @@ import { enableHoopPickOnce } from './app.js';
 import { getLockedHoopBox, handleHoopSelection, canonHoop } from '/static/arc_mm/hoop_tracker.js';
 
 function getActiveProjectMeta() {
-  try {
-    const mgr = window.viasonProjectManager;
-    if (mgr && typeof mgr.getActiveProject === 'function') {
-      const project = mgr.getActiveProject();
-      if (project) return project;
-    }
-  } catch { /* ignore */ }
-  const fallback = window.__VIASON_ACTIVE_PROJECT;
-  if (!fallback) return null;
-  if (typeof fallback === 'object' && fallback) return fallback;
-  if (typeof fallback === 'string') return { slug: fallback };
-  return null;
+    try {
+        const mgr = window.viasionProjectManager;
+        if (mgr && typeof mgr.getActiveProject === 'function') {
+            const project = mgr.getActiveProject();
+            if (project) return project;
+        }
+    } catch { /* ignore */ }
+    const fallback = window.__viasion_ACTIVE_PROJECT;
+    if (!fallback) return null;
+    if (typeof fallback === 'object' && fallback) return fallback;
+    if (typeof fallback === 'string') return { slug: fallback };
+    return null;
 }
 
 function getWorkflowConfig() {
-  const project = getActiveProjectMeta();
-  return (project && typeof project === 'object' && project.workflow) ? project.workflow : {};
+    const project = getActiveProjectMeta();
+    return (project && typeof project === 'object' && project.workflow) ? project.workflow : {};
 }
 
 function getSessionTerminology() {
-  const workflow = getWorkflowConfig();
-  const attemptLabel = workflow.attemptLabel || 'shot';
-  const attemptsLabel = workflow.attemptsLabel || (attemptLabel === 'swing' ? 'Swings Taken' : 'Shots Taken');
-  const requiresTargetSelection = workflow.requiresTargetSelection !== false;
-  const countdownSeconds = Number.isFinite(Number(workflow.countdownSeconds))
-    ? Number(workflow.countdownSeconds)
-    : (attemptLabel === 'swing' ? 5 : 5);
-  const readyPrompt = workflow.readyPrompt || (attemptLabel === 'swing' ? 'Swing when ready.' : 'Shoot when ready.');
-  return { attemptLabel, attemptsLabel, requiresTargetSelection, countdownSeconds, readyPrompt };
+    const workflow = getWorkflowConfig();
+    const attemptLabel = workflow.attemptLabel || 'shot';
+    const attemptsLabel = workflow.attemptsLabel || (attemptLabel === 'swing' ? 'Swings Taken' : 'Shots Taken');
+    const requiresTargetSelection = workflow.requiresTargetSelection !== false;
+    const countdownSeconds = Number.isFinite(Number(workflow.countdownSeconds))
+        ? Number(workflow.countdownSeconds)
+        : (attemptLabel === 'swing' ? 5 : 5);
+    const readyPrompt = workflow.readyPrompt || (attemptLabel === 'swing' ? 'Swing when ready.' : 'Shoot when ready.');
+    return { attemptLabel, attemptsLabel, requiresTargetSelection, countdownSeconds, readyPrompt };
 }
 
 function requiresTargetSelection() {
-  return getSessionTerminology().requiresTargetSelection;
+    return getSessionTerminology().requiresTargetSelection;
 }
 
 function getCountdownSeconds() {
-  const terms = getSessionTerminology();
-  return Number.isFinite(terms.countdownSeconds) ? terms.countdownSeconds : 5;
+    const terms = getSessionTerminology();
+    return Number.isFinite(terms.countdownSeconds) ? terms.countdownSeconds : 5;
 }
 
 function getReadyPrompt() {
-  return getSessionTerminology().readyPrompt || 'Shoot when ready.';
+    return getSessionTerminology().readyPrompt || 'Shoot when ready.';
 }
 
 
@@ -65,11 +65,11 @@ window.startLandscapeRecorder = startLandscapeRecorder;
 
 // stop the compositor when the session ends or page unloads
 window.addEventListener('hud:end-session', async () => {
-  try { await window.__landscapeRecController?.stop(); } catch {}
-  window.__landscapeRecController = null;
+    try { await window.__landscapeRecController?.stop(); } catch { }
+    window.__landscapeRecController = null;
 });
 window.addEventListener('beforeunload', () => {
-  try { window.__landscapeRecController?.stop(); } catch {}
+    try { window.__landscapeRecController?.stop(); } catch { }
 });
 
 /* ----------------------- iOS viewport + basics ----------------------- */
@@ -84,9 +84,9 @@ window.addEventListener('beforeunload', () => {
         'user-scalable=no'
     ].join(','));
 
-    if (!document.getElementById('viason-mobile-css')) {
+    if (!document.getElementById('viasion-mobile-css')) {
         const css = document.createElement('style');
-        css.id = 'viason-mobile-css';
+        css.id = 'viasion-mobile-css';
         css.textContent = `
       html, body { margin:0; padding:0; height:100%; background:#000; overscroll-behavior:none; }
       .session-container, #videoPlayer { width:100%; height:100svh; object-fit:cover; }
@@ -186,7 +186,7 @@ function formatCapDisplay(cap) {
 }
 function currentFacingLabel() {
     try {
-        const f = (localStorage.getItem('viason_camera_facing') || '').toLowerCase();
+        const f = (localStorage.getItem('viasion_camera_facing') || '').toLowerCase();
         if (f === 'user' || f === 'front') return 'Front';
         if (f === 'environment' || f === 'back' || f === 'rear') return 'Back';
     } catch { }
@@ -463,7 +463,7 @@ export function mountSessionHUD() {
 
             function applyMute(btn, muted, announce = false) {
                 setState(btn, muted);
-                try { localStorage.setItem('viason_muted', JSON.stringify(muted)); } catch { }
+                try { localStorage.setItem('viasion_muted', JSON.stringify(muted)); } catch { }
                 try { window.__coachMuted = muted; } catch { }
                 try { window.dispatchEvent(new CustomEvent('hud:mute-toggle', { detail: { muted } })); } catch { }
 
@@ -481,8 +481,8 @@ export function mountSessionHUD() {
                     }
                 }
 
-                if (typeof window.viasonSpeak === 'function') {
-                    try { window.viasonSpeak(muted ? 'Voice off.' : 'Voice on.'); } catch { }
+                if (typeof window.viasionSpeak === 'function') {
+                    try { window.viasionSpeak(muted ? 'Voice off.' : 'Voice on.'); } catch { }
                 }
             }
 
@@ -490,7 +490,7 @@ export function mountSessionHUD() {
                 // restore saved
                 let savedMuted = false;
                 try {
-                    const raw = localStorage.getItem('viason_muted');
+                    const raw = localStorage.getItem('viasion_muted');
                     if (raw != null) savedMuted = JSON.parse(raw);
                 } catch { }
                 applyMute(btn, savedMuted, false);
@@ -559,9 +559,9 @@ export function mountSessionHUD() {
         camBtn.addEventListener('click', async (e) => {
             e.stopPropagation();
             try {
-                const cur = (localStorage.getItem('viason_camera_facing') || 'environment').toLowerCase();
+                const cur = (localStorage.getItem('viasion_camera_facing') || 'environment').toLowerCase();
                 const next = (cur === 'user' || cur === 'front') ? 'environment' : 'user';
-                localStorage.setItem('viason_camera_facing', next);
+                localStorage.setItem('viasion_camera_facing', next);
                 if (typeof window.setPreferredFacing === 'function') await window.setPreferredFacing(next);
                 else if (typeof window.flipCamera === 'function') await window.flipCamera();
             } catch (err) {
@@ -610,7 +610,7 @@ window.updateSessionHUD = updateSessionHUD;
     function readPref() { try { return localStorage.getItem('cam_facing') || 'Back'; } catch { return 'Back'; } }
     function writePref(v) {
         try { localStorage.setItem('cam_facing', v); } catch { }
-        try { localStorage.setItem('viason_camera_facing', v === 'Back' ? 'environment' : 'user'); } catch { }
+        try { localStorage.setItem('viasion_camera_facing', v === 'Back' ? 'environment' : 'user'); } catch { }
     }
 
     function stopStream() {
@@ -964,7 +964,7 @@ export function renderFullShotTable() {
     tbody.textContent = '';
     list.forEach((shot, idx) => {
         const coachSource = shot && !shot.pending
-            ? (shot.viason || shot.coach || shot.coachText || shot.feedback || shot.summary || shot.text || '')
+            ? (shot.viasion || shot.coach || shot.coachText || shot.feedback || shot.summary || shot.text || '')
             : '';
         const coachText = coachSource ? coachSource : SHOT_SUMMARY_TEXT.pending;
 
@@ -1159,7 +1159,7 @@ window.recordShotSummary = function recordShotSummary(summary) {
     window.__lastShotKey = key;
 
     // carry coach and via
-    if (!summary.viason && window.__lastCoachText) summary.viason = window.__lastCoachText;
+    if (!summary.viasion && window.__lastCoachText) summary.viasion = window.__lastCoachText;
     if (!summary.via) summary.via = window.__lastReleaseVia || summary.via || '';
 
     const mergeSummary = (target = {}) => {
@@ -1200,7 +1200,7 @@ window.recordShotSummary = function recordShotSummary(summary) {
             tbody.appendChild(tr);
         }
         const merged = (Number.isFinite(idx) && idx > 0 && list[idx - 1]) ? list[idx - 1] : summary;
-        const coach = String(merged.viason || '—');
+        const coach = String(merged.viasion || '—');
         const tdCoach = tr.querySelector('.coach');
         if (tdCoach) { tdCoach.textContent = coach; tdCoach.title = coach; }
 
@@ -1213,7 +1213,7 @@ window.recordShotSummary = function recordShotSummary(summary) {
                 shotId: merged?.shotId ?? merged?.id ?? null,
                 poseScore: merged?.poseScore ?? null,
                 weightedScore: merged?.weightedScore ?? null,
-                    displayed: scoreCell.textContent
+                displayed: scoreCell.textContent
             });
         }
 
@@ -1294,7 +1294,7 @@ function getPlayerDisplayNameForPrompt() {
         if (typeof lsName === 'string' && lsName.trim()) return lsName.trim();
     } catch { }
     try {
-        const raw = localStorage.getItem('viasonProfile');
+        const raw = localStorage.getItem('viasionProfile');
         if (raw) {
             const profile = JSON.parse(raw);
             const name = profile?.name || profile?.firstName;
@@ -1328,321 +1328,321 @@ function clearNewSessionPromptTimers() {
 
 async function startLandscapeRecorder(videoEl, opts = {}) {
 
-  const fps = opts.fps || 30;
+    const fps = opts.fps || 30;
 
-  const wantW = opts.width || 1280;
+    const wantW = opts.width || 1280;
 
-  const wantH = opts.height || 720;
+    const wantH = opts.height || 720;
 
-  const overlayEl = document.getElementById(opts.overlayId || 'overlay');
+    const overlayEl = document.getElementById(opts.overlayId || 'overlay');
 
-  const bufferWindowMs = opts.bufferWindowMs ?? Math.max(4000, (window.__MICROCLIP_MS ?? 3000) + (window.__MICROCLIP_PRE_MS ?? 360) + 1000);
+    const bufferWindowMs = opts.bufferWindowMs ?? Math.max(4000, (window.__MICROCLIP_MS ?? 3000) + (window.__MICROCLIP_PRE_MS ?? 360) + 1000);
 
-  const sliceMs = Math.max(50, Math.round(1000 / fps));
-
-
-
-  const cvs = document.createElement('canvas');
-
-  const ctx = cvs.getContext('2d', { alpha: false });
+    const sliceMs = Math.max(50, Math.round(1000 / fps));
 
 
 
-  function layoutForLandscape() {
+    const cvs = document.createElement('canvas');
 
-    cvs.width = wantW;
-
-    cvs.height = wantH;
-
-    const vW = videoEl.videoWidth || wantW;
-
-    const vH = videoEl.videoHeight || wantH;
-
-    const isPortraitStream = vH > vW;
-
-    const scaleCover = Math.max(wantW / vW, wantH / vH);
-
-    return { vW, vH, isPortraitStream, scaleCover };
-
-  }
+    const ctx = cvs.getContext('2d', { alpha: false });
 
 
 
-  const stream = cvs.captureStream(fps);
+    function layoutForLandscape() {
 
+        cvs.width = wantW;
 
+        cvs.height = wantH;
 
-  const mimeCandidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+        const vW = videoEl.videoWidth || wantW;
 
-  const mimeType = mimeCandidates.find(m => {
+        const vH = videoEl.videoHeight || wantH;
 
-    try { return MediaRecorder.isTypeSupported?.(m); } catch { return false; }
+        const isPortraitStream = vH > vW;
 
-  }) || 'video/webm';
+        const scaleCover = Math.max(wantW / vW, wantH / vH);
 
-
-
-  const recorder = new MediaRecorder(stream, { mimeType });
-
-  const buffer = [];
-
-  let initChunk = null;
-
-  let activeCapture = null;
-
-  let requestTimer = null;
-
-  let lastChunkTime = performance.now();
-
-
-
-  recorder.ondataavailable = (e) => {
-
-    if (!e?.data || !e.data.size) return;
-
-    const now = performance.now();
-
-    const duration = Math.max(1, now - lastChunkTime);
-
-    lastChunkTime = now;
-
-
-
-    if (!initChunk) {
-
-      initChunk = e.data;
+        return { vW, vH, isPortraitStream, scaleCover };
 
     }
 
 
 
-    buffer.push({ blob: e.data, duration, ts: now });
+    const stream = cvs.captureStream(fps);
 
-    while (buffer.length && (now - buffer[0].ts) > bufferWindowMs) buffer.shift();
 
 
+    const mimeCandidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
 
-    if (activeCapture) {
-      activeCapture.liveChunks.push(e.data);
-      activeCapture.remainingMs -= duration;
+    const mimeType = mimeCandidates.find(m => {
 
-      if (activeCapture.remainingMs <= 0) {
-        const parts = typeof activeCapture.buildParts === 'function'
-          ? activeCapture.buildParts(activeCapture.liveChunks)
-          : activeCapture.liveChunks.slice();
+        try { return MediaRecorder.isTypeSupported?.(m); } catch { return false; }
 
-        const clipBlob = new Blob(parts, { type: mimeType });
-        const resolver = activeCapture.resolve;
+    }) || 'video/webm';
 
-        activeCapture = null;
-        resolver(clipBlob);
-      }
-    }
 
-  };
 
+    const recorder = new MediaRecorder(stream, { mimeType });
 
+    const buffer = [];
 
-  recorder.onstop = () => {
+    let initChunk = null;
 
-    if (requestTimer) clearInterval(requestTimer);
+    let activeCapture = null;
 
-    if (activeCapture) {
+    let requestTimer = null;
 
-      const rejecter = activeCapture.reject;
+    let lastChunkTime = performance.now();
 
-      activeCapture = null;
 
-      rejecter?.(new Error('recorder stopped'));
 
-    }
+    recorder.ondataavailable = (e) => {
 
-  };
+        if (!e?.data || !e.data.size) return;
 
+        const now = performance.now();
 
+        const duration = Math.max(1, now - lastChunkTime);
 
-  try { recorder.start(sliceMs); }
+        lastChunkTime = now;
 
-  catch {
 
-    recorder.start();
 
-    requestTimer = setInterval(() => {
+        if (!initChunk) {
 
-      try { recorder.requestData?.(); } catch { }
+            initChunk = e.data;
 
-    }, sliceMs);
+        }
 
-  }
 
 
+        buffer.push({ blob: e.data, duration, ts: now });
 
-  let rafId = 0;
+        while (buffer.length && (now - buffer[0].ts) > bufferWindowMs) buffer.shift();
 
-  const draw = () => {
 
-    const { vW, vH, isPortraitStream, scaleCover } = layoutForLandscape();
 
-    const w = cvs.width;
+        if (activeCapture) {
+            activeCapture.liveChunks.push(e.data);
+            activeCapture.remainingMs -= duration;
 
-    const h = cvs.height;
+            if (activeCapture.remainingMs <= 0) {
+                const parts = typeof activeCapture.buildParts === 'function'
+                    ? activeCapture.buildParts(activeCapture.liveChunks)
+                    : activeCapture.liveChunks.slice();
 
+                const clipBlob = new Blob(parts, { type: mimeType });
+                const resolver = activeCapture.resolve;
 
+                activeCapture = null;
+                resolver(clipBlob);
+            }
+        }
 
-    ctx.clearRect(0, 0, w, h);
-
-    ctx.save();
-
-
-
-    if (isPortraitStream) {
-
-      ctx.translate(w, 0);
-
-      ctx.rotate(Math.PI / 2);
-
-
-
-      const drawW = h / scaleCover;
-
-      const drawH = w / scaleCover;
-
-      const x = -((drawW - vW) / 2);
-
-      const y = -((drawH - vH) / 2);
-
-      ctx.drawImage(videoEl, x, y, drawW, drawH);
-
-      if (overlayEl && overlayEl.width > 0 && overlayEl.height > 0) {
-
-        ctx.drawImage(overlayEl, x, y, drawW, drawH);
-
-      }
-
-    } else {
-
-      const drawW = vW * scaleCover;
-
-      const drawH = vH * scaleCover;
-
-      const x = (w - drawW) / 2;
-
-      const y = (h - drawH) / 2;
-
-      ctx.drawImage(videoEl, x, y, drawW, drawH);
-
-      if (overlayEl && overlayEl.width > 0 && overlayEl.height > 0) {
-
-        ctx.drawImage(overlayEl, x, y, drawW, drawH);
-
-      }
-
-    }
-
-
-
-    ctx.restore();
-
-    rafId = requestAnimationFrame(draw);
-
-  };
-
-
-
-  if (videoEl.readyState >= 2) draw();
-
-  else videoEl.addEventListener('loadedmetadata', draw, { once: true });
-
-
-
-  const captureClip = ({ preMs, totalMs } = {}) => {
-
-    const total = Math.max(200, Number.isFinite(totalMs) ? totalMs : (window.__MICROCLIP_MS ?? 3000));
-
-    const pre = Math.max(0, Math.min(Number.isFinite(preMs) ? preMs : (window.__MICROCLIP_PRE_MS ?? 360), total));
-
-
-
-    const preChunks = [];
-
-    let covered = 0;
-
-    for (let i = buffer.length - 1; i >= 0 && covered < pre; i--) {
-
-      const entry = buffer[i];
-
-      preChunks.unshift(entry.blob);
-
-      covered += entry.duration;
-
-    }
-
-    const buildParts = (liveChunks = []) => {
-      const parts = [];
-      if (initChunk) parts.push(initChunk);
-      for (const blob of preChunks) {
-        if (!initChunk || blob !== initChunk) parts.push(blob);
-      }
-      for (const blob of liveChunks) {
-        if (!initChunk || blob !== initChunk) parts.push(blob);
-      }
-      return parts;
     };
 
-    let remainingMs = Math.max(0, total - covered);
 
-    if (remainingMs <= 0) {
-      return Promise.resolve(new Blob(buildParts(), { type: mimeType }));
-    }
 
-    return new Promise((resolve, reject) => {
-      if (activeCapture) {
-        activeCapture.reject?.(new Error('capture in progress'));
-        activeCapture = null;
-      }
-      activeCapture = {
-        preChunks,
-        liveChunks: [],
-        remainingMs,
-        resolve,
-        reject,
-        buildParts
-      };
-    });
+    recorder.onstop = () => {
 
-  };
+        if (requestTimer) clearInterval(requestTimer);
 
-  return {
+        if (activeCapture) {
 
-    stream,
+            const rejecter = activeCapture.reject;
 
-    captureClip,
+            activeCapture = null;
 
-    stop: () => {
+            rejecter?.(new Error('recorder stopped'));
 
-      cancelAnimationFrame(rafId);
+        }
 
-      if (requestTimer) clearInterval(requestTimer);
+    };
 
-      videoEl.removeEventListener?.('loadedmetadata', draw);
 
-      try { recorder.stop(); } catch { }
 
-      stream?.getTracks?.().forEach(track => track.stop());
+    try { recorder.start(sliceMs); }
 
-      buffer.length = 0;
+    catch {
 
-      if (activeCapture) {
+        recorder.start();
 
-        activeCapture.reject?.(new Error('recorder stopped'));
+        requestTimer = setInterval(() => {
 
-        activeCapture = null;
+            try { recorder.requestData?.(); } catch { }
 
-      }
+        }, sliceMs);
 
     }
 
-  };
+
+
+    let rafId = 0;
+
+    const draw = () => {
+
+        const { vW, vH, isPortraitStream, scaleCover } = layoutForLandscape();
+
+        const w = cvs.width;
+
+        const h = cvs.height;
+
+
+
+        ctx.clearRect(0, 0, w, h);
+
+        ctx.save();
+
+
+
+        if (isPortraitStream) {
+
+            ctx.translate(w, 0);
+
+            ctx.rotate(Math.PI / 2);
+
+
+
+            const drawW = h / scaleCover;
+
+            const drawH = w / scaleCover;
+
+            const x = -((drawW - vW) / 2);
+
+            const y = -((drawH - vH) / 2);
+
+            ctx.drawImage(videoEl, x, y, drawW, drawH);
+
+            if (overlayEl && overlayEl.width > 0 && overlayEl.height > 0) {
+
+                ctx.drawImage(overlayEl, x, y, drawW, drawH);
+
+            }
+
+        } else {
+
+            const drawW = vW * scaleCover;
+
+            const drawH = vH * scaleCover;
+
+            const x = (w - drawW) / 2;
+
+            const y = (h - drawH) / 2;
+
+            ctx.drawImage(videoEl, x, y, drawW, drawH);
+
+            if (overlayEl && overlayEl.width > 0 && overlayEl.height > 0) {
+
+                ctx.drawImage(overlayEl, x, y, drawW, drawH);
+
+            }
+
+        }
+
+
+
+        ctx.restore();
+
+        rafId = requestAnimationFrame(draw);
+
+    };
+
+
+
+    if (videoEl.readyState >= 2) draw();
+
+    else videoEl.addEventListener('loadedmetadata', draw, { once: true });
+
+
+
+    const captureClip = ({ preMs, totalMs } = {}) => {
+
+        const total = Math.max(200, Number.isFinite(totalMs) ? totalMs : (window.__MICROCLIP_MS ?? 3000));
+
+        const pre = Math.max(0, Math.min(Number.isFinite(preMs) ? preMs : (window.__MICROCLIP_PRE_MS ?? 360), total));
+
+
+
+        const preChunks = [];
+
+        let covered = 0;
+
+        for (let i = buffer.length - 1; i >= 0 && covered < pre; i--) {
+
+            const entry = buffer[i];
+
+            preChunks.unshift(entry.blob);
+
+            covered += entry.duration;
+
+        }
+
+        const buildParts = (liveChunks = []) => {
+            const parts = [];
+            if (initChunk) parts.push(initChunk);
+            for (const blob of preChunks) {
+                if (!initChunk || blob !== initChunk) parts.push(blob);
+            }
+            for (const blob of liveChunks) {
+                if (!initChunk || blob !== initChunk) parts.push(blob);
+            }
+            return parts;
+        };
+
+        let remainingMs = Math.max(0, total - covered);
+
+        if (remainingMs <= 0) {
+            return Promise.resolve(new Blob(buildParts(), { type: mimeType }));
+        }
+
+        return new Promise((resolve, reject) => {
+            if (activeCapture) {
+                activeCapture.reject?.(new Error('capture in progress'));
+                activeCapture = null;
+            }
+            activeCapture = {
+                preChunks,
+                liveChunks: [],
+                remainingMs,
+                resolve,
+                reject,
+                buildParts
+            };
+        });
+
+    };
+
+    return {
+
+        stream,
+
+        captureClip,
+
+        stop: () => {
+
+            cancelAnimationFrame(rafId);
+
+            if (requestTimer) clearInterval(requestTimer);
+
+            videoEl.removeEventListener?.('loadedmetadata', draw);
+
+            try { recorder.stop(); } catch { }
+
+            stream?.getTracks?.().forEach(track => track.stop());
+
+            buffer.length = 0;
+
+            if (activeCapture) {
+
+                activeCapture.reject?.(new Error('recorder stopped'));
+
+                activeCapture = null;
+
+            }
+
+        }
+
+    };
 
 }
 
@@ -1670,7 +1670,7 @@ function finalizeToStartOverlay() {
     } catch { }
     try { setSessionStatus?.(null); } catch { }
     try { updateSessionHUD?.({ taken: 0, made: 0, accuracy: 0, elapsedSec: 0 }); } catch { }
-    try { window.viasonSession?.reset?.(); } catch { }
+    try { window.viasionSession?.reset?.(); } catch { }
     try { clearInterval(window.__coachPoseInterval); window.__coachPoseInterval = null; } catch { }
     try { cancelAnimationFrame(window.__coachPaintRaf); window.__coachPaintRaf = null; } catch { }
     showStartSessionOverlay();
@@ -1704,9 +1704,9 @@ function ensureCoachFeedbackVisible() {
 
 async function speakNewSessionInvite(line) {
     if (!line) return;
-    if (typeof window.viasonSpeak === 'function') {
+    if (typeof window.viasionSpeak === 'function') {
         try {
-            await window.viasonSpeak(line);
+            await window.viasionSpeak(line);
             return;
         } catch { }
     }
@@ -1824,7 +1824,7 @@ function handleHudStartSession(event) {
 
     try { setSessionStatus?.('SESSION IN PROGRESS…'); } catch { }
     try { hidePromptMessage(); } catch { }
-    try { window.viasonVoice?.on?.(); } catch { }
+    try { window.viasionVoice?.on?.(); } catch { }
 
     const terms = getSessionTerminology();
     const countdownSec = Number.isFinite(terms.countdownSeconds) ? terms.countdownSeconds : 5;
@@ -1851,7 +1851,7 @@ function handleHudStartSession(event) {
 
     if (!targetRequired) {
         try { window.__hoopConfirmed = true; } catch { }
-        try { window.resumeHoopTracking?.(); } catch {}
+        try { window.resumeHoopTracking?.(); } catch { }
         setTimeout(() => {
             try {
                 window.startShotTrackingCountdown?.(countdownSec, readyPrompt);
@@ -1943,10 +1943,10 @@ function startShotTrackingCountdown(sec = 5, readyText, _options) {
             window.__shotTrackingArmed = true;
             try { window.dispatchEvent(new CustomEvent('hud:armed')); } catch { }
             try {
-                if (typeof window.viasonSpeak === 'function') {
-                    await window.viasonSpeak(prompt);
+                if (typeof window.viasionSpeak === 'function') {
+                    await window.viasionSpeak(prompt);
                 } else {
-                    console.warn('[countdown] viasonSpeak unavailable for cue');
+                    console.warn('[countdown] viasionSpeak unavailable for cue');
                 }
             } catch (err) {
                 console.warn('[countdown] cue failed', err);

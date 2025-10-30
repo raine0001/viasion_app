@@ -1,99 +1,179 @@
 <!doctype html>
 <html>
-  <head>
+
+<head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Login • viason</title>
+    <title>Login • viasion</title>
     <link rel="stylesheet" href="/static/style.css" />
     <script>
-      (function redirectIfAuthenticated() {
-        const params = new URLSearchParams(location.search || '');
-        if (params.get('stay') === '1') return;
-        try {
-          fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' })
-            .then((res) => (res.ok ? res.json() : null))
-            .then((payload) => {
-              if (payload?.user) {
-                location.replace('/static/my_sessions.html');
-              }
-            })
-            .catch((err) => console.warn('[login] auth check failed', err));
-        } catch (err) {
-          console.warn('[login] auth redirect setup failed', err);
-        }
-      })();
+        (function redirectIfAuthenticated() {
+            const params = new URLSearchParams(location.search || '');
+            if (params.get('stay') === '1') return;
+            try {
+                fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' })
+                    .then((res) => (res.ok ? res.json() : null))
+                    .then((payload) => {
+                        if (payload?.user) {
+                            location.replace('/static/my_sessions.html');
+                        }
+                    })
+                    .catch((err) => console.warn('[login] auth check failed', err));
+            } catch (err) {
+                console.warn('[login] auth redirect setup failed', err);
+            }
+        })();
     </script>
     <style>
-      :root { color-scheme: light dark; }
-      body{font-family:system-ui,Segoe UI,Arial,sans-serif;margin:40px;display:flex;min-height:100vh;align-items:center;justify-content:center;background:#f6f6f8;}
-      .card{width:100%;max-width:420px;margin:auto;padding:28px;border:1px solid #ddd;border-radius:14px;background:#fff;box-shadow:0 12px 32px rgba(15,23,42,0.08);}
-      input,button{width:100%;padding:12px 14px;margin:10px 0;border-radius:10px;border:1px solid #cbd5f5;font-size:15px;box-sizing:border-box;}
-      button{background:#1d4ed8;color:#fff;border:none;font-weight:600;cursor:pointer;transition:transform .15s ease, box-shadow .15s ease;}
-      button:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(29,78,216,0.25);}
-      button:active{transform:translateY(0);}
-      .row{display:flex;gap:10px;margin-top:4px;}
-      .row>button{flex:1;}
-      .muted{color:#64748b;font-size:13px;margin-top:8px;}
+        :root {
+            color-scheme: light dark;
+        }
 
-      @media (max-width:600px){
-        body{margin:16px;background:#ffffff;}
-        .card{padding:22px;border-radius:12px;box-shadow:none;border:1px solid rgba(148,163,184,0.35);}
-        input,button{font-size:16px;padding:14px 16px;margin:8px 0;}
-        .row{flex-direction:column;gap:8px;}
-      }
+        body {
+            font-family: system-ui, Segoe UI, Arial, sans-serif;
+            margin: 40px;
+            display: flex;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+            background: #f6f6f8;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 420px;
+            margin: auto;
+            padding: 28px;
+            border: 1px solid #ddd;
+            border-radius: 14px;
+            background: #fff;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+        }
+
+        input,
+        button {
+            width: 100%;
+            padding: 12px 14px;
+            margin: 10px 0;
+            border-radius: 10px;
+            border: 1px solid #cbd5f5;
+            font-size: 15px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #1d4ed8;
+            color: #fff;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform .15s ease, box-shadow .15s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(29, 78, 216, 0.25);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            margin-top: 4px;
+        }
+
+        .row>button {
+            flex: 1;
+        }
+
+        .muted {
+            color: #64748b;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        @media (max-width:600px) {
+            body {
+                margin: 16px;
+                background: #ffffff;
+            }
+
+            .card {
+                padding: 22px;
+                border-radius: 12px;
+                box-shadow: none;
+                border: 1px solid rgba(148, 163, 184, 0.35);
+            }
+
+            input,
+            button {
+                font-size: 16px;
+                padding: 14px 16px;
+                margin: 8px 0;
+            }
+
+            .row {
+                flex-direction: column;
+                gap: 8px;
+            }
+        }
     </style>
-  </head>
-  <body>
+</head>
+
+<body>
     <div class="card">
-      <h2>Welcome to viason</h2>
-      <input id="name" placeholder="First name (for the coach)" />
-      <input id="email" placeholder="Email" />
-      <input id="password" type="password" placeholder="Password" />
-      <div class="row">
-        <button id="btnLogin">Login</button>
-        <button id="btnRegister">Register</button>
-      </div>
-      <div class="muted" id="msg"></div>
+        <h2>Welcome to viasion</h2>
+        <input id="name" placeholder="First name (for the coach)" />
+        <input id="email" placeholder="Email" />
+        <input id="password" type="password" placeholder="Password" />
+        <div class="row">
+            <button id="btnLogin">Login</button>
+            <button id="btnRegister">Register</button>
+        </div>
+        <div class="muted" id="msg"></div>
     </div>
     <script>
-      async function post(url, body){ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!r.ok) throw new Error(await r.text()); return await r.json(); }
-      function setMsg(t){ document.getElementById('msg').textContent = t; }
-      function rememberName(source){
-        const first = (source || '').split(/\s+/)[0];
-        if (!first) return;
-        try { localStorage.setItem('firstname', first); } catch {}
-      }
-      async function login(){
-        try{
-          const name=document.getElementById('name').value.trim();
-          const email=document.getElementById('email').value.trim();
-          const password=document.getElementById('password').value;
-          const j=await post('/api/auth/login',{email,password});
-          if(name) rememberName(name);
-          else rememberName(j?.name);
-          if (j?.name) sessionStorage.setItem('viason_login_greeting', `Welcome back, ${j.name.split(/\s+/)[0] || j.name}!`);
-          else sessionStorage.setItem('viason_login_greeting', 'Welcome back!');
-          location.href='/static/my_sessions.html';
-        }catch(e){
-          setMsg('Login failed');
+        async function post(url, body) { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); if (!r.ok) throw new Error(await r.text()); return await r.json(); }
+        function setMsg(t) { document.getElementById('msg').textContent = t; }
+        function rememberName(source) {
+            const first = (source || '').split(/\s+/)[0];
+            if (!first) return;
+            try { localStorage.setItem('firstname', first); } catch { }
         }
-      }
-      async function register(){
-        try{
-          const name=document.getElementById('name').value.trim();
-          const email=document.getElementById('email').value.trim();
-          const password=document.getElementById('password').value;
-          const j=await post('/api/auth/register',{name,email,password});
-          if(name) rememberName(name);
-          else rememberName(j?.name);
-          sessionStorage.setItem('viason_login_greeting', `Welcome to viason${name ? ', ' + name.split(/\s+/)[0] : ''}!`);
-          location.href='/static/my_sessions.html';
-        }catch(e){
-          setMsg('Register failed');
+        async function login() {
+            try {
+                const name = document.getElementById('name').value.trim();
+                const email = document.getElementById('email').value.trim();
+                const password = document.getElementById('password').value;
+                const j = await post('/api/auth/login', { email, password });
+                if (name) rememberName(name);
+                else rememberName(j?.name);
+                if (j?.name) sessionStorage.setItem('viasion_login_greeting', `Welcome back, ${j.name.split(/\s+/)[0] || j.name}!`);
+                else sessionStorage.setItem('viasion_login_greeting', 'Welcome back!');
+                location.href = '/static/my_sessions.html';
+            } catch (e) {
+                setMsg('Login failed');
+            }
         }
-      }
-      document.getElementById('btnLogin').onclick=login; document.getElementById('btnRegister').onclick=register;
+        async function register() {
+            try {
+                const name = document.getElementById('name').value.trim();
+                const email = document.getElementById('email').value.trim();
+                const password = document.getElementById('password').value;
+                const j = await post('/api/auth/register', { name, email, password });
+                if (name) rememberName(name);
+                else rememberName(j?.name);
+                sessionStorage.setItem('viasion_login_greeting', `Welcome to viasion${name ? ', ' + name.split(/\s+/)[0] : ''}!`);
+                location.href = '/static/my_sessions.html';
+            } catch (e) {
+                setMsg('Register failed');
+            }
+        }
+        document.getElementById('btnLogin').onclick = login; document.getElementById('btnRegister').onclick = register;
     </script>
-  </body>
-  </html>
+</body>
 
+</html>

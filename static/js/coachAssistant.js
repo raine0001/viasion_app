@@ -5,27 +5,27 @@
 // Track if we already offered a new-session prompt after summary
 try { if (typeof window.__NEW_SESSION_PROMPTED === 'undefined') window.__NEW_SESSION_PROMPTED = false; } catch { }
 
-window.__coachMuted = JSON.parse(localStorage.getItem('viason_muted') || 'false');
+window.__coachMuted = JSON.parse(localStorage.getItem('viasion_muted') || 'false');
 // --- Coach bootstrap shim: never crash while the file is still loading ---
 window.__COACH_READY = false;
 window.__COACH_QUEUE = [];
 
 // One voice, one line — let shot:summary own speaking
-window.viason_ONLY_REALTIME = true;
+window.viasion_ONLY_REALTIME = true;
 
 const DEFAULT_CUE = 'Eyes on the rim. Hold your finish.';
 const GOLF_DEFAULT_CUE = 'Smooth tempo and balanced finish.';
 
 function getCoachSlug() {
     try {
-        const mgr = window.viasonProjectManager;
+        const mgr = window.viasionProjectManager;
         if (mgr && typeof mgr.getActiveProject === 'function') {
             const active = mgr.getActiveProject();
             if (active && active.slug) return String(active.slug).toLowerCase();
         }
     } catch { }
     try {
-        const fallback = window.__VIASON_ACTIVE_PROJECT;
+        const fallback = window.__viasion_ACTIVE_PROJECT;
         if (fallback) {
             if (typeof fallback === 'string') return fallback.toLowerCase();
             if (fallback.slug) return String(fallback.slug).toLowerCase();
@@ -193,15 +193,15 @@ window.__onShotSummaryInternal = function (s) {
             text: s?.text || null,
             ts: Date.now(),
         });
-    } catch {}
+    } catch { }
     const pose = s.pose || (window.__lastPoseSnapshot?.metrics) || {};
     const gate = s.gate || window.__lastPoseSnapshot?.gate || null;
     const advice = window.generatePoseCoaching(pose, { shotIdx: s.idx, gate });
     const line = advice.line && advice.line.trim() ? advice.line : 'Eyes on the rim. Hold your finish.';
     try {
         window.reportClientEvent?.('tts:shot', { shotId: s?.shotId ?? null, line });
-    } catch {}
-    try { (window.viasonSpeak || window.coachSpeak)?.(line); } catch { }
+    } catch { }
+    try { (window.viasionSpeak || window.coachSpeak)?.(line); } catch { }
     try { window.recordShotFeedback?.({ idx: s.idx, text: line, pose }); } catch { }
     window.__lastCoachText = line;
 };
@@ -216,7 +216,7 @@ window.__flushCoachQueue = function () {
 
 // Let summaries speak once session starts.
 window.addEventListener('hud:start-session', () => {
-    try { window.viason_ONLY_REALTIME = false; } catch { }
+    try { window.viasion_ONLY_REALTIME = false; } catch { }
 });
 
 
@@ -224,13 +224,13 @@ window.addEventListener('hud:start-session', () => {
 window.addEventListener('hud:mute-toggle', (e) => {
     const muted = !!(e?.detail?.muted);
     window.__coachMuted = muted;
-    try { localStorage.setItem('viason_muted', JSON.stringify(muted)); } catch { }
+    try { localStorage.setItem('viasion_muted', JSON.stringify(muted)); } catch { }
 
-    // 🔁 Keep viasonPrefs in sync so window.coachSpeak() won't skip
+    // 🔁 Keep viasionPrefs in sync so window.coachSpeak() won't skip
     try {
-        const get = window.viasonGetPrefs?.() || {};
+        const get = window.viasionGetPrefs?.() || {};
         const next = { ...get, audioOn: !muted };
-        window.viasonSetPrefs?.(next);
+        window.viasionSetPrefs?.(next);
     } catch { }
 });
 
@@ -265,16 +265,16 @@ try {
 
 // Default saved TTS preference to server voice if none is set (helps desktop first-run)
 try {
-    const rawPref = localStorage.getItem('viason_tts');
+    const rawPref = localStorage.getItem('viasion_tts');
     const parsed = rawPref ? JSON.parse(rawPref) : {};
-    const voice = parsed.voice || (window.viason && window.viason.voice) || 'alloy';
+    const voice = parsed.voice || (window.viasion && window.viasion.voice) || 'alloy';
     if (!parsed.provider || parsed.provider !== 'server') {
-        localStorage.setItem('viason_tts', JSON.stringify({ provider: 'server', voice }));
+        localStorage.setItem('viasion_tts', JSON.stringify({ provider: 'server', voice }));
     }
 } catch {
     try {
-        const fallbackVoice = (window.viason && window.viason.voice) || 'alloy';
-        localStorage.setItem('viason_tts', JSON.stringify({ provider: 'server', voice: fallbackVoice }));
+        const fallbackVoice = (window.viasion && window.viasion.voice) || 'alloy';
+        localStorage.setItem('viasion_tts', JSON.stringify({ provider: 'server', voice: fallbackVoice }));
     } catch { }
 }
 try { localStorage.setItem('tts_engine', 'openai'); } catch { }
@@ -285,7 +285,7 @@ try {
     if (!window.__poseOverlayWired) {
         window.__poseOverlayWired = true;
         window.addEventListener('shot:release', () => {
-            try { if (window.viason_RELEASE_TRACE === true) console.log('[coach:evt] shot:release'); } catch { }
+            try { if (window.viasion_RELEASE_TRACE === true) console.log('[coach:evt] shot:release'); } catch { }
             setTimeout(async () => {
                 try {
                     let s = __getPoseSnapshot();
@@ -482,7 +482,7 @@ function preferShotNumber(s) {
     // Main single-line composer used by formatCoachLine()
     window.composePoseFeedback = function composePoseFeedbackV3(snap) {
         try {
-            const g = window.viason_MEM?.get?.()?.golden || null;
+            const g = window.viasion_MEM?.get?.()?.golden || null;
             const issues = rankIssues(snap || {}, g);
             const shotId = Number(window.__CURRENT_SHOT_ID) || Number(window.__SHOT_ID) || 0;
 
@@ -580,7 +580,7 @@ function preferShotNumber(s) {
 
 
 
-window.addEventListener('viason:session-review', (event) => {
+window.addEventListener('viasion:session-review', (event) => {
     try {
         const summary = event?.detail?.summary;
         if (!summary) return;
@@ -1422,7 +1422,7 @@ function formatCoachLine(s) {
     try {
         const list = window.__shotList || [];
         const lastRow = list.at?.(-1) || {};
-        const golden = window.viason_MEM?.get?.()?.golden || null;
+        const golden = window.viasion_MEM?.get?.()?.golden || null;
 
         const cues = [];
         const poseLine = snap ? composeCoachLine(snap) : '';
@@ -1538,7 +1538,7 @@ window.addEventListener('shot:summary', (e) => {
     if (key && __summarySeen.has(key)) return;
     if (key) __summarySeen.add(key);
 
-    // Build final line - viason assessment
+    // Build final line - viasion assessment
     const formatted = window.formatCoachLine(s);
     const shotId = Number(s?.shotId) || Number(window.__CURRENT_SHOT_ID) || Number(window.__SHOT_ID) || 0;
     const personalized = window.__coachMaybePersonalize ? window.__coachMaybePersonalize(formatted, shotId) : formatted;
@@ -1557,7 +1557,7 @@ window.addEventListener('shot:summary', (e) => {
     } catch { }
 
     // Speak once, here
-    try { if (!window.__coachMuted) (window.viasonSpeak || window.coachSpeak)?.(personalized); } catch { }
+    try { if (!window.__coachMuted) (window.viasionSpeak || window.coachSpeak)?.(personalized); } catch { }
 
     // Persist ai_feedback with correct index (shotId-1)
     try {
@@ -1587,7 +1587,7 @@ window.addEventListener('shot:feedback:request', (e) => {
 
 (function () {
     // ---------- Config ----------
-    const viason = window.viason || {
+    const viasion = window.viasion || {
         chatEndpoint: '/api/coach',  // POST {prompt, model}
         ttsEndpoint: '/api/tts',    // POST {text, voice}
         model: 'gpt-4o-mini',
@@ -1597,15 +1597,15 @@ window.addEventListener('shot:feedback:request', (e) => {
         llmMode: 'off',        // 'primary' | 'polish' | 'off'
         poseOnly: true,
     };
-    window.viason = viason;
-    if (typeof viason.poseOnly === 'undefined') viason.poseOnly = true;
-    if (viason.poseOnly) viason.llmMode = 'off';
-    try { if (typeof window.viason_ONLY_REALTIME === 'undefined') window.viason_ONLY_REALTIME = true; } catch { }
-    console.log('[viason] coachAssistant loaded');
+    window.viasion = viasion;
+    if (typeof viasion.poseOnly === 'undefined') viasion.poseOnly = true;
+    if (viasion.poseOnly) viasion.llmMode = 'off';
+    try { if (typeof window.viasion_ONLY_REALTIME === 'undefined') window.viasion_ONLY_REALTIME = true; } catch { }
+    console.log('[viasion] coachAssistant loaded');
 
     // Prevent double-initialization if the script is included twice
-    if (window.__viason_INIT__) return;
-    window.__viason_INIT__ = true;
+    if (window.__viasion_INIT__) return;
+    window.__viasion_INIT__ = true;
 
     // Make sure live tips are enabled by default (belt-and-suspenders)
     try { if (typeof window.PREF_LIVE_TIPS === 'undefined') window.PREF_LIVE_TIPS = true; } catch { }
@@ -1866,7 +1866,7 @@ window.addEventListener('shot:feedback:request', (e) => {
             const armed = (window.__shotTrackingArmed === true);
             const confirmed = (window.__hoopConfirmed === true);
             if (!armed || !confirmed) {
-                if (window.viason_RELEASE_TRACE === true) { try { console.log('[coach:tip:skip]', { via, reason: !armed ? 'not-armed' : 'no-hoop' }); } catch { } }
+                if (window.viasion_RELEASE_TRACE === true) { try { console.log('[coach:tip:skip]', { via, reason: !armed ? 'not-armed' : 'no-hoop' }); } catch { } }
                 return;
             }
             // Speak only on release (and allow score-trip fallback elsewhere)
@@ -1917,7 +1917,7 @@ window.addEventListener('shot:feedback:request', (e) => {
                 try { snap = await __samplePoseSnapshotNow(); } catch { }
             }
             try {
-                if (window.viason_RELEASE_TRACE === true) {
+                if (window.viasion_RELEASE_TRACE === true) {
                     const gate = window.__LAST_GATE?.detail?.tests || null;
                     console.log('[coach:tip:snap]', { via, snap, gate });
                 }
@@ -1955,19 +1955,19 @@ window.addEventListener('shot:feedback:request', (e) => {
                                             };
                                             const hasAny = Object.values(mSnap).some(v => v !== null);
                                             if (hasAny) {
-                                                if (window.viason_RELEASE_TRACE === true) console.log('[coach:tip:minimal]', { via, snap: mSnap, gate: t });
+                                                if (window.viasion_RELEASE_TRACE === true) console.log('[coach:tip:minimal]', { via, snap: mSnap, gate: t });
                                                 speakWithAIOrRules(mSnap, via);
                                             } else {
                                                 // No measurable cues at all - log + prompt only (no static speech)
                                                 const msg = 'Release pose not detected clearly - keep your upper body and shooting arm fully in frame, and check lighting.';
                                                 window.showPromptMessage?.(msg, 3000);
-                                                try { if (window.viason_RELEASE_TRACE === true) console.warn('[coach:tip:no-snapshot]'); } catch { }
+                                                try { if (window.viasion_RELEASE_TRACE === true) console.warn('[coach:tip:no-snapshot]'); } catch { }
                                             }
                                         } catch { }
                                         return;
                                     }
 
-                                    const golden2 = window.viason_MEM?.get?.()?.golden;
+                                    const golden2 = window.viasion_MEM?.get?.()?.golden;
                                     const issues2 = (typeof window.summarizePoseIssues === 'function')
                                         ? (window.summarizePoseIssues({ poseSnapshot: s2 }, golden2) || [])
                                         : [];
@@ -1977,7 +1977,7 @@ window.addEventListener('shot:feedback:request', (e) => {
                                         const lst = window.__shotList; const last = Array.isArray(lst) ? lst.at(-1) : null;
                                         if (last && last.pending && !last.poseSnapshot) last.poseSnapshot = s2;
                                     } catch { }
-                                    if (window.viason_RELEASE_TRACE === true) console.log('[coach:tip:resample]', { via, snap: s2, issues: issues2, lastGate: window.__LAST_GATE?.detail?.tests || null });
+                                    if (window.viasion_RELEASE_TRACE === true) console.log('[coach:tip:resample]', { via, snap: s2, issues: issues2, lastGate: window.__LAST_GATE?.detail?.tests || null });
                                     try { showPoseMetricsOverlay?.(s2, Number(window.POSE_METRICS_MS || 1800)); } catch { }
 
                                     speakWithAIOrRules(s2, via);
@@ -1990,7 +1990,7 @@ window.addEventListener('shot:feedback:request', (e) => {
             }
             if (!snap) return;
 
-            const golden = window.viason_MEM?.get?.()?.golden;
+            const golden = window.viasion_MEM?.get?.()?.golden;
             const issues = (typeof window.summarizePoseIssues === 'function')
                 ? (window.summarizePoseIssues({ poseSnapshot: snap }, golden) || [])
                 : [];
@@ -2044,13 +2044,13 @@ window.addEventListener('shot:feedback:request', (e) => {
         // Always use AI for pose assessment. If unavailable, show connection error - no rule fallback.
         function postDisconnected() {
             try {
-                const msg = 'viason is not connected. Please restart the session and check your internet connection.';
+                const msg = 'viasion is not connected. Please restart the session and check your internet connection.';
                 window.showPromptMessage?.(msg, 2000);
                 console.warn('[coach:ai:error] not connected');
             } catch { }
         }
 
-        const llmMode = (window.viason && window.viason.llmMode) || 'off';
+        const llmMode = (window.viasion && window.viasion.llmMode) || 'off';
 
         const inferShotIdx0 = () => {
             const cur = Number(window.__CURRENT_SHOT_ID);
@@ -2077,7 +2077,7 @@ window.addEventListener('shot:feedback:request', (e) => {
                 if (local) {
                     const out = withShotPrefix(local);
                     window.__lastCoachText = out;
-                    try { if (window.viason_RELEASE_TRACE === true) console.log('[coach:speak:off]', { via, out }); } catch { }
+                    try { if (window.viasion_RELEASE_TRACE === true) console.log('[coach:speak:off]', { via, out }); } catch { }
                     try { setCoachNotesContent(out); } catch { }
                 } else { postDisconnected(); }
             } catch { postDisconnected(); }
@@ -2092,20 +2092,20 @@ window.addEventListener('shot:feedback:request', (e) => {
             const cueLabel = slug === 'golf' ? 'swing' : 'release';
             const body = {
                 prompt: `You are a concise ${discipline}. Using only these metrics, give 1 or 2 short specific ${cueLabel} cues. Metrics: ${JSON.stringify(snap)}`,
-                model: (window.viason && window.viason.model) || 'gpt-4o-mini',
+                model: (window.viasion && window.viasion.model) || 'gpt-4o-mini',
                 lang: 'en-US',
                 shot: snap,
-                profile: (localStorage.getItem('viasonProfile') || ''),
+                profile: (localStorage.getItem('viasionProfile') || ''),
                 sid: (window.__SESSION_ID || null),
                 shotId: inferShotIdx0(),
             };
-            if (window.viason_RELEASE_TRACE === true) console.log('[coach:ai:req]', { via, ms, body });
+            if (window.viasion_RELEASE_TRACE === true) console.log('[coach:ai:req]', { via, ms, body });
             const r = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctrl.signal, credentials: 'include' });
             clearTimeout(t);
             if (!r.ok) throw new Error('coach_api_' + r.status);
             const j = await r.json();
             const text = String(j?.text || '').trim();
-            if (window.viason_RELEASE_TRACE === true) console.log('[coach:ai:res]', { via, textLen: text.length, text });
+            if (window.viasion_RELEASE_TRACE === true) console.log('[coach:ai:res]', { via, textLen: text.length, text });
             if (text) {
                 try {
                     const out = withShotPrefix(text);
@@ -2120,21 +2120,21 @@ window.addEventListener('shot:feedback:request', (e) => {
                 if (local) {
                     const out = withShotPrefix(local);
                     window.__lastCoachText = out;
-                    try { if (window.viason_RELEASE_TRACE === true) console.log('[coach:speak:fallback-local]', { via, out }); } catch { }
+                    try { if (window.viasion_RELEASE_TRACE === true) console.log('[coach:speak:fallback-local]', { via, out }); } catch { }
                     try { setCoachNotesContent(out); } catch { }
                     return;
                 }
             } catch { }
             postDisconnected();
         } catch (e) {
-            if (window.viason_RELEASE_TRACE === true) console.warn('[coach:ai:error]', e?.message || e);
+            if (window.viasion_RELEASE_TRACE === true) console.warn('[coach:ai:error]', e?.message || e);
             // Fallback to local rule-based line on any error
             try {
                 const local = composeCoachLine(snap);
                 if (local) {
                     const out = withShotPrefix(local);
                     window.__lastCoachText = out;
-                    try { if (window.viason_RELEASE_TRACE === true) console.log('[coach:speak:error-local]', { via, out }); } catch { }
+                    try { if (window.viasion_RELEASE_TRACE === true) console.log('[coach:speak:error-local]', { via, out }); } catch { }
                     try { setCoachNotesContent(out); } catch { }
                     return;
                 }
@@ -2343,14 +2343,14 @@ window.addEventListener('shot:feedback:request', (e) => {
         if (!window.__coachReleaseWired) {
             window.__coachReleaseWired = true;
             // Fire on strict shot release events (mark seen + reset cooldown first)
-            window.addEventListener('shot:release', () => { try { if (window.viason_RELEASE_TRACE === true) console.log('[coach:evt] shot:release'); } catch { } try { window.__COACH_HAS_RELEASE = true; window.__COACH_TIP_LAST_AT = 0; } catch { } try { if (window.viason_RELEASE_TRACE === true) console.log('[coach:evt] shot:release'); } catch { } assessPoseAndSpeak('shot:release'); });
+            window.addEventListener('shot:release', () => { try { if (window.viasion_RELEASE_TRACE === true) console.log('[coach:evt] shot:release'); } catch { } try { window.__COACH_HAS_RELEASE = true; window.__COACH_TIP_LAST_AT = 0; } catch { } try { if (window.viasion_RELEASE_TRACE === true) console.log('[coach:evt] shot:release'); } catch { } assessPoseAndSpeak('shot:release'); });
             // Fallback: if HUD increments shot counter but release speak didn't happen (timing), speak once
             window.addEventListener('hud:shot-taken', () => {
                 try {
                     if (window.__shotTrackingArmed !== true || window.__hoopConfirmed !== true) return;
                     const now = performance.now();
                     const last = Number(window.__COACH_LAST_REL_SPEAK || 0);
-                    if (window.viason_RELEASE_TRACE === true) { try { console.log('[coach:evt] hud:shot-taken', { now, last }); } catch { } }
+                    if (window.viasion_RELEASE_TRACE === true) { try { console.log('[coach:evt] hud:shot-taken', { now, last }); } catch { } }
                     if (now - last < 500) return; // release path already spoke
                     assessPoseAndSpeak('shot:release');
                 } catch { }
@@ -2359,7 +2359,7 @@ window.addEventListener('shot:feedback:request', (e) => {
             window.addEventListener('hud:score-trip', async () => {
                 try {
                     if (window.__shotTrackingArmed !== true || window.__hoopConfirmed !== true) return;
-                    const now = performance.now(); if (window.viason_RELEASE_TRACE === true) { try { console.log('[coach:evt] hud:score-trip'); } catch { } }
+                    const now = performance.now(); if (window.viasion_RELEASE_TRACE === true) { try { console.log('[coach:evt] hud:score-trip'); } catch { } }
                     const last = Number(window.__COACH_LAST_REL_SPEAK || 0);
                     if (now - last < 700) return;
                     let s = __getPoseSnapshot();
@@ -2379,7 +2379,7 @@ window.addEventListener('shot:feedback:request', (e) => {
             // window.addEventListener('shot:summary', () => assessPoseAndSpeak('shot:summary'));
             // Removed pose:release voice; rely strictly on shot:release + summary to avoid pre-shot chatter
             // Per-shot reset so the next summary/tip is not suppressed
-            window.addEventListener('shot:release', () => { try { if (window.viason_RELEASE_TRACE === true) console.log('[coach:evt] shot:release'); } catch { } try { __lastSpokenKey = null; window.__COACH_TIP_LAST_AT = 0; } catch { } });
+            window.addEventListener('shot:release', () => { try { if (window.viasion_RELEASE_TRACE === true) console.log('[coach:evt] shot:release'); } catch { } try { __lastSpokenKey = null; window.__COACH_TIP_LAST_AT = 0; } catch { } });
             window.addEventListener('hud:shot-taken', () => { try { __lastSpokenKey = null; window.__COACH_TIP_LAST_AT = 0; } catch { } });
         }
     } catch { }
@@ -2573,7 +2573,7 @@ window.addEventListener('shot:feedback:request', (e) => {
                 try {
                     const shots = list.map((s, i) => ({ idx: i + 1, p: s?.poseSnapshot || null })).filter(x => !!x.p);
                     if (shots.length) {
-                        const g = (window.viason_MEM?.get?.()?.golden) || { stanceWidthFeet: 120, kneeFlex: 28, toeToHoopDeg: 18, feetAngleDiff: 8, feetStagger: 6, shoulderToWristAngle: 55, releaseAboveShoulder: true };
+                        const g = (window.viasion_MEM?.get?.()?.golden) || { stanceWidthFeet: 120, kneeFlex: 28, toeToHoopDeg: 18, feetAngleDiff: 8, feetStagger: 6, shoulderToWristAngle: 55, releaseAboveShoulder: true };
                         const pickIdx = (pred) => shots.filter(({ p }) => pred(p)).map(({ idx }) => idx);
                         const followShort = pickIdx(p => Number.isFinite(p.followThroughHoldFrames) && p.followThroughHoldFrames < 2);
                         const feetNarrow = pickIdx(p => Number.isFinite(p.stanceWidthFeet) && g.stanceWidthFeet && (p.stanceWidthFeet < g.stanceWidthFeet - 20));
@@ -2627,15 +2627,15 @@ window.addEventListener('shot:feedback:request', (e) => {
             try { window.__lastCoachText = out; } catch { }
             try { setCoachNotesContent(out, { zIndex: 10070, force: true }); } catch { }
             try {
-                window.dispatchEvent(new CustomEvent('viason:session-review', {
+                window.dispatchEvent(new CustomEvent('viasion:session-review', {
                     detail: { summary: out, lines: linesOut, trends, limiting: lim }
                 }));
             } catch { }
             try {
                 window.reportClientEvent?.('tts:session-summary', { text: out, ts: Date.now() });
-            } catch {}
+            } catch { }
             try {
-                const speakJob = (window.viasonSpeak || window.coachSpeak)?.(out);
+                const speakJob = (window.viasionSpeak || window.coachSpeak)?.(out);
                 try { window.__SESSION_REVIEW_PROMISE = speakJob || null; } catch { }
                 try { window.__SESSION_REVIEW_SPOKEN = true; } catch { }
                 if (speakJob && typeof speakJob.then === 'function') {
@@ -2686,39 +2686,39 @@ window.addEventListener('shot:feedback:request', (e) => {
     } catch { }
 
     // ---- Pref bridges (new) ----
-    // Read new UI prefs if present; fall back to older viasonPrefs values.
+    // Read new UI prefs if present; fall back to older viasionPrefs values.
     function isAudioOn() {
         if (typeof window.PREF_AUDIO_ENABLED !== 'undefined') return !!window.PREF_AUDIO_ENABLED;
-        const p = viasonGetPrefs();                 // legacy store
+        const p = viasionGetPrefs();                 // legacy store
         return (p.audioOn !== false);              // default true
     }
     function isMicAllowed() {
         if (typeof window.PREF_ALLOW_MIC !== 'undefined') return !!window.PREF_ALLOW_MIC;
-        const p = viasonGetPrefs();
+        const p = viasionGetPrefs();
         return (p.allowMic !== false);             // default true
     }
 
 
     // ---------- Prefs + Presets ----------
-    const LS_KEY = 'viasonPrefs';
+    const LS_KEY = 'viasionPrefs';
 
-    const getAC = () => (window.__viasonAC ||= new (window.AudioContext || window.webkitAudioContext)());
+    const getAC = () => (window.__viasionAC ||= new (window.AudioContext || window.webkitAudioContext)());
 
 
-    function viasonGetPrefs() {
+    function viasionGetPrefs() {
         try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; }
         catch { return {}; }
     }
 
-    function viasonSetPrefs(p) {
+    function viasionSetPrefs(p) {
         const v = p || {};
         localStorage.setItem(LS_KEY, JSON.stringify(v));
-        window.__viasonPrefs = v;
+        window.__viasionPrefs = v;
         return v;
     }
 
-    //  viason Memory   ------------------------------------- //
-    const MEM_KEY = 'viasonMemoryV1';
+    //  viasion Memory   ------------------------------------- //
+    const MEM_KEY = 'viasionMemoryV1';
 
     function memLoad() {
         try { return JSON.parse(localStorage.getItem(MEM_KEY)) || { made: [], miss: [], golden: null, lastShot: null }; }
@@ -2862,7 +2862,7 @@ window.addEventListener('shot:feedback:request', (e) => {
         return m;
     }
 
-    window.viason_MEM = {
+    window.viasion_MEM = {
         get: memLoad,
         addShot: addShotToMemory,
         golden: () => memLoad().golden,
@@ -2995,16 +2995,16 @@ window.addEventListener('shot:feedback:request', (e) => {
                 return;
             }
         } catch { }
-        if (viasonSpeak) coachSpeak(`You said: ${text}`);
-        // window.webkit?.messageHandlers?.viason?.postMessage({action: 'startVoice'})
+        if (viasionSpeak) coachSpeak(`You said: ${text}`);
+        // window.webkit?.messageHandlers?.viasion?.postMessage({action: 'startVoice'})
     };
 
     // Export on window
-    window.viasonGetPrefs = viasonGetPrefs;
-    window.viasonSetPrefs = viasonSetPrefs;
+    window.viasionGetPrefs = viasionGetPrefs;
+    window.viasionSetPrefs = viasionSetPrefs;
 
     function getPrefs() { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } }
-    function setPrefs(p) { localStorage.setItem(LS_KEY, JSON.stringify(p)); window.__viasonPrefs = p; return p; }
+    function setPrefs(p) { localStorage.setItem(LS_KEY, JSON.stringify(p)); window.__viasionPrefs = p; return p; }
 
     async function loadPresets() {
         try { const r = await fetch('/api/voice_presets'); if (!r.ok) throw 0; const j = await r.json(); return Array.isArray(j.presets) ? j.presets : []; }
@@ -3018,7 +3018,7 @@ window.addEventListener('shot:feedback:request', (e) => {
         try { const r = await fetch('/api/voice_presets/' + encodeURIComponent(name), { method: 'DELETE' }); if (!r.ok) throw 0; return true; }
         catch { const a = await loadPresets(); localStorage.setItem(LS_PRESETS, JSON.stringify(a.filter(x => x.name !== name))); return true; }
     }
-    window.viasonLoadPresets = loadPresets; window.viasonSavePreset = savePreset; window.viasonDeletePreset = deletePreset;
+    window.viasionLoadPresets = loadPresets; window.viasionSavePreset = savePreset; window.viasionDeletePreset = deletePreset;
 
 
     // a better robot ----------------------------------------- //
@@ -3167,14 +3167,14 @@ window.addEventListener('shot:feedback:request', (e) => {
     let webVoices = [];
     function refreshVoices() { webVoices = window.speechSynthesis?.getVoices?.() || []; return webVoices; }
     if ('speechSynthesis' in window) { speechSynthesis.onvoiceschanged = refreshVoices; refreshVoices(); }
-    window.viasonListWebVoices = (lang = '') => {
+    window.viasionListWebVoices = (lang = '') => {
         const v = refreshVoices();
         return lang ? v.filter(x => (x.lang || '').toLowerCase().startsWith(lang.toLowerCase())) : v;
     };
 
     // ---------- OpenAI TTS + WebAudio EQ ----------
     async function ttsFetchBlob(text, voice) {
-        const res = await fetch(viason.ttsEndpoint, {
+        const res = await fetch(viasion.ttsEndpoint, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text, voice: voice || 'alloy' }),
             credentials: 'include'
@@ -3217,9 +3217,9 @@ window.addEventListener('shot:feedback:request', (e) => {
     async function translateIfNeeded(text, lang) {
         if (!lang || lang.startsWith('en')) return text;
         try {
-            const r = await fetch(viason.chatEndpoint, {
+            const r = await fetch(viasion.chatEndpoint, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: `Translate to ${lang}. Keep coaching tone. Only output the sentence:\n\n${text}`, model: viason.model })
+                body: JSON.stringify({ prompt: `Translate to ${lang}. Keep coaching tone. Only output the sentence:\n\n${text}`, model: viasion.model })
             });
             if (!r.ok) return text; const j = await r.json(); return (j.text || text).trim();
         } catch { return text; }
@@ -3255,7 +3255,7 @@ window.addEventListener('shot:feedback:request', (e) => {
         };
 
         return `
-  You are viason, a ${personality} shooting coach.
+  You are viasion, a ${personality} shooting coach.
 
   Write a single pose-focused coaching cue (one short sentence).
   - Base the cue entirely on pose metrics; ignore shot outcome or make/miss info.
@@ -3276,17 +3276,17 @@ Draft to refine (optional): '${draftLine}'` : ''}
 
 
     // analyze shot pose
-    window.viasonOnShot = async function (shot) {
+    window.viasionOnShot = async function (shot) {
         try {
             if (!shot.poseSnapshot && window.playerState) {
                 shot.poseSnapshot = window.capturePoseSnapshot(window.playerState, window.getLockedHoopBox?.());
             }
             shot.ts = shot.ts || Date.now();
 
-            const mem = window.viason_MEM.get();
+            const mem = window.viasion_MEM.get();
             const golden = mem.golden;
             const made = !!shot.made;
-            const poseOnly = viason.poseOnly === true;
+            const poseOnly = viasion.poseOnly === true;
 
             // Local draft (pose-only taps pose heuristics; otherwise keep legacy flow)
             let localText = '';
@@ -3306,7 +3306,7 @@ Draft to refine (optional): '${draftLine}'` : ''}
 
 
             // Choose how to use the LLM
-            const mode = (window.viason?.llmMode || 'polish').toLowerCase();
+            const mode = (window.viasion?.llmMode || 'polish').toLowerCase();
             let text = localText;
             const inferShotIdx0 = () => {
                 try { if (Number.isFinite(Number(shot?.coachIdx))) return Number(shot.coachIdx); } catch { }
@@ -3324,18 +3324,18 @@ Draft to refine (optional): '${draftLine}'` : ''}
                 return 0;
             };
 
-            if (!poseOnly && mode !== 'off' && window.viason?.chatEndpoint) {
+            if (!poseOnly && mode !== 'off' && window.viasion?.chatEndpoint) {
                 try {
                     const prompt = composeLLMPrompt(
                         shot, golden,
                         mode === 'polish' ? localText : '', // primary: no draft; polish: send draft
                         made,
-                        window.viason?.personality || 'positive, concise'
+                        window.viasion?.personality || 'positive, concise'
                     );
-                    const r = await fetch(window.viason.chatEndpoint, {
+                    const r = await fetch(window.viasion.chatEndpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ prompt, model: window.viason.model, temperature: 0.8 })
+                        body: JSON.stringify({ prompt, model: window.viasion.model, temperature: 0.8 })
                     });
                     const j = await r.json();
                     const llm = (j?.text || '').trim();
@@ -3356,7 +3356,7 @@ Draft to refine (optional): '${draftLine}'` : ''}
                 const list = window.__shotList || [];
                 const last = list[list.length - 1];
                 if (last) {
-                    last.viason = text;
+                    last.viasion = text;
                     const idx = last.__idx ?? list.length;
                     const modal = document.getElementById('fullShotModal');
                     if (modal) {
@@ -3366,7 +3366,7 @@ Draft to refine (optional): '${draftLine}'` : ''}
                         if (cell) { cell.textContent = text; cell.title = text; }
                     }
                 }
-            } catch (e) { console.warn('[viason] coach text UI update failed:', e); }
+            } catch (e) { console.warn('[viasion] coach text UI update failed:', e); }
 
             setCoachNotesContent(text);
             const now = Date.now();
@@ -3376,11 +3376,11 @@ Draft to refine (optional): '${draftLine}'` : ''}
             __lastSpeak = { text, at: now };
             // Realtime-only: do not speak table/summary lines; leave UI text only
             // voice is owned by the global shot:summary handler
-            //  if (!window.viason_ONLY_REALTIME) {
-            //      queueMicrotask(() => viasonSpeak?.(text));
+            //  if (!window.viasion_ONLY_REALTIME) {
+            //      queueMicrotask(() => viasionSpeak?.(text));
             // }
 
-        } catch (e) { console.warn('[viasonOnShot]', e); }
+        } catch (e) { console.warn('[viasionOnShot]', e); }
     };
 
 
@@ -3388,7 +3388,7 @@ Draft to refine (optional): '${draftLine}'` : ''}
     window.updateCoachNotes = function updateCoachNotes(shot) {
         if (!shot) return;
 
-        const mem = window.viason_MEM.get();
+        const mem = window.viasion_MEM.get();
         const golden = mem.golden;
         const tips = window.summarizePoseIssues?.(shot, golden) || [];
         const rating = window.computeShotRating?.(shot.poseSnapshot, golden) ?? 50;
@@ -3398,7 +3398,7 @@ Draft to refine (optional): '${draftLine}'` : ''}
             : '';
 
         let html = `
-      <strong> viason Feedback</strong><br>
+      <strong> viasion Feedback</strong><br>
       <div style="font-size: 18px; margin-bottom: 6px;">
         🏅 Shot Rating: <strong style="color:${rating >= 80 ? 'lightgreen' : rating >= 50 ? 'orange' : 'red'}">${rating}/100</strong>
         ${golden ? `<span style="opacity:.7;">(vs ${golden.count} reference shots)</span>` : ``}
@@ -3465,31 +3465,31 @@ Draft to refine (optional): '${draftLine}'` : ''}
 
 
     // -----------------------------------------------
-    // Hands-Free viason (standalone, no global collisions)
-    // Exposes: window.viasonHandsFree.start(), .stop(), .toggle(), .isActive()
+    // Hands-Free viasion (standalone, no global collisions)
+    // Exposes: window.viasionHandsFree.start(), .stop(), .toggle(), .isActive()
     // -----------------------------------------------
     (() => {
-        if (window.__viasonHFInit) return;          // prevent duplicate init
-        window.__viasonHFInit = true;
+        if (window.__viasionHFInit) return;          // prevent duplicate init
+        window.__viasionHFInit = true;
 
         const ua = (navigator.userAgent || '').toLowerCase();
-        if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) {
-            console.warn('[viason HF] SpeechRecognition disabled on Android; set viason_ENABLE_ANDROID_SR=true to override');
-            window.viasonHandsFree = { start() { }, stop() { }, toggle() { }, isActive: () => false };
+        if (/android/.test(ua) && window.viasion_ENABLE_ANDROID_SR !== true) {
+            console.warn('[viasion HF] SpeechRecognition disabled on Android; set viasion_ENABLE_ANDROID_SR=true to override');
+            window.viasionHandsFree = { start() { }, stop() { }, toggle() { }, isActive: () => false };
             return;
         }
 
-if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) {
-    console.warn('[viason HF] SpeechRecognition disabled on Android; set viason_ENABLE_ANDROID_SR=true to override');
-    window.viasonHandsFree = { start() { }, stop() { }, toggle() { }, isActive: () => false };
-    return;
-}
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!SR) {
-    console.warn('[viason HF] Web Speech API not available');
-    window.viasonHandsFree = { start() { }, stop() { }, toggle() { }, isActive: () => false };
-    return;
-}
+        if (/android/.test(ua) && window.viasion_ENABLE_ANDROID_SR !== true) {
+            console.warn('[viasion HF] SpeechRecognition disabled on Android; set viasion_ENABLE_ANDROID_SR=true to override');
+            window.viasionHandsFree = { start() { }, stop() { }, toggle() { }, isActive: () => false };
+            return;
+        }
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+            console.warn('[viasion HF] Web Speech API not available');
+            window.viasionHandsFree = { start() { }, stop() { }, toggle() { }, isActive: () => false };
+            return;
+        }
 
         // --- light metrics -> answer helper (kept local to avoid globals)
         function answerFromMetrics(q, last, golden) {
@@ -3544,14 +3544,14 @@ if (!SR) {
         async function start() {
             if (hfActive || hfStarting) return;
             const ua = (navigator.userAgent || '').toLowerCase();
-            if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) return;
+            if (/android/.test(ua) && window.viasion_ENABLE_ANDROID_SR !== true) return;
             // permission prime (helps UX)
-            if (!window.__viasonMicPrimed) {
+            if (!window.__viasionMicPrimed) {
                 try {
                     await navigator.mediaDevices.getUserMedia({ audio: true });
-                    window.__viasonMicPrimed = true;
+                    window.__viasionMicPrimed = true;
                 } catch (err) {
-                    try { console.warn('[viason HandsFree] mic prime rejected', err); } catch { }
+                    try { console.warn('[viasion HandsFree] mic prime rejected', err); } catch { }
                     return;
                 }
             }
@@ -3565,12 +3565,12 @@ if (!SR) {
 
             hfRec.onresult = (e) => {
                 const transcript = Array.from(e.results).map(r => r[0].transcript).join(' ');
-                const mem = window.viason_MEM?.get?.() || {};
+                const mem = window.viasion_MEM?.get?.() || {};
                 const reply = answerFromMetrics(transcript, mem.lastShot, mem.golden);
-                viasonSpeak?.(reply);
+                viasionSpeak?.(reply);
 
                 setCoachNotesContent(
-                    `<strong>🎙 You:</strong> ${transcript}<br><strong>🤖 viason:</strong> ${reply}`,
+                    `<strong>🎙 You:</strong> ${transcript}<br><strong>🤖 viasion:</strong> ${reply}`,
                     { html: true }
                 );
             };
@@ -3598,7 +3598,7 @@ if (!SR) {
             try { hfRec.start(); }
             catch { hfStarting = false; setTimeout(() => { try { hfRec.start(); hfStarting = true; } catch { } }, 400); }
 
-            viasonSpeak?.("Listening. Ask about feet, release, power, arc, or pose adjustments.");
+            viasionSpeak?.("Listening. Ask about feet, release, power, arc, or pose adjustments.");
         }
 
         function stop() {
@@ -3613,7 +3613,7 @@ if (!SR) {
         document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
 
         // public API
-        window.viasonHandsFree = {
+        window.viasionHandsFree = {
             start, stop,
             toggle() { (hfActive || hfStarting) ? stop() : start(); },
             isActive: () => hfActive
@@ -3696,20 +3696,20 @@ if (!SR) {
     // ---------- Global shot:summary handler (single, hardened instance) ----------
     // Listens for 'shot:summary' events and processes them once each
     // Expects event.detail to be the shot object
-    // Adds poseSnapshot if missing, then calls viason_MEM.addShot() and updateCoachNotes()
+    // Adds poseSnapshot if missing, then calls viasion_MEM.addShot() and updateCoachNotes()
     window.addEventListener('shot:summary', (e) => {
         // If we've already handled THIS object, bail (covers re-dispatch)
-        if (e.detail && e.detail.__viasonHandled) return;
+        if (e.detail && e.detail.__viasionHandled) return;
 
         const shot = e.detail;
         const key = makeShotKey(shot || {});
         if (key && __processedShotKeys.has(key)) return; // already handled a twin
 
         // Mark original payload so a re-dispatch of the same object won't run again
-        if (shot) shot.__viasonHandled = true;
+        if (shot) shot.__viasionHandled = true;
         rememberKey(key);
 
-        console.log('[viason] shot:summary handled key=', key, shot);
+        console.log('[viasion] shot:summary handled key=', key, shot);
 
         // proceed with your existing logic
         const cloned = { ...shot };
@@ -3718,30 +3718,30 @@ if (!SR) {
                 window.choosePoseSnapshotForSummary?.(shot) ||
                 (window.playerState ? window.capturePoseSnapshot?.(window.playerState, window.getLockedHoopBox?.()) : null);
         }
-        window.viason_MEM.addShot(cloned);
+        window.viasion_MEM.addShot(cloned);
         window.updateCoachNotes?.(cloned);
-        // Attach per-shot coach line for the table; respect voice preference inside viasonOnShot
-        window.viasonOnShot?.(cloned);
+        // Attach per-shot coach line for the table; respect voice preference inside viasionOnShot
+        window.viasionOnShot?.(cloned);
     });
 
 
 
     // ───────────────────────────────────────────────
-    // viason Voice Q&A (single, hardened instance)
+    // viasion Voice Q&A (single, hardened instance)
     // ───────────────────────────────────────────────
     (function () {
-const ua = (navigator.userAgent || '').toLowerCase();
-if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) {
-    console.warn('[viason Voice] SpeechRecognition disabled on Android; set viason_ENABLE_ANDROID_SR=true to override');
-    try { window.__startCoachVoiceRecognition = () => false; } catch { }
-    return;
-}
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); return; }
+        const ua = (navigator.userAgent || '').toLowerCase();
+        if (/android/.test(ua) && window.viasion_ENABLE_ANDROID_SR !== true) {
+            console.warn('[viasion Voice] SpeechRecognition disabled on Android; set viasion_ENABLE_ANDROID_SR=true to override');
+            try { window.__startCoachVoiceRecognition = () => false; } catch { }
+            return;
+        }
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { console.warn('[viasion Voice] SpeechRecognition not supported'); return; }
 
         // Wake words (loose match)
-        const viason = (window.viason ||= {});
-        viason.WAKE_WORDS ||= ['hey viason', 'hey coach', 'my coach', 'coach', 'douch'];
+        const viasion = (window.viasion ||= {});
+        viasion.WAKE_WORDS ||= ['hey viasion', 'hey coach', 'my coach', 'coach', 'douch'];
         const START_SESSION_PHRASES = [
             'start session',
             'start a session',
@@ -3757,7 +3757,7 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
             'begin live session'
         ];
 
-        const prefs = (window.viasonGetPrefs?.() || {});
+        const prefs = (window.viasionGetPrefs?.() || {});
 
         const IS_IOS = (() => {
             try {
@@ -3792,10 +3792,10 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
 
         const hasWake = (t) => {
             const n = norm(t);
-            return viason.WAKE_WORDS.some(w => n.includes(norm(w)));
+            return viasion.WAKE_WORDS.some(w => n.includes(norm(w)));
         };
 
-        function lastShot() { return window.viason_MEM?.lastShot?.() || null; }
+        function lastShot() { return window.viasion_MEM?.lastShot?.() || null; }
 
         function answerLocal(q) {
             const L = lastShot();
@@ -3847,10 +3847,10 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
         function showDot(on) {
             const root = document.getElementById('hudRoot') || document.body || document.documentElement;
             if (!root) return;
-            let dot = document.getElementById('viasonVoiceDot');
+            let dot = document.getElementById('viasionVoiceDot');
             if (!dot) {
                 dot = document.createElement('div');
-                dot.id = 'viasonVoiceDot';
+                dot.id = 'viasionVoiceDot';
                 Object.assign(dot.style, {
                     position: 'absolute', right: '12px', top: '12px',
                     width: '10px', height: '10px', borderRadius: '50%',
@@ -3870,17 +3870,17 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
             catch { starting = false; setTimeout(() => { try { recog.start(); starting = true; } catch { } }, 400); }
         }
 
-        let allowIOSWake = !IS_IOS || !!window.__viasonMicPrimed || isMicAllowed();
+        let allowIOSWake = !IS_IOS || !!window.__viasionMicPrimed || isMicAllowed();
         let pendingIOSWake = false;
 
         async function start(force = false) {
             const micAllowed = isMicAllowed();
             if (!micAllowed && !force) {
-                console.warn('[viason HF] mic disabled by preferences');
+                console.warn('[viasion HF] mic disabled by preferences');
                 return;
             }
             if (force && !micAllowed) {
-                try { viasonSetPrefs({ ...viasonGetPrefs(), allowMic: true }); } catch { }
+                try { viasionSetPrefs({ ...viasionGetPrefs(), allowMic: true }); } catch { }
             }
 
             if (force) {
@@ -3894,16 +3894,16 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
 
             if (listening || starting) return;
             // mic prime improves UX/permissions
-            if ((!window.__viasonMicPrimed) && navigator.mediaDevices?.getUserMedia) {
+            if ((!window.__viasionMicPrimed) && navigator.mediaDevices?.getUserMedia) {
                 const ua = (navigator.userAgent || '').toLowerCase();
-                const androidBlocked = /android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true;
+                const androidBlocked = /android/.test(ua) && window.viasion_ENABLE_ANDROID_SR !== true;
                 if (!androidBlocked) {
                     try {
                         await navigator.mediaDevices.getUserMedia({ audio: true });
-                        window.__viasonMicPrimed = true;
-                        try { viasonSetPrefs({ ...viasonGetPrefs(), allowMic: true }); } catch { }
+                        window.__viasionMicPrimed = true;
+                        try { viasionSetPrefs({ ...viasionGetPrefs(), allowMic: true }); } catch { }
                     } catch (err) {
-                        try { console.warn('[viason Voice] mic prime rejected', err); } catch { }
+                        try { console.warn('[viasion Voice] mic prime rejected', err); } catch { }
                         if (IS_IOS && !force) {
                             allowIOSWake = false;
                             pendingIOSWake = true;
@@ -3947,7 +3947,7 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
                 showDot(true);
                 clearTimeout(captureTimer);
                 captureTimer = setTimeout(() => { captureMode = false; showDot(true); }, 7000);
-                viasonSpeak?.("Yes?");
+                viasionSpeak?.("Yes?");
                 return;
             }
 
@@ -3957,14 +3957,14 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
                 captureTimer = setTimeout(() => { captureMode = false; showDot(true); }, 3500);
 
                 // strip wake words if included together
-                const wakeRe = new RegExp(viason.WAKE_WORDS.map(w => norm(w)).join('|'), 'g');
+                const wakeRe = new RegExp(viasion.WAKE_WORDS.map(w => norm(w)).join('|'), 'g');
                 const q = lower.replace(wakeRe, '').trim();
 
                 const wantsStart = START_SESSION_PHRASES.some((phrase) => q.includes(norm(phrase)));
                 if (wantsStart) {
                     captureMode = false;
                     showDot(false);
-                    viasonSpeak?.("Starting session.");
+                    viasionSpeak?.("Starting session.");
                     if (typeof window.beginLiveSession === 'function') {
                         window.beginLiveSession({ via: 'voice-command' });
                     } else {
@@ -3976,15 +3976,15 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
                 let reply = answerLocal(q);
 
                 // Fallback to model for anything not covered by our quick rules
-                if (!/(feet|stance|release|wrist|elbow|power|knee|arc|entry|angle|make|accuracy)/.test(q) && viason.chatEndpoint) {
+                if (!/(feet|stance|release|wrist|elbow|power|knee|arc|entry|angle|make|accuracy)/.test(q) && viasion.chatEndpoint) {
                     try {
-                        const ctx = { lastShot: lastShot(), recent: window.viason_MEM?.recent?.(5) };
-                        const r = await fetch(viason.chatEndpoint, {
+                        const ctx = { lastShot: lastShot(), recent: window.viasion_MEM?.recent?.(5) };
+                        const r = await fetch(viasion.chatEndpoint, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                prompt: `You are viason. User asked: "${finalText}". Use this context JSON:\n${JSON.stringify(ctx)}\nGive a specific, actionable answer in 1-2 short sentences.`,
-                                model: viason.model
+                                prompt: `You are viasion. User asked: "${finalText}". Use this context JSON:\n${JSON.stringify(ctx)}\nGive a specific, actionable answer in 1-2 short sentences.`,
+                                model: viasion.model
                             })
                         });
                         const j = await r.json();
@@ -3992,7 +3992,7 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
                     } catch { }
                 }
 
-                viasonSpeak?.(reply);
+                viasionSpeak?.(reply);
             }
         };
 
@@ -4044,7 +4044,7 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
         });
 
         // Public controls
-        window.viasonVoice = {
+        window.viasionVoice = {
             on: () => start(true),
             off: stop,
             toggle: () => (listening || starting ? stop() : start(true)),
@@ -4054,7 +4054,7 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
         // Auto-start unless user disabled it in prefs
         const queueAutoStart = () => {
             if (!isMicAllowed()) return;
-            if (IS_IOS && !window.__viasonMicPrimed) {
+            if (IS_IOS && !window.__viasionMicPrimed) {
                 pendingIOSWake = true;
                 return;
             }
@@ -4076,19 +4076,21 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
             };
             window.addEventListener('coach:voice-rec-start', (event) => {
                 const ua = (navigator.userAgent || '').toLowerCase();
-                if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) {
-                    console.warn('[viason Voice] Android voice wake suppressed');
+                if (/android/.test(ua) && window.viasion_ENABLE_ANDROID_SR !== true) {
+                    console.warn('[viasion Voice] Android voice wake suppressed');
                     return;
                 }
                 enableFromGesture(event);
             });
-            try { window.__enableCoachVoiceWake = (event) => {
-                const ua = (navigator.userAgent || '').toLowerCase();
-                if (/android/.test(ua) && window.viason_ENABLE_ANDROID_SR !== true) {
-                    return;
-                }
-                enableFromGesture(event);
-            }; } catch { }
+            try {
+                window.__enableCoachVoiceWake = (event) => {
+                    const ua = (navigator.userAgent || '').toLowerCase();
+                    if (/android/.test(ua) && window.viasion_ENABLE_ANDROID_SR !== true) {
+                        return;
+                    }
+                    enableFromGesture(event);
+                };
+            } catch { }
         }
     })();
 

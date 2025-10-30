@@ -1,532 +1,916 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <title>viason - Frame Extractor + YOLO Labeler</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="color-scheme" content="dark light" />
-  <link rel="icon" href="/static/favicon.ico" />
-  <script src="/static/js/projectManager.js"></script>
+    <meta charset="UTF-8" />
+    <title>viasion - Frame Extractor + YOLO Labeler</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" href="/static/favicon.ico" />
+    <script src="/static/js/projectManager.js"></script>
 
-  <style>
-    :root{
-      --bg:#0f1115; --card:#141823; --card-2:#171b27; --text:#e7ebf0;
-      --muted:#97a3b6; --brand:#4caf50; --accent:#77a7ff; --line:#223048;
-      --chip:#1e2533; --chip-active:#2a874d;
-    }
-    *{box-sizing:border-box} html,body{height:100%}
-    body{margin:0;background:var(--bg);color:var(--text);
-      font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,"Helvetica Neue",Arial}
-    h1,h2{margin:0 0 .6rem 0; font-weight:600}
-    h1{font-size:1.35rem} h2{font-size:1.15rem}
-    .wrap{max-width:1200px;margin:18px auto;padding:0 16px}
-    .toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;
-      background:var(--card);padding:12px;border:1px solid var(--line);border-radius:12px}
-    .spacer{flex:1}
-    .btn{appearance:none;border:1px solid var(--line);background:var(--chip);
-      color:var(--text);padding:8px 10px;border-radius:10px;cursor:pointer}
-    .btn:hover{filter:brightness(1.12)} .btn.primary{background:var(--brand);border-color:transparent;color:#fff}
-    .btn.ghost{background:transparent}
-    select,input[type="number"],input[type="range"]{background:var(--card-2);color:var(--text);border:1px solid var(--line);
-      padding:8px 10px;border-radius:10px}
-    input[type="file"]{display:none}
+    <style>
+        :root {
+            --bg: #0f1115;
+            --card: #141823;
+            --card-2: #171b27;
+            --text: #e7ebf0;
+            --muted: #97a3b6;
+            --brand: #4caf50;
+            --accent: #77a7ff;
+            --line: #223048;
+            --chip: #1e2533;
+            --chip-active: #2a874d;
+        }
 
-    .grid{display:grid;gap:16px}
-    .grid.cols-2{grid-template-columns:2fr 1fr} /* 2/3 vs 1/3 */
-    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
-    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .chips{display:flex;flex-wrap:wrap;gap:8px}
-    .chip{background:var(--chip);border:1px solid var(--line);color:var(--text);
-      padding:6px 10px;border-radius:999px;cursor:pointer;font-size:13px}
-    .chip.active{background:var(--chip-active);border-color:transparent}
-    .muted{color:var(--muted)} .small{font-size:12px}
-    .table{width:100%;border-collapse:collapse}
-    .table th,.table td{padding:8px 10px;border-top:1px solid var(--line);text-align:left}
-    .table th{color:var(--muted);font-weight:500}
-    code{background:#0e1522;border:1px solid var(--line);padding:2px 6px;border-radius:6px}
+        * {
+            box-sizing: border-box
+        }
 
-    /* Canvas region */
-    #canvasWrap{position:relative;width:100%;max-width:1024px;margin:0 auto;aspect-ratio:16/9}
-    #gridCanvas,#frameCanvas{position:absolute;inset:0;width:100%;height:100%}
-    #gridCanvas{pointer-events:none}
+        html,
+        body {
+            height: 100%
+        }
 
-    /* Side nav arrows */
-    .navBtn{
-      position:absolute;top:50%;transform:translateY(-50%);
-      width:42px;height:42px;border-radius:50%;
-      display:flex;align-items:center;justify-content:center;
-      background:rgba(0,0,0,.35);border:1px solid var(--line);cursor:pointer;user-select:none
-    }
-    .navBtn:hover{background:rgba(0,0,0,.5)}
-    #prevFrameBtn{left:8px} #nextFrameBtn{right:8px}
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial
+        }
 
-    /* Project switcher */
-    .projectNav{display:flex;gap:10px;margin:12px 0 0;padding:0;border-bottom:1px solid var(--line)}
-    .projectNav button{background:transparent;border:none;padding:10px 14px;color:var(--muted);font-weight:600;cursor:pointer;border-bottom:3px solid transparent}
-    .projectNav button.active{color:var(--text);border-bottom-color:var(--brand)}
-    .projectPanels{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-top:12px;padding:14px}
-    .projectPanel{display:none}
-    .projectPanel.active{display:block}
-    .datasetList,.projectList,.modelList{display:grid;gap:10px}
-    .datasetCard,.projectCard,.modelCard{padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card-2)}
-    .datasetCard.active,
-    .projectCard.active{border-color:var(--brand);background:rgba(76,175,80,0.12)}
-    .projectCard.selected{border-color:var(--accent);background:rgba(119,167,255,0.15);}
-    .datasetMeta{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
-    .projectControls{margin:10px 0;gap:8px}
-    .projectControls .btn{font-size:13px}
-    .projectForm{margin-top:12px}
-    .formGrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin:12px 0}
-    .formGrid label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
-    .formGrid input,.formGrid textarea{padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card-2);color:var(--text)}
-    .formGrid textarea{min-height:72px;resize:vertical}
-    #coachConfigCard textarea{min-height:160px;font:12px/1.45 monospace;background:var(--card-2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px;resize:vertical}
-    #coachConfigCard textarea.short{min-height:90px}
-    .hidden{display:none !important}
-    .trainingSummary{margin-top:16px;display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
-    .trainingChecklist{margin:6px 0 0 18px;padding:0;list-style:disc}
-    .trainingChecklist li{margin-bottom:6px}
+        h1,
+        h2 {
+            margin: 0 0 .6rem 0;
+            font-weight: 600
+        }
 
-    /* ONNX modal */
-    #onnxModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999}
-    #onnxModal .panel{width:540px;max-width:94vw;margin:10vh auto;background:var(--card);
-      border:1px solid var(--line);border-radius:14px;padding:16px}
-    #onnxStatus{color:#9ad}
-    @media (max-width: 900px){ .grid.cols-2{grid-template-columns:1fr} }
-  </style>
+        h1 {
+            font-size: 1.35rem
+        }
+
+        h2 {
+            font-size: 1.15rem
+        }
+
+        .wrap {
+            max-width: 1200px;
+            margin: 18px auto;
+            padding: 0 16px
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: var(--card);
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 12px
+        }
+
+        .spacer {
+            flex: 1
+        }
+
+        .btn {
+            appearance: none;
+            border: 1px solid var(--line);
+            background: var(--chip);
+            color: var(--text);
+            padding: 8px 10px;
+            border-radius: 10px;
+            cursor: pointer
+        }
+
+        .btn:hover {
+            filter: brightness(1.12)
+        }
+
+        .btn.primary {
+            background: var(--brand);
+            border-color: transparent;
+            color: #fff
+        }
+
+        .btn.ghost {
+            background: transparent
+        }
+
+        select,
+        input[type="number"],
+        input[type="range"] {
+            background: var(--card-2);
+            color: var(--text);
+            border: 1px solid var(--line);
+            padding: 8px 10px;
+            border-radius: 10px
+        }
+
+        input[type="file"] {
+            display: none
+        }
+
+        .grid {
+            display: grid;
+            gap: 16px
+        }
+
+        .grid.cols-2 {
+            grid-template-columns: 2fr 1fr
+        }
+
+        /* 2/3 vs 1/3 */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px
+        }
+
+        .chip {
+            background: var(--chip);
+            border: 1px solid var(--line);
+            color: var(--text);
+            padding: 6px 10px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 13px
+        }
+
+        .chip.active {
+            background: var(--chip-active);
+            border-color: transparent
+        }
+
+        .muted {
+            color: var(--muted)
+        }
+
+        .small {
+            font-size: 12px
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse
+        }
+
+        .table th,
+        .table td {
+            padding: 8px 10px;
+            border-top: 1px solid var(--line);
+            text-align: left
+        }
+
+        .table th {
+            color: var(--muted);
+            font-weight: 500
+        }
+
+        code {
+            background: #0e1522;
+            border: 1px solid var(--line);
+            padding: 2px 6px;
+            border-radius: 6px
+        }
+
+        /* Canvas region */
+        #canvasWrap {
+            position: relative;
+            width: 100%;
+            max-width: 1024px;
+            margin: 0 auto;
+            aspect-ratio: 16/9
+        }
+
+        #gridCanvas,
+        #frameCanvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%
+        }
+
+        #gridCanvas {
+            pointer-events: none
+        }
+
+        /* Side nav arrows */
+        .navBtn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, .35);
+            border: 1px solid var(--line);
+            cursor: pointer;
+            user-select: none
+        }
+
+        .navBtn:hover {
+            background: rgba(0, 0, 0, .5)
+        }
+
+        #prevFrameBtn {
+            left: 8px
+        }
+
+        #nextFrameBtn {
+            right: 8px
+        }
+
+        /* Project switcher */
+        .projectNav {
+            display: flex;
+            gap: 10px;
+            margin: 12px 0 0;
+            padding: 0;
+            border-bottom: 1px solid var(--line)
+        }
+
+        .projectNav button {
+            background: transparent;
+            border: none;
+            padding: 10px 14px;
+            color: var(--muted);
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 3px solid transparent
+        }
+
+        .projectNav button.active {
+            color: var(--text);
+            border-bottom-color: var(--brand)
+        }
+
+        .projectPanels {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            margin-top: 12px;
+            padding: 14px
+        }
+
+        .projectPanel {
+            display: none
+        }
+
+        .projectPanel.active {
+            display: block
+        }
+
+        .datasetList,
+        .projectList,
+        .modelList {
+            display: grid;
+            gap: 10px
+        }
+
+        .datasetCard,
+        .projectCard,
+        .modelCard {
+            padding: 12px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--card-2)
+        }
+
+        .datasetCard.active,
+        .projectCard.active {
+            border-color: var(--brand);
+            background: rgba(76, 175, 80, 0.12)
+        }
+
+        .projectCard.selected {
+            border-color: var(--accent);
+            background: rgba(119, 167, 255, 0.15);
+        }
+
+        .datasetMeta {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-size: 12px;
+            color: var(--muted)
+        }
+
+        .projectControls {
+            margin: 10px 0;
+            gap: 8px
+        }
+
+        .projectControls .btn {
+            font-size: 13px
+        }
+
+        .projectForm {
+            margin-top: 12px
+        }
+
+        .formGrid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            margin: 12px 0
+        }
+
+        .formGrid label {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--muted)
+        }
+
+        .formGrid input,
+        .formGrid textarea {
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid var(--line);
+            background: var(--card-2);
+            color: var(--text)
+        }
+
+        .formGrid textarea {
+            min-height: 72px;
+            resize: vertical
+        }
+
+        #coachConfigCard textarea {
+            min-height: 160px;
+            font: 12px/1.45 monospace;
+            background: var(--card-2);
+            color: var(--text);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 10px;
+            resize: vertical
+        }
+
+        #coachConfigCard textarea.short {
+            min-height: 90px
+        }
+
+        .hidden {
+            display: none !important
+        }
+
+        .trainingSummary {
+            margin-top: 16px;
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))
+        }
+
+        .trainingChecklist {
+            margin: 6px 0 0 18px;
+            padding: 0;
+            list-style: disc
+        }
+
+        .trainingChecklist li {
+            margin-bottom: 6px
+        }
+
+        /* ONNX modal */
+        #onnxModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .6);
+            z-index: 9999
+        }
+
+        #onnxModal .panel {
+            width: 540px;
+            max-width: 94vw;
+            margin: 10vh auto;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 16px
+        }
+
+        #onnxStatus {
+            color: #9ad
+        }
+
+        @media (max-width: 900px) {
+            .grid.cols-2 {
+                grid-template-columns: 1fr
+            }
+        }
+    </style>
 </head>
+
 <body>
-  <div class="wrap">
-    <div class="row" style="margin-bottom:8px">
-      <h1>viason Frame Extractor + YOLO Labeler</h1>
-      <span class="small muted" style="margin-left:auto">dataset: <code id="activeDatasetTag">viason_seg</code></span>
-    </div>
-    <div class="projectNav" id="projectNavTabs">
-      <button type="button" class="active" data-project-view="training">Training Lab</button>
-      <button type="button" data-project-view="projects">Projects</button>
-      <button type="button" data-project-view="models">Models</button>
-    </div>
-
-    <div class="projectPanels" id="projectNavPanels">
-      <div class="projectPanel active" data-project-panel="training">
-        <h2 style="margin-top:0">Training Overview</h2>
-        <p class="small muted" id="datasetSummary">Select a dataset to prepare data, label frames, and monitor quality.</p>
-        <div class="datasetList" id="datasetList"></div>
-        <div class="card hidden" id="coachConfigCard">
-          <h3 style="margin-top:0">Coaching Metrics & Responses</h3>
-          <p class="small muted" id="coachConfigHelp">Adjust the coaching defaults, metric weights, and response rules for the active project.</p>
-          <div class="formGrid">
-            <label>Default Coaching Cue
-              <input type="text" id="coachDefaultCue" placeholder="Default spoken cue" autocomplete="off"/>
-            </label>
-            <label>Muted Message
-              <input type="text" id="coachMutedMessage" placeholder="Message shown when audio is muted" autocomplete="off"/>
-            </label>
-          </div>
-          <div class="formGrid">
-            <label>Metrics (JSON array)
-              <textarea id="coachMetricsJson" spellcheck="false"></textarea>
-            </label>
-            <label>Responses (JSON array)
-              <textarea id="coachResponsesJson" spellcheck="false"></textarea>
-            </label>
-          </div>
-          <div class="formGrid">
-            <label>Scoring (JSON object)
-              <textarea id="coachScoringJson" class="short" spellcheck="false"></textarea>
-            </label>
-          </div>
-          <div class="row">
-            <button class="btn primary" id="coachConfigSaveBtn">Save Coaching Config</button>
-            <button class="btn ghost" id="coachConfigResetBtn">Reset</button>
-            <span class="small muted" id="coachConfigStatus"></span>
-          </div>
-        </div>
-      </div>
-      <div class="projectPanel" data-project-panel="projects">
-        <h2 style="margin-top:0">Project Setup</h2>
-        <p class="small muted">Create or load a project to configure datasets, storage paths, and supporting modules.</p>
-        <div class="projectControls row">
-          <button class="btn" id="projectLoadBtn">Load Selected</button>
-          <button class="btn" id="projectNewBtn">New Project</button>
-          <button class="btn" id="projectManageBtn">Manage</button>
-        </div>
-        <div class="projectForm card hidden" id="projectFormWrap">
-          <h3 id="projectFormTitle" style="margin-top:0">New Project</h3>
-          <div class="formGrid">
-            <label>Project Slug
-              <input type="text" id="projectFormSlug" placeholder="e.g. golf" autocomplete="off" />
-            </label>
-            <label>Project Name
-              <input type="text" id="projectFormName" placeholder="Project name" />
-            </label>
-            <label>Project Description
-              <textarea id="projectFormDescription" placeholder="Short description"></textarea>
-            </label>
-            <label>Dataset Slug
-              <input type="text" id="projectFormDatasetSlug" placeholder="e.g. golf_pose" />
-            </label>
-            <label>Dataset Label
-              <input type="text" id="projectFormDatasetLabel" placeholder="Human-readable dataset name" />
-            </label>
-            <label>Dataset Root
-              <input type="text" id="projectFormDatasetRoot" placeholder="datasets/golf_pose" />
-            </label>
-            <label>Frame Cache Root
-              <input type="text" id="projectFormFrameCacheRoot" placeholder="frame_cache/golf" />
-            </label>
-            <label>Frames Root
-              <input type="text" id="projectFormFramesRoot" placeholder="frames/golf" />
-            </label>
-            <label>Label Train Root
-              <input type="text" id="projectFormLabelRoot" placeholder="datasets/golf_pose/labels/train" />
-            </label>
-            <label>Images Train Root
-              <input type="text" id="projectFormImagesRoot" placeholder="datasets/golf_pose/images/train" />
-            </label>
-            <label>Labels (comma separated)
-              <textarea id="projectFormLabels" placeholder="club, ball, player"></textarea>
-            </label>
-          </div>
-          <div class="row" style="gap:10px">
-            <button class="btn primary" id="projectFormSave">Save</button>
-            <button class="btn ghost" id="projectFormCancel">Cancel</button>
-          </div>
-          <div class="small muted" id="projectFormStatus"></div>
-        </div>
-        <div class="projectList" id="projectList"></div>
-      </div>
-      <div class="projectPanel" data-project-panel="models">
-        <h2 style="margin-top:0">Model Overview</h2>
-        <p class="small muted">Review the detectors aligned with this project before jumping into the model registry below.</p>
-        <div class="modelList" id="modelList"></div>
-      </div>
-    </div>
-
-
-    <div id="trainingWorkspace">
-    <!-- Toolbar -->
-    <div class="toolbar">
-      <label class="btn ghost" for="videoInput">Choose File</label>
-      <input type="file" id="videoInput" accept="video/*" />
-      <button class="btn" onclick="extractFrames()">Extract Frames</button>
-      <button class="btn" id="importImagesBtn">Import Images</button>
-      <input type="file" id="imageSetInput" accept="image/*" multiple webkitdirectory directory />
-
-      <select id="folderInput"></select>
-      <button class="btn" onclick="loadImages()">Load</button>
-
-      <div class="spacer"></div>
-
-      <!-- Keep top-level save/clear for quick access -->
-      <div class="row">
-        <button class="btn" onclick="saveLabels()">Save Save</button>
-        <button class="btn" onclick="clearBoxes()">Clear Clear</button>
-      </div>
-    </div>
-
-    <div class="grid trainingSummary">
-      <div class="card">
-        <h2 style="margin-top:0">Active Dataset</h2>
-        <div id="trainingDatasetInfo" class="small muted">Select a dataset to view its paths and labels.</div>
-      </div>
-      <div class="card">
-        <h2 style="margin-top:0">Workflow Checklist</h2>
-        <ul class="trainingChecklist small muted">
-          <li>Upload a new clip or pick an existing extraction folder.</li>
-          <li>Step through frames, label key objects, and save changes.</li>
-          <li>Promote fresh labels into the dataset when ready for training.</li>
-        </ul>
-      </div>
-      <div class="card">
-        <h2 style="margin-top:0">Dataset Health</h2>
-        <div id="trainingDatasetHealth" class="small muted">Label coverage and session stats will appear here.</div>
-      </div>
-    </div>
-
-    <!-- Controls & Canvas -->
-    <div class="grid cols-2" style="margin-top:16px">
-      <div class="card">
-        <h2>Labeling Tools</h2>
-
-        <!-- Sliders/rotate -->
-        <div class="row small" style="gap:14px; margin:6px 0 10px">
-          <label class="row"><input type="checkbox" id="gridToggle" checked /> <span class="muted">Show Grid</span></label>
-          <label>Size <span id="gridSizeValue" class="muted">10</span></label>
-          <input type="range" id="gridSizeSlider" min="5" max="100" step="5" value="10">
-          <span class="muted">   </span>
-          <label>Confidence <span id="confValue" class="muted">0.05</span></label>
-          <input type="range" id="confSlider" min="0.01" max="0.7" step="0.01" value="0.05">
-          <span class="muted">   </span>
-          <span>Rotate frame:</span>
-          <button class="btn" onclick="rotateFrame(90)">    +90  </button>
-          <button class="btn" onclick="rotateFrame(180)">    180  </button>
-          <button class="btn" onclick="rotateFrame(270)">    -90  </button>
-        </div>
-
-        <!-- File name + label count -->
+    <div class="wrap">
         <div class="row" style="margin-bottom:8px">
-          <div class="muted small" id="currentFrameInfo">-</div>
-          <div class="small" id="currentFrameStatus" style="margin-left:auto; color:#7adf8a">0 label(s)</div>
+            <h1>viasion Frame Extractor + YOLO Labeler</h1>
+            <span class="small muted" style="margin-left:auto">dataset: <code
+                    id="activeDatasetTag">viasion_seg</code></span>
+        </div>
+        <div class="projectNav" id="projectNavTabs">
+            <button type="button" class="active" data-project-view="training">Training Lab</button>
+            <button type="button" data-project-view="projects">Projects</button>
+            <button type="button" data-project-view="models">Models</button>
         </div>
 
-        <!-- Canvas with overlay nav buttons -->
-        <div id="canvasWrap">
-          <canvas id="gridCanvas" width="1280" height="720"></canvas>
-          <canvas id="frameCanvas" width="1280" height="720"></canvas>
-          <div id="prevFrameBtn" class="navBtn" title="Prev">&#10094;</div>
-          <div id="nextFrameBtn" class="navBtn" title="Next">&#10095;</div>
+        <div class="projectPanels" id="projectNavPanels">
+            <div class="projectPanel active" data-project-panel="training">
+                <h2 style="margin-top:0">Training Overview</h2>
+                <p class="small muted" id="datasetSummary">Select a dataset to prepare data, label frames, and monitor
+                    quality.</p>
+                <div class="datasetList" id="datasetList"></div>
+                <div class="card hidden" id="coachConfigCard">
+                    <h3 style="margin-top:0">Coaching Metrics & Responses</h3>
+                    <p class="small muted" id="coachConfigHelp">Adjust the coaching defaults, metric weights, and
+                        response rules for the active project.</p>
+                    <div class="formGrid">
+                        <label>Default Coaching Cue
+                            <input type="text" id="coachDefaultCue" placeholder="Default spoken cue"
+                                autocomplete="off" />
+                        </label>
+                        <label>Muted Message
+                            <input type="text" id="coachMutedMessage" placeholder="Message shown when audio is muted"
+                                autocomplete="off" />
+                        </label>
+                    </div>
+                    <div class="formGrid">
+                        <label>Metrics (JSON array)
+                            <textarea id="coachMetricsJson" spellcheck="false"></textarea>
+                        </label>
+                        <label>Responses (JSON array)
+                            <textarea id="coachResponsesJson" spellcheck="false"></textarea>
+                        </label>
+                    </div>
+                    <div class="formGrid">
+                        <label>Scoring (JSON object)
+                            <textarea id="coachScoringJson" class="short" spellcheck="false"></textarea>
+                        </label>
+                    </div>
+                    <div class="row">
+                        <button class="btn primary" id="coachConfigSaveBtn">Save Coaching Config</button>
+                        <button class="btn ghost" id="coachConfigResetBtn">Reset</button>
+                        <span class="small muted" id="coachConfigStatus"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="projectPanel" data-project-panel="projects">
+                <h2 style="margin-top:0">Project Setup</h2>
+                <p class="small muted">Create or load a project to configure datasets, storage paths, and supporting
+                    modules.</p>
+                <div class="projectControls row">
+                    <button class="btn" id="projectLoadBtn">Load Selected</button>
+                    <button class="btn" id="projectNewBtn">New Project</button>
+                    <button class="btn" id="projectManageBtn">Manage</button>
+                </div>
+                <div class="projectForm card hidden" id="projectFormWrap">
+                    <h3 id="projectFormTitle" style="margin-top:0">New Project</h3>
+                    <div class="formGrid">
+                        <label>Project Slug
+                            <input type="text" id="projectFormSlug" placeholder="e.g. golf" autocomplete="off" />
+                        </label>
+                        <label>Project Name
+                            <input type="text" id="projectFormName" placeholder="Project name" />
+                        </label>
+                        <label>Project Description
+                            <textarea id="projectFormDescription" placeholder="Short description"></textarea>
+                        </label>
+                        <label>Dataset Slug
+                            <input type="text" id="projectFormDatasetSlug" placeholder="e.g. golf_pose" />
+                        </label>
+                        <label>Dataset Label
+                            <input type="text" id="projectFormDatasetLabel" placeholder="Human-readable dataset name" />
+                        </label>
+                        <label>Dataset Root
+                            <input type="text" id="projectFormDatasetRoot" placeholder="datasets/golf_pose" />
+                        </label>
+                        <label>Frame Cache Root
+                            <input type="text" id="projectFormFrameCacheRoot" placeholder="frame_cache/golf" />
+                        </label>
+                        <label>Frames Root
+                            <input type="text" id="projectFormFramesRoot" placeholder="frames/golf" />
+                        </label>
+                        <label>Label Train Root
+                            <input type="text" id="projectFormLabelRoot"
+                                placeholder="datasets/golf_pose/labels/train" />
+                        </label>
+                        <label>Images Train Root
+                            <input type="text" id="projectFormImagesRoot"
+                                placeholder="datasets/golf_pose/images/train" />
+                        </label>
+                        <label>Labels (comma separated)
+                            <textarea id="projectFormLabels" placeholder="club, ball, player"></textarea>
+                        </label>
+                    </div>
+                    <div class="row" style="gap:10px">
+                        <button class="btn primary" id="projectFormSave">Save</button>
+                        <button class="btn ghost" id="projectFormCancel">Cancel</button>
+                    </div>
+                    <div class="small muted" id="projectFormStatus"></div>
+                </div>
+                <div class="projectList" id="projectList"></div>
+            </div>
+            <div class="projectPanel" data-project-panel="models">
+                <h2 style="margin-top:0">Model Overview</h2>
+                <p class="small muted">Review the detectors aligned with this project before jumping into the model
+                    registry below.</p>
+                <div class="modelList" id="modelList"></div>
+            </div>
         </div>
 
-        <!-- Choose label + Auto-detect + Eraser -->
-        <div class="row" style="margin-top:12px">
-          <span class="muted">Choose label:</span>
-          <div id="categories" class="chips"></div>
-          <button id="eraserBtn" class="btn" style="margin-left:auto">Eraser Erase One</button>
-          <button class="btn" onclick="autoDetectCurrent()">Auto-Detect</button>
-          <button class="btn" onclick="autoDetectOpenAI()">OpenAI Detect</button>
-          <button id="resetIgnoreBtn" class="btn ghost">Reset ignore</button>
-        </div>
-      </div>
 
-      <div class="card">
-        <h2>Label Data Label Data</h2>
-        <table class="table" id="labelTable">
-          <thead>
-            <tr><th>Label</th><th>X</th><th>Y</th><th>W</th><th>H</th><th>Source</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
+        <div id="trainingWorkspace">
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <label class="btn ghost" for="videoInput">Choose File</label>
+                <input type="file" id="videoInput" accept="video/*" />
+                <button class="btn" onclick="extractFrames()">Extract Frames</button>
+                <button class="btn" id="importImagesBtn">Import Images</button>
+                <input type="file" id="imageSetInput" accept="image/*" multiple webkitdirectory directory />
+
+                <select id="folderInput"></select>
+                <button class="btn" onclick="loadImages()">Load</button>
+
+                <div class="spacer"></div>
+
+                <!-- Keep top-level save/clear for quick access -->
+                <div class="row">
+                    <button class="btn" onclick="saveLabels()">Save Save</button>
+                    <button class="btn" onclick="clearBoxes()">Clear Clear</button>
+                </div>
+            </div>
+
+            <div class="grid trainingSummary">
+                <div class="card">
+                    <h2 style="margin-top:0">Active Dataset</h2>
+                    <div id="trainingDatasetInfo" class="small muted">Select a dataset to view its paths and labels.
+                    </div>
+                </div>
+                <div class="card">
+                    <h2 style="margin-top:0">Workflow Checklist</h2>
+                    <ul class="trainingChecklist small muted">
+                        <li>Upload a new clip or pick an existing extraction folder.</li>
+                        <li>Step through frames, label key objects, and save changes.</li>
+                        <li>Promote fresh labels into the dataset when ready for training.</li>
+                    </ul>
+                </div>
+                <div class="card">
+                    <h2 style="margin-top:0">Dataset Health</h2>
+                    <div id="trainingDatasetHealth" class="small muted">Label coverage and session stats will appear
+                        here.</div>
+                </div>
+            </div>
+
+            <!-- Controls & Canvas -->
+            <div class="grid cols-2" style="margin-top:16px">
+                <div class="card">
+                    <h2>Labeling Tools</h2>
+
+                    <!-- Sliders/rotate -->
+                    <div class="row small" style="gap:14px; margin:6px 0 10px">
+                        <label class="row"><input type="checkbox" id="gridToggle" checked /> <span class="muted">Show
+                                Grid</span></label>
+                        <label>Size <span id="gridSizeValue" class="muted">10</span></label>
+                        <input type="range" id="gridSizeSlider" min="5" max="100" step="5" value="10">
+                        <span class="muted"> </span>
+                        <label>Confidence <span id="confValue" class="muted">0.05</span></label>
+                        <input type="range" id="confSlider" min="0.01" max="0.7" step="0.01" value="0.05">
+                        <span class="muted"> </span>
+                        <span>Rotate frame:</span>
+                        <button class="btn" onclick="rotateFrame(90)"> +90 </button>
+                        <button class="btn" onclick="rotateFrame(180)"> 180 </button>
+                        <button class="btn" onclick="rotateFrame(270)"> -90 </button>
+                    </div>
+
+                    <!-- File name + label count -->
+                    <div class="row" style="margin-bottom:8px">
+                        <div class="muted small" id="currentFrameInfo">-</div>
+                        <div class="small" id="currentFrameStatus" style="margin-left:auto; color:#7adf8a">0 label(s)
+                        </div>
+                    </div>
+
+                    <!-- Canvas with overlay nav buttons -->
+                    <div id="canvasWrap">
+                        <canvas id="gridCanvas" width="1280" height="720"></canvas>
+                        <canvas id="frameCanvas" width="1280" height="720"></canvas>
+                        <div id="prevFrameBtn" class="navBtn" title="Prev">&#10094;</div>
+                        <div id="nextFrameBtn" class="navBtn" title="Next">&#10095;</div>
+                    </div>
+
+                    <!-- Choose label + Auto-detect + Eraser -->
+                    <div class="row" style="margin-top:12px">
+                        <span class="muted">Choose label:</span>
+                        <div id="categories" class="chips"></div>
+                        <button id="eraserBtn" class="btn" style="margin-left:auto">Eraser Erase One</button>
+                        <button class="btn" onclick="autoDetectCurrent()">Auto-Detect</button>
+                        <button class="btn" onclick="autoDetectOpenAI()">OpenAI Detect</button>
+                        <button id="resetIgnoreBtn" class="btn ghost">Reset ignore</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>Label Data Label Data</h2>
+                    <table class="table" id="labelTable">
+                        <thead>
+                            <tr>
+                                <th>Label</th>
+                                <th>X</th>
+                                <th>Y</th>
+                                <th>W</th>
+                                <th>H</th>
+                                <th>Source</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="modelWorkspace" class="hidden">
+            <!-- Train -->
+            <div class="card" style="margin-top:16px">
+                <div class="row">
+                    <h2>Model Training</h2>
+                    <button id="trainBtn" class="btn primary" style="margin-left:auto" onclick="startTraining()">Commit
+                        Training</button>
+                </div>
+                <div class="grid cols-2" style="gap:12px; margin-top:12px">
+                    <label class="small muted">Epochs
+                        <input type="number" id="trainEpochs" value="120" min="1" max="500" step="1"
+                            style="margin-top:4px">
+                    </label>
+                    <label class="small muted">Batch size
+                        <input type="number" id="trainBatch" value="16" min="1" max="64" step="1"
+                            style="margin-top:4px">
+                    </label>
+                    <label class="small muted">Image size
+                        <input type="number" id="trainImgSize" value="640" min="320" max="1280" step="32"
+                            style="margin-top:4px">
+                    </label>
+                    <label class="small muted">Val ratio (0-0.5)
+                        <input type="number" id="trainValRatio" value="0.1" min="0.0" max="0.5" step="0.01"
+                            style="margin-top:4px">
+                    </label>
+                </div>
+                <div id="trainSummary" class="small muted" style="margin-top:10px">Dataset summary unavailable.</div>
+                <div id="trainMonitor" style="display:none; margin-top:12px">
+                    <div class="grid cols-2">
+                        <table class="table">
+                            <tbody id="trainRows">
+                                <tr>
+                                    <th style="width:180px">Run</th>
+                                    <td id="t_run" class="muted">-</td>
+                                </tr>
+                                <tr>
+                                    <th>Epoch</th>
+                                    <td><span id="t_epoch">0</span>/<span id="t_epochs">0</span></td>
+                                </tr>
+                                <tr>
+                                    <th>Loss (train/val)</th>
+                                    <td id="t_loss" class="muted">-</td>
+                                </tr>
+                                <tr>
+                                    <th>mAP@50 / @50-95</th>
+                                    <td id="t_map" class="muted">-</td>
+                                </tr>
+                                <tr>
+                                    <th>ETA</th>
+                                    <td id="t_eta" class="muted">-</td>
+                                </tr>
+                                <tr>
+                                    <th>Last log</th>
+                                    <td id="t_log" class="muted">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div>
+                            <progress id="t_progress" value="0" max="1" style="width:100%; height:10px"></progress>
+                            <img id="trainPlot" alt="training results"
+                                style="display:none; margin-top:12px; max-width:100%; border:1px solid var(--line); border-radius:8px" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Latest models + ONNX -->
+            <div class="card" style="margin-top:16px">
+                <div class="row">
+                    <h2>Model Registry</h2>
+                    <button id="refreshModelsBtn" class="btn" style="margin-left:auto">Refresh</button>
+                </div>
+                <div id="modelsStatus" class="muted small" style="margin:6px 0">-</div>
+                <table class="table" id="modelTable">
+                    <thead>
+                        <tr>
+                            <th>Run</th>
+                            <th>Modified</th>
+                            <th>best.pt</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <div class="row" style="margin-top:10px">
+                    <button id="onnxExportBtn" class="btn">Export ONNX</button>
+                </div>
+            </div>
+        </div> <!-- /modelWorkspace -->
     </div>
+
+    <!-- ONNX modal -->
+    <div id="onnxModal">
+        <div class="panel">
+            <h3>Export ONNX</h3>
+            <p class="muted small" style="margin:.25rem 0 .6rem">Pick a trained weight and export to ONNX for the
+                in-browser detector.</p>
+
+            <label class="small muted">Trained weight (best.pt)</label>
+            <select id="ptSelect" style="width:100%; margin:6px 0 8px"></select>
+
+            <div class="grid cols-2">
+                <div>
+                    <label class="small muted">imgsz</label>
+                    <input id="imgszInput" type="number" value="640" min="320" step="32" style="width:100%">
+                </div>
+                <div>
+                    <label class="small muted">opset</label>
+                    <input id="opsetInput" type="number" value="17" min="12" max="20" style="width:100%">
+                </div>
+            </div>
+
+            <div class="grid cols-2" style="margin-top:8px">
+                <div>
+                    <label class="small muted">profile</label>
+                    <select id="profileSelect" style="width:100%">
+                        <option value="basketball" selected>basketball</option>
+                        <option value="golf">golf</option>
+                        <option value="tennis">tennis</option>
+                        <option value="baseball">baseball</option>
+                        <option value="hockey">hockey</option>
+                        <option value="football">football</option>
+                        <option value="rugby">rugby</option>
+                        <option value="cricket">cricket</option>
+                        <option value="tabletennis">tabletennis</option>
+                        <option value="badminton">badminton</option>
+                    </select>
+                </div>
+                <label class="row" style="align-items:flex-end; gap:8px">
+                    <input id="activateChk" type="checkbox" checked> <span class="small">Activate after export</span>
+                </label>
+            </div>
+
+            <div id="onnxStatus" class="small" style="margin-top:10px">Ready.</div>
+            <div class="row" style="justify-content:flex-end; gap:8px; margin-top:12px">
+                <button id="onnxCancel" class="btn">Cancel</button>
+                <button id="onnxDoExport" class="btn primary">Export</button>
+            </div>
+        </div>
     </div>
 
-    <div id="modelWorkspace" class="hidden">
-    <!-- Train -->
-    <div class="card" style="margin-top:16px">
-      <div class="row">
-        <h2>Model Training</h2>
-        <button id="trainBtn" class="btn primary" style="margin-left:auto" onclick="startTraining()">Commit Training</button>
-      </div>
-      <div class="grid cols-2" style="gap:12px; margin-top:12px">
-        <label class="small muted">Epochs
-          <input type="number" id="trainEpochs" value="120" min="1" max="500" step="1" style="margin-top:4px">
-        </label>
-        <label class="small muted">Batch size
-          <input type="number" id="trainBatch" value="16" min="1" max="64" step="1" style="margin-top:4px">
-        </label>
-        <label class="small muted">Image size
-          <input type="number" id="trainImgSize" value="640" min="320" max="1280" step="32" style="margin-top:4px">
-        </label>
-        <label class="small muted">Val ratio (0-0.5)
-          <input type="number" id="trainValRatio" value="0.1" min="0.0" max="0.5" step="0.01" style="margin-top:4px">
-        </label>
-      </div>
-      <div id="trainSummary" class="small muted" style="margin-top:10px">Dataset summary unavailable.</div>
-      <div id="trainMonitor" style="display:none; margin-top:12px">
-        <div class="grid cols-2">
-          <table class="table">
-            <tbody id="trainRows">
-              <tr><th style="width:180px">Run</th><td id="t_run" class="muted">-</td></tr>
-              <tr><th>Epoch</th><td><span id="t_epoch">0</span>/<span id="t_epochs">0</span></td></tr>
-              <tr><th>Loss (train/val)</th><td id="t_loss" class="muted">-</td></tr>
-              <tr><th>mAP@50 / @50-95</th><td id="t_map" class="muted">-</td></tr>
-              <tr><th>ETA</th><td id="t_eta" class="muted">-</td></tr>
-              <tr><th>Last log</th><td id="t_log" class="muted">-</td></tr>
-            </tbody>
-          </table>
-          <div>
-            <progress id="t_progress" value="0" max="1" style="width:100%; height:10px"></progress>
-            <img id="trainPlot" alt="training results" style="display:none; margin-top:12px; max-width:100%; border:1px solid var(--line); border-radius:8px"/>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- ===== Script ===== -->
+    <script>
 
-    <!-- Latest models + ONNX -->
-    <div class="card" style="margin-top:16px">
-      <div class="row">
-        <h2>Model Registry</h2>
-        <button id="refreshModelsBtn" class="btn" style="margin-left:auto">Refresh</button>
-      </div>
-      <div id="modelsStatus" class="muted small" style="margin:6px 0">-</div>
-      <table class="table" id="modelTable">
-        <thead><tr><th>Run</th><th>Modified</th><th>best.pt</th><th>Actions</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="row" style="margin-top:10px">
-        <button id="onnxExportBtn" class="btn">Export ONNX</button>
-      </div>
-    </div>
-    </div> <!-- /modelWorkspace -->
-  </div>
+        // ----- Project navigation & manifest integration -----
+        const _projectTabs = Array.from(document.querySelectorAll('[data-project-view]'));
+        const _projectPanels = Array.from(document.querySelectorAll('[data-project-panel]'));
+        const datasetListEl = document.getElementById('datasetList');
+        const projectListEl = document.getElementById('projectList');
+        const modelListEl = document.getElementById('modelList');
+        const datasetSummaryEl = document.getElementById('datasetSummary');
+        const activeDatasetTag = document.getElementById('activeDatasetTag');
+        const trainingWorkspace = document.getElementById('trainingWorkspace');
+        const modelWorkspace = document.getElementById('modelWorkspace');
+        const coachConfigCard = document.getElementById('coachConfigCard');
+        const coachDefaultCueInput = document.getElementById('coachDefaultCue');
+        const coachMutedMessageInput = document.getElementById('coachMutedMessage');
+        const coachMetricsTextarea = document.getElementById('coachMetricsJson');
+        const coachResponsesTextarea = document.getElementById('coachResponsesJson');
+        const coachScoringTextarea = document.getElementById('coachScoringJson');
+        const coachConfigStatus = document.getElementById('coachConfigStatus');
+        const coachConfigSaveBtn = document.getElementById('coachConfigSaveBtn');
+        const coachConfigResetBtn = document.getElementById('coachConfigResetBtn');
+        const trainingDatasetInfo = document.getElementById('trainingDatasetInfo');
+        const trainingDatasetHealth = document.getElementById('trainingDatasetHealth');
+        const importImagesBtn = document.getElementById('importImagesBtn');
+        const imageSetInput = document.getElementById('imageSetInput');
+        const trainEpochInput = document.getElementById('trainEpochs');
+        const trainBatchInput = document.getElementById('trainBatch');
+        const trainImgSizeInput = document.getElementById('trainImgSize');
+        const trainValInput = document.getElementById('trainValRatio');
+        const trainSummaryEl = document.getElementById('trainSummary');
 
-  <!-- ONNX modal -->
-  <div id="onnxModal">
-    <div class="panel">
-      <h3>Export ONNX</h3>
-      <p class="muted small" style="margin:.25rem 0 .6rem">Pick a trained weight and export to ONNX for the in-browser detector.</p>
+        const projectLoadBtn = document.getElementById('projectLoadBtn');
+        const projectNewBtn = document.getElementById('projectNewBtn');
+        const projectManageBtn = document.getElementById('projectManageBtn');
+        const projectFormWrap = document.getElementById('projectFormWrap');
+        const projectFormTitle = document.getElementById('projectFormTitle');
+        const projectFormStatus = document.getElementById('projectFormStatus');
+        const projectFormSave = document.getElementById('projectFormSave');
+        const projectFormCancel = document.getElementById('projectFormCancel');
+        const formFields = {
+            slug: document.getElementById('projectFormSlug'),
+            name: document.getElementById('projectFormName'),
+            description: document.getElementById('projectFormDescription'),
+            datasetSlug: document.getElementById('projectFormDatasetSlug'),
+            datasetLabel: document.getElementById('projectFormDatasetLabel'),
+            datasetRoot: document.getElementById('projectFormDatasetRoot'),
+            frameCacheRoot: document.getElementById('projectFormFrameCacheRoot'),
+            framesRoot: document.getElementById('projectFormFramesRoot'),
+            labelTrainRoot: document.getElementById('projectFormLabelRoot'),
+            imagesTrainRoot: document.getElementById('projectFormImagesRoot'),
+            labels: document.getElementById('projectFormLabels')
+        };
 
-      <label class="small muted">Trained weight (best.pt)</label>
-      <select id="ptSelect" style="width:100%; margin:6px 0 8px"></select>
+        let activeDatasetSlug = null;
+        let selectedProjectSlug = null;
+        let formMode = null;
+        let currentProjectMeta = null;
+        let currentDatasetSummary = null;
 
-      <div class="grid cols-2">
-        <div>
-          <label class="small muted">imgsz</label>
-          <input id="imgszInput" type="number" value="640" min="320" step="32" style="width:100%">
-        </div>
-        <div>
-          <label class="small muted">opset</label>
-          <input id="opsetInput" type="number" value="17" min="12" max="20" style="width:100%">
-        </div>
-      </div>
-
-      <div class="grid cols-2" style="margin-top:8px">
-        <div>
-          <label class="small muted">profile</label>
-          <select id="profileSelect" style="width:100%">
-            <option value="basketball" selected>basketball</option>
-            <option value="golf">golf</option><option value="tennis">tennis</option>
-            <option value="baseball">baseball</option><option value="hockey">hockey</option>
-            <option value="football">football</option><option value="rugby">rugby</option>
-            <option value="cricket">cricket</option><option value="tabletennis">tabletennis</option>
-            <option value="badminton">badminton</option>
-          </select>
-        </div>
-        <label class="row" style="align-items:flex-end; gap:8px">
-          <input id="activateChk" type="checkbox" checked> <span class="small">Activate after export</span>
-        </label>
-      </div>
-
-      <div id="onnxStatus" class="small" style="margin-top:10px">Ready.</div>
-      <div class="row" style="justify-content:flex-end; gap:8px; margin-top:12px">
-        <button id="onnxCancel" class="btn">Cancel</button>
-        <button id="onnxDoExport" class="btn primary">Export</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== Script ===== -->
-  <script>
-
-    // ----- Project navigation & manifest integration -----
-    const _projectTabs = Array.from(document.querySelectorAll('[data-project-view]'));
-    const _projectPanels = Array.from(document.querySelectorAll('[data-project-panel]'));
-const datasetListEl = document.getElementById('datasetList');
-    const projectListEl = document.getElementById('projectList');
-    const modelListEl = document.getElementById('modelList');
-    const datasetSummaryEl = document.getElementById('datasetSummary');
-    const activeDatasetTag = document.getElementById('activeDatasetTag');
-    const trainingWorkspace = document.getElementById('trainingWorkspace');
-    const modelWorkspace = document.getElementById('modelWorkspace');
-    const coachConfigCard = document.getElementById('coachConfigCard');
-    const coachDefaultCueInput = document.getElementById('coachDefaultCue');
-    const coachMutedMessageInput = document.getElementById('coachMutedMessage');
-    const coachMetricsTextarea = document.getElementById('coachMetricsJson');
-    const coachResponsesTextarea = document.getElementById('coachResponsesJson');
-    const coachScoringTextarea = document.getElementById('coachScoringJson');
-    const coachConfigStatus = document.getElementById('coachConfigStatus');
-    const coachConfigSaveBtn = document.getElementById('coachConfigSaveBtn');
-    const coachConfigResetBtn = document.getElementById('coachConfigResetBtn');
-    const trainingDatasetInfo = document.getElementById('trainingDatasetInfo');
-    const trainingDatasetHealth = document.getElementById('trainingDatasetHealth');
-    const importImagesBtn = document.getElementById('importImagesBtn');
-    const imageSetInput = document.getElementById('imageSetInput');
-    const trainEpochInput = document.getElementById('trainEpochs');
-    const trainBatchInput = document.getElementById('trainBatch');
-    const trainImgSizeInput = document.getElementById('trainImgSize');
-    const trainValInput = document.getElementById('trainValRatio');
-    const trainSummaryEl = document.getElementById('trainSummary');
-
-    const projectLoadBtn = document.getElementById('projectLoadBtn');
-    const projectNewBtn = document.getElementById('projectNewBtn');
-    const projectManageBtn = document.getElementById('projectManageBtn');
-    const projectFormWrap = document.getElementById('projectFormWrap');
-    const projectFormTitle = document.getElementById('projectFormTitle');
-    const projectFormStatus = document.getElementById('projectFormStatus');
-    const projectFormSave = document.getElementById('projectFormSave');
-    const projectFormCancel = document.getElementById('projectFormCancel');
-    const formFields = {
-      slug: document.getElementById('projectFormSlug'),
-      name: document.getElementById('projectFormName'),
-      description: document.getElementById('projectFormDescription'),
-      datasetSlug: document.getElementById('projectFormDatasetSlug'),
-      datasetLabel: document.getElementById('projectFormDatasetLabel'),
-      datasetRoot: document.getElementById('projectFormDatasetRoot'),
-      frameCacheRoot: document.getElementById('projectFormFrameCacheRoot'),
-      framesRoot: document.getElementById('projectFormFramesRoot'),
-      labelTrainRoot: document.getElementById('projectFormLabelRoot'),
-      imagesTrainRoot: document.getElementById('projectFormImagesRoot'),
-      labels: document.getElementById('projectFormLabels')
-    };
-
-let activeDatasetSlug = null;
-let selectedProjectSlug = null;
-let formMode = null;
-let currentProjectMeta = null;
-let currentDatasetSummary = null;
-
-    function getActiveDatasetSlug() {
-        const slug = activeDatasetSlug || window.__viasionActiveDataset?.slug || null;
-        return slug || null;
-    }
-
-    function withDataset(url) {
-        const slug = getActiveDatasetSlug();
-        if (!slug) return url;
-        const sep = url.includes('?') ? '&' : '?';
-        return url + sep + 'dataset=' + encodeURIComponent(slug);
-    }
-
-    function datasetBody(extra = {}) {
-        const slug = getActiveDatasetSlug();
-        return slug ? { ...extra, dataset: slug } : extra;
-    }
-
-    function setProjectView(view) {
-        if (!view) view = 'training';
-        _projectTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.projectView === view));
-        _projectPanels.forEach(panel => panel.classList.toggle('active', panel.dataset.projectPanel === view));
-        if (trainingWorkspace) trainingWorkspace.classList.toggle('hidden', view !== 'training');
-        if (modelWorkspace) modelWorkspace.classList.toggle('hidden', view !== 'models');
-        if (view === 'models') {
-            try { refreshModelTable(); } catch {}
+        function getActiveDatasetSlug() {
+            const slug = activeDatasetSlug || window.__viasionActiveDataset?.slug || null;
+            return slug || null;
         }
-    }
 
-    _projectTabs.forEach(btn => btn.addEventListener('click', () => setProjectView(btn.dataset.projectView)));
+        function withDataset(url) {
+            const slug = getActiveDatasetSlug();
+            if (!slug) return url;
+            const sep = url.includes('?') ? '&' : '?';
+            return url + sep + 'dataset=' + encodeURIComponent(slug);
+        }
 
-    const projectManager = window.viasonProjectManager;
+        function datasetBody(extra = {}) {
+            const slug = getActiveDatasetSlug();
+            return slug ? { ...extra, dataset: slug } : extra;
+        }
 
-    function renderProjectList() {
-        projectListEl.innerHTML = '';
-        if (!projectManager) {
-            projectListEl.innerHTML = '<div class="small muted">Project manager unavailable.</div>';
-            return;
+        function setProjectView(view) {
+            if (!view) view = 'training';
+            _projectTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.projectView === view));
+            _projectPanels.forEach(panel => panel.classList.toggle('active', panel.dataset.projectPanel === view));
+            if (trainingWorkspace) trainingWorkspace.classList.toggle('hidden', view !== 'training');
+            if (modelWorkspace) modelWorkspace.classList.toggle('hidden', view !== 'models');
+            if (view === 'models') {
+                try { refreshModelTable(); } catch { }
+            }
         }
-        const projects = projectManager.listProjects();
-        if (!projects.length) {
-            projectListEl.innerHTML = '<div class="small muted">No projects configured.</div>';
-            return;
-        }
-        const activeSlug = (projectManager.getActiveProject() || {}).slug;
-        if (!selectedProjectSlug || !projects.some(p => p.slug === selectedProjectSlug)) {
-            selectedProjectSlug = activeSlug || (projects[0]?.slug ?? null);
-        }
-        projects.forEach(project => {
-            const isActive = project.slug === activeSlug;
-            const isSelected = project.slug === selectedProjectSlug;
-            const datasets = project.datasets || [];
-            const datasetSummaryHtml = datasets.length
-                ? datasets.map(ds => {
-                    const title = ds.label || ds.slug;
-                    const detector = ds.detector ? `<span class="muted">Detector: ${ds.detector}</span>` : '<span class="muted">Detector: default</span>';
-                    return `<div style="margin-bottom:6px"><strong>${title}</strong> <span class="muted">(${ds.slug})</span><br>${detector}</div>`;
-                }).join('')
-                : '<div class="small muted">No datasets linked.</div>';
-            const card = document.createElement('div');
-            card.className = 'projectCard' + (isActive ? ' active' : '') + (isSelected ? ' selected' : '');
-            card.innerHTML = `
+
+        _projectTabs.forEach(btn => btn.addEventListener('click', () => setProjectView(btn.dataset.projectView)));
+
+        const projectManager = window.viasionProjectManager;
+
+        function renderProjectList() {
+            projectListEl.innerHTML = '';
+            if (!projectManager) {
+                projectListEl.innerHTML = '<div class="small muted">Project manager unavailable.</div>';
+                return;
+            }
+            const projects = projectManager.listProjects();
+            if (!projects.length) {
+                projectListEl.innerHTML = '<div class="small muted">No projects configured.</div>';
+                return;
+            }
+            const activeSlug = (projectManager.getActiveProject() || {}).slug;
+            if (!selectedProjectSlug || !projects.some(p => p.slug === selectedProjectSlug)) {
+                selectedProjectSlug = activeSlug || (projects[0]?.slug ?? null);
+            }
+            projects.forEach(project => {
+                const isActive = project.slug === activeSlug;
+                const isSelected = project.slug === selectedProjectSlug;
+                const datasets = project.datasets || [];
+                const datasetSummaryHtml = datasets.length
+                    ? datasets.map(ds => {
+                        const title = ds.label || ds.slug;
+                        const detector = ds.detector ? `<span class="muted">Detector: ${ds.detector}</span>` : '<span class="muted">Detector: default</span>';
+                        return `<div style="margin-bottom:6px"><strong>${title}</strong> <span class="muted">(${ds.slug})</span><br>${detector}</div>`;
+                    }).join('')
+                    : '<div class="small muted">No datasets linked.</div>';
+                const card = document.createElement('div');
+                card.className = 'projectCard' + (isActive ? ' active' : '') + (isSelected ? ' selected' : '');
+                card.innerHTML = `
                 <div class="row" style="justify-content:space-between;align-items:flex-start">
                     <div>
                         <strong>${project.name || project.slug}</strong>
@@ -537,164 +921,164 @@ let currentDatasetSummary = null;
                 <div class="small muted" style="margin-top:10px">Datasets & detectors</div>
                 <div class="small" style="margin-top:4px">${datasetSummaryHtml}</div>
             `;
-            card.addEventListener('click', () => {
-                selectedProjectSlug = project.slug;
-                renderProjectList();
+                card.addEventListener('click', () => {
+                    selectedProjectSlug = project.slug;
+                    renderProjectList();
+                });
+                projectListEl.appendChild(card);
             });
-            projectListEl.appendChild(card);
-        });
-    }
+        }
 
-    function renderCoachingPanel(project) {
-        currentProjectMeta = project || null;
-        if (!coachConfigCard) return;
-        if (!project || !project.slug) {
-            coachConfigCard.classList.add('hidden');
-            if (coachDefaultCueInput) coachDefaultCueInput.value = '';
-            if (coachMutedMessageInput) coachMutedMessageInput.value = '';
-            if (coachMetricsTextarea) coachMetricsTextarea.value = '[]';
-            if (coachResponsesTextarea) coachResponsesTextarea.value = '[]';
-            if (coachScoringTextarea) coachScoringTextarea.value = '{}';
-            if (coachConfigStatus) coachConfigStatus.textContent = 'Select a project to edit coaching config.';
-            if (coachConfigSaveBtn) coachConfigSaveBtn.disabled = true;
-            if (coachConfigResetBtn) coachConfigResetBtn.disabled = true;
-            return;
+        function renderCoachingPanel(project) {
+            currentProjectMeta = project || null;
+            if (!coachConfigCard) return;
+            if (!project || !project.slug) {
+                coachConfigCard.classList.add('hidden');
+                if (coachDefaultCueInput) coachDefaultCueInput.value = '';
+                if (coachMutedMessageInput) coachMutedMessageInput.value = '';
+                if (coachMetricsTextarea) coachMetricsTextarea.value = '[]';
+                if (coachResponsesTextarea) coachResponsesTextarea.value = '[]';
+                if (coachScoringTextarea) coachScoringTextarea.value = '{}';
+                if (coachConfigStatus) coachConfigStatus.textContent = 'Select a project to edit coaching config.';
+                if (coachConfigSaveBtn) coachConfigSaveBtn.disabled = true;
+                if (coachConfigResetBtn) coachConfigResetBtn.disabled = true;
+                return;
+            }
+            coachConfigCard.classList.remove('hidden');
+            const workflow = project.workflow || {};
+            const analysis = project.analysis || {};
+            if (coachDefaultCueInput) coachDefaultCueInput.value = workflow.defaultCoachingCue || '';
+            if (coachMutedMessageInput) coachMutedMessageInput.value = workflow.mutedMessage || '';
+            if (coachMetricsTextarea) {
+                const metrics = Array.isArray(analysis.metrics) ? analysis.metrics : [];
+                coachMetricsTextarea.value = JSON.stringify(metrics, null, 2);
+            }
+            if (coachResponsesTextarea) {
+                const responses = Array.isArray(analysis.responses) ? analysis.responses : [];
+                coachResponsesTextarea.value = JSON.stringify(responses, null, 2);
+            }
+            if (coachScoringTextarea) {
+                const scoring = analysis.scoring || { enabled: false };
+                coachScoringTextarea.value = JSON.stringify(scoring, null, 2);
+            }
+            if (coachConfigStatus) coachConfigStatus.textContent = '';
+            if (coachConfigSaveBtn) coachConfigSaveBtn.disabled = false;
+            if (coachConfigResetBtn) coachConfigResetBtn.disabled = false;
         }
-        coachConfigCard.classList.remove('hidden');
-        const workflow = project.workflow || {};
-        const analysis = project.analysis || {};
-        if (coachDefaultCueInput) coachDefaultCueInput.value = workflow.defaultCoachingCue || '';
-        if (coachMutedMessageInput) coachMutedMessageInput.value = workflow.mutedMessage || '';
-        if (coachMetricsTextarea) {
-            const metrics = Array.isArray(analysis.metrics) ? analysis.metrics : [];
-            coachMetricsTextarea.value = JSON.stringify(metrics, null, 2);
-        }
-        if (coachResponsesTextarea) {
-            const responses = Array.isArray(analysis.responses) ? analysis.responses : [];
-            coachResponsesTextarea.value = JSON.stringify(responses, null, 2);
-        }
-        if (coachScoringTextarea) {
-            const scoring = analysis.scoring || { enabled: false };
-            coachScoringTextarea.value = JSON.stringify(scoring, null, 2);
-        }
-        if (coachConfigStatus) coachConfigStatus.textContent = '';
-        if (coachConfigSaveBtn) coachConfigSaveBtn.disabled = false;
-        if (coachConfigResetBtn) coachConfigResetBtn.disabled = false;
-    }
 
-    function renderDatasetList(project) {
-        datasetListEl.innerHTML = '';
-        const datasets = (project && project.datasets) || [];
-        if (!datasets.length) {
-            datasetListEl.innerHTML = '<div class="small muted">No datasets linked to this project yet.</div>';
-            activeDatasetTag.textContent = '-';
-            datasetSummaryEl.textContent = project ? (project.description || project.name || 'Project') : 'Select a project to view datasets.';
-            renderDatasetInfo(null);
-            currentDatasetSummary = null;
-            updateTrainSummaryUI();
-            refreshDatasetHealth();
-            return;
+        function renderDatasetList(project) {
+            datasetListEl.innerHTML = '';
+            const datasets = (project && project.datasets) || [];
+            if (!datasets.length) {
+                datasetListEl.innerHTML = '<div class="small muted">No datasets linked to this project yet.</div>';
+                activeDatasetTag.textContent = '-';
+                datasetSummaryEl.textContent = project ? (project.description || project.name || 'Project') : 'Select a project to view datasets.';
+                renderDatasetInfo(null);
+                currentDatasetSummary = null;
+                updateTrainSummaryUI();
+                refreshDatasetHealth();
+                return;
+            }
+            try {
+                const stored = localStorage.getItem('viasion_active_dataset');
+                if (stored) activeDatasetSlug = stored;
+            } catch { }
+            if (!activeDatasetSlug || !datasets.some(ds => ds.slug === activeDatasetSlug)) {
+                activeDatasetSlug = datasets[0].slug;
+            }
+            datasets.forEach(ds => {
+                const card = document.createElement('div');
+                card.className = 'datasetCard' + (ds.slug === activeDatasetSlug ? ' active' : '');
+                card.dataset.slug = ds.slug;
+                card.innerHTML = `<strong>${ds.label || ds.slug}</strong><div class="datasetMeta"><span>slug: ${ds.slug}</span><span>type: ${ds.type || 'n/a'}</span><span>root: ${ds.root || 'n/a'}</span><span>detector: ${ds.detector || 'default'}</span></div>`;
+                card.addEventListener('click', () => updateActiveDataset(ds, project));
+                datasetListEl.appendChild(card);
+            });
+            const activeDataset = datasets.find(ds => ds.slug === activeDatasetSlug);
+            if (activeDataset) {
+                updateActiveDataset(activeDataset, project, { skipPersist: true });
+            }
         }
-        try {
-            const stored = localStorage.getItem('viasion_active_dataset');
-            if (stored) activeDatasetSlug = stored;
-        } catch {}
-        if (!activeDatasetSlug || !datasets.some(ds => ds.slug === activeDatasetSlug)) {
-            activeDatasetSlug = datasets[0].slug;
-        }
-        datasets.forEach(ds => {
-            const card = document.createElement('div');
-            card.className = 'datasetCard' + (ds.slug === activeDatasetSlug ? ' active' : '');
-            card.dataset.slug = ds.slug;
-            card.innerHTML = `<strong>${ds.label || ds.slug}</strong><div class="datasetMeta"><span>slug: ${ds.slug}</span><span>type: ${ds.type || 'n/a'}</span><span>root: ${ds.root || 'n/a'}</span><span>detector: ${ds.detector || 'default'}</span></div>`;
-            card.addEventListener('click', () => updateActiveDataset(ds, project));
-            datasetListEl.appendChild(card);
-        });
-        const activeDataset = datasets.find(ds => ds.slug === activeDatasetSlug);
-        if (activeDataset) {
-            updateActiveDataset(activeDataset, project, { skipPersist: true });
-        }
-    }
 
-    function renderDatasetInfo(ds) {
-        if (!trainingDatasetInfo) return;
-        if (!ds) {
-            trainingDatasetInfo.textContent = 'Select a dataset to view its paths and labels.';
-            return;
-        }
-        const labelList = Array.isArray(ds.labels) && ds.labels.length ? ds.labels.join(', ') : 'None defined';
-        trainingDatasetInfo.innerHTML = `
+        function renderDatasetInfo(ds) {
+            if (!trainingDatasetInfo) return;
+            if (!ds) {
+                trainingDatasetInfo.textContent = 'Select a dataset to view its paths and labels.';
+                return;
+            }
+            const labelList = Array.isArray(ds.labels) && ds.labels.length ? ds.labels.join(', ') : 'None defined';
+            trainingDatasetInfo.innerHTML = `
             <div><strong>Slug:</strong> ${ds.slug || '-'}</div>
             <div><strong>Root:</strong> ${ds.root || 'n/a'}</div>
             <div><strong>Frame cache:</strong> ${ds.frameCacheRoot || 'n/a'}</div>
             <div><strong>Labels:</strong> ${labelList}</div>
             <div><strong>Detector:</strong> ${ds.detector || 'default (global)'}</div>
         `;
-    }
-
-    function updateTrainSummaryUI() {
-        if (!trainSummaryEl) return;
-        if (!currentDatasetSummary) {
-            trainSummaryEl.textContent = 'Dataset summary unavailable.';
-            return;
         }
-        const data = currentDatasetSummary;
-        const dist = (data.label_distribution || []).map(d => `${d.label}: ${d.count}`).join(', ') || 'No labels recorded.';
-        trainSummaryEl.innerHTML = `
+
+        function updateTrainSummaryUI() {
+            if (!trainSummaryEl) return;
+            if (!currentDatasetSummary) {
+                trainSummaryEl.textContent = 'Dataset summary unavailable.';
+                return;
+            }
+            const data = currentDatasetSummary;
+            const dist = (data.label_distribution || []).map(d => `${d.label}: ${d.count}`).join(', ') || 'No labels recorded.';
+            trainSummaryEl.innerHTML = `
             <div><strong>Training images:</strong> ${data.train_images}</div>
             <div><strong>Label files:</strong> ${data.train_labels}</div>
             <div><strong>Ready pairs:</strong> ${data.train_pairs}</div>
             <div><strong>Frame cache images:</strong> ${data.frame_cache_total}</div>
             <div><strong>Label distribution:</strong> ${dist}</div>
         `;
-    }
+        }
 
-    async function loadDatasetSummary(slug) {
-        if (!slug) {
-            currentDatasetSummary = null;
+        async function loadDatasetSummary(slug) {
+            if (!slug) {
+                currentDatasetSummary = null;
+                updateTrainSummaryUI();
+                refreshDatasetHealth();
+                return;
+            }
+            if (trainSummaryEl) trainSummaryEl.textContent = 'Loading dataset summary...';
+            if (trainingDatasetHealth) trainingDatasetHealth.textContent = 'Loading dataset summary...';
+            try {
+                const res = await fetch(`/api/datasets/${encodeURIComponent(slug)}/summary?cb=${Date.now()}`);
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(data?.error || `HTTP ${res.status}`);
+                }
+                currentDatasetSummary = data;
+            } catch (err) {
+                console.error('loadDatasetSummary', err);
+                currentDatasetSummary = null;
+                if (trainSummaryEl) trainSummaryEl.textContent = `Summary unavailable: ${err.message}`;
+            }
             updateTrainSummaryUI();
             refreshDatasetHealth();
-            return;
         }
-        if (trainSummaryEl) trainSummaryEl.textContent = 'Loading dataset summary...';
-        if (trainingDatasetHealth) trainingDatasetHealth.textContent = 'Loading dataset summary...';
-        try {
-            const res = await fetch(`/api/datasets/${encodeURIComponent(slug)}/summary?cb=${Date.now()}`);
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                throw new Error(data?.error || `HTTP ${res.status}`);
-            }
-            currentDatasetSummary = data;
-        } catch (err) {
-            console.error('loadDatasetSummary', err);
-            currentDatasetSummary = null;
-            if (trainSummaryEl) trainSummaryEl.textContent = `Summary unavailable: ${err.message}`;
-        }
-        updateTrainSummaryUI();
-        refreshDatasetHealth();
-    }
 
-    function refreshDatasetHealth(sessionFramesOverride) {
-        if (!trainingDatasetHealth) return;
-        const sessionFrames = sessionFramesOverride != null
-            ? sessionFramesOverride
-            : (Array.isArray(images) ? images.length : 0);
-        if (!currentDatasetSummary) {
-            trainingDatasetHealth.innerHTML = `
+        function refreshDatasetHealth(sessionFramesOverride) {
+            if (!trainingDatasetHealth) return;
+            const sessionFrames = sessionFramesOverride != null
+                ? sessionFramesOverride
+                : (Array.isArray(images) ? images.length : 0);
+            if (!currentDatasetSummary) {
+                trainingDatasetHealth.innerHTML = `
                 <div class="muted">Dataset summary unavailable.</div>
                 <div>Session frames loaded: ${sessionFrames}</div>
                 <div>Current folder: ${folderName || '-'}</div>
             `;
-            return;
-        }
-        const data = currentDatasetSummary;
-        const frameSets = data.frame_sets || [];
-        const frameSetsText = frameSets.length
-            ? frameSets.slice(0, 5).map(entry => `${entry.folder}: ${entry.images}`).join(', ')
-            : 'No frame folders yet.';
-        const extraSets = frameSets.length > 5 ? ` (+${frameSets.length - 5} more)` : '';
-        const dist = (data.label_distribution || []).map(entry => `${entry.label}: ${entry.count}`).join(', ') || 'No labels recorded.';
-        trainingDatasetHealth.innerHTML = `
+                return;
+            }
+            const data = currentDatasetSummary;
+            const frameSets = data.frame_sets || [];
+            const frameSetsText = frameSets.length
+                ? frameSets.slice(0, 5).map(entry => `${entry.folder}: ${entry.images}`).join(', ')
+                : 'No frame folders yet.';
+            const extraSets = frameSets.length > 5 ? ` (+${frameSets.length - 5} more)` : '';
+            const dist = (data.label_distribution || []).map(entry => `${entry.label}: ${entry.count}`).join(', ') || 'No labels recorded.';
+            trainingDatasetHealth.innerHTML = `
             <div>Total frame cache images: ${data.frame_cache_total}</div>
             <div>Train images: ${data.train_images}</div>
             <div>Label files: ${data.train_labels}</div>
@@ -704,798 +1088,799 @@ let currentDatasetSummary = null;
             <div style="margin-top:8px">Session frames loaded: ${sessionFrames}</div>
             <div>Current folder: ${folderName || '-'}</div>
         `;
-    }
+        }
 
-    function updateActiveDataset(ds, project, opts = {}) {
-        activeDatasetSlug = ds.slug;
-        window.__viasionActiveDataset = ds;
-        applyDatasetLabels(ds);
-        if (!opts.skipPersist) {
-            try { localStorage.setItem('viasion_active_dataset', activeDatasetSlug); } catch {}
+        function updateActiveDataset(ds, project, opts = {}) {
+            activeDatasetSlug = ds.slug;
+            window.__viasionActiveDataset = ds;
+            applyDatasetLabels(ds);
+            if (!opts.skipPersist) {
+                try { localStorage.setItem('viasion_active_dataset', activeDatasetSlug); } catch { }
+            }
+            datasetListEl.querySelectorAll('.datasetCard').forEach(card => {
+                card.classList.toggle('active', card.dataset.slug === ds.slug);
+            });
+            activeDatasetTag.textContent = ds.slug;
+            const details = [];
+            if (ds.label) details.push(ds.label);
+            if (ds.root) details.push(ds.root);
+            if (ds.detector) details.push(`detector: ${ds.detector}`);
+            datasetSummaryEl.textContent = details.join(' | ') || 'Dataset ready.';
+            renderDatasetInfo(ds);
+            refreshDatasetHealth();
+            window.dispatchEvent(new CustomEvent('viasion:dataset-selected', { detail: { dataset: ds, project } }));
+            try { populateFolderList(); } catch { }
+            loadDatasetSummary(ds.slug);
         }
-        datasetListEl.querySelectorAll('.datasetCard').forEach(card => {
-            card.classList.toggle('active', card.dataset.slug === ds.slug);
-        });
-        activeDatasetTag.textContent = ds.slug;
-        const details = [];
-        if (ds.label) details.push(ds.label);
-        if (ds.root) details.push(ds.root);
-        if (ds.detector) details.push(`detector: ${ds.detector}`);
-        datasetSummaryEl.textContent = details.join(' | ') || 'Dataset ready.';
-        renderDatasetInfo(ds);
-        refreshDatasetHealth();
-        window.dispatchEvent(new CustomEvent('viasion:dataset-selected', { detail: { dataset: ds, project } }));
-        try { populateFolderList(); } catch {}
-        loadDatasetSummary(ds.slug);
-    }
 
-    function renderModelPanel(project) {
-        modelListEl.innerHTML = '';
-        if (!project) {
-            modelListEl.innerHTML = '<div class="small muted">Select a project to review its detectors and training runs.</div>';
-            return;
-        }
-        const datasets = project.datasets || [];
-        if (!datasets.length) {
-            modelListEl.innerHTML = '<div class="small muted">No datasets linked yet. Create a dataset to train models.</div>';
-            return;
-        }
-        datasets.forEach(ds => {
-            const card = document.createElement('div');
-            card.className = 'modelCard';
-            const labelList = Array.isArray(ds.labels) && ds.labels.length ? ds.labels.join(', ') : 'None defined';
-            const detector = ds.detector ? ds.detector : 'Default shared detector';
-            card.innerHTML = `
+        function renderModelPanel(project) {
+            modelListEl.innerHTML = '';
+            if (!project) {
+                modelListEl.innerHTML = '<div class="small muted">Select a project to review its detectors and training runs.</div>';
+                return;
+            }
+            const datasets = project.datasets || [];
+            if (!datasets.length) {
+                modelListEl.innerHTML = '<div class="small muted">No datasets linked yet. Create a dataset to train models.</div>';
+                return;
+            }
+            datasets.forEach(ds => {
+                const card = document.createElement('div');
+                card.className = 'modelCard';
+                const labelList = Array.isArray(ds.labels) && ds.labels.length ? ds.labels.join(', ') : 'None defined';
+                const detector = ds.detector ? ds.detector : 'Default shared detector';
+                card.innerHTML = `
                 <strong>${ds.label || ds.slug}</strong>
                 <div class="small muted" style="margin-top:4px">Slug: ${ds.slug}</div>
                 <div class="small muted">Detector: ${detector}</div>
                 <div class="small muted">Labels: ${labelList}</div>
             `;
-            modelListEl.appendChild(card);
-        });
-    }
-
-    function buildDatasetPayloadFromForm() {
-        return [{
-            slug: (formFields.datasetSlug.value || '').trim().toLowerCase(),
-            label: formFields.datasetLabel.value.trim(),
-            root: formFields.datasetRoot.value.trim(),
-            frameCacheRoot: formFields.frameCacheRoot.value.trim(),
-            framesRoot: formFields.framesRoot.value.trim(),
-            labelTrainRoot: formFields.labelTrainRoot.value.trim(),
-            imagesTrainRoot: formFields.imagesTrainRoot.value.trim(),
-            labels: formFields.labels.value.split(',').map(s => s.trim()).filter(Boolean)
-        }];
-    }
-
-    function applyDefaultsForSlug(slug) {
-        if (!slug) return;
-        const clean = slug.trim().toLowerCase().replace(/\s+/g, '_');
-        formFields.slug.value = clean;
-        if (formMode === 'new') {
-            const ds = clean ? `${clean}_pose` : '';
-            if (!formFields.datasetSlug.value) formFields.datasetSlug.value = ds;
-            if (!formFields.datasetLabel.value) {
-                const labelName = clean.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-                formFields.datasetLabel.value = labelName ? `${labelName} Dataset` : '';
-            }
-            if (!formFields.datasetRoot.value) formFields.datasetRoot.value = ds ? `datasets/${ds}` : '';
-            if (!formFields.frameCacheRoot.value) formFields.frameCacheRoot.value = clean ? `frame_cache/${clean}` : '';
-            if (!formFields.framesRoot.value) formFields.framesRoot.value = clean ? `frames/${clean}` : '';
-            if (!formFields.labelTrainRoot.value) formFields.labelTrainRoot.value = ds ? `datasets/${ds}/labels/train` : '';
-            if (!formFields.imagesTrainRoot.value) formFields.imagesTrainRoot.value = ds ? `datasets/${ds}/images/train` : '';
+                modelListEl.appendChild(card);
+            });
         }
-    }
 
-    function openProjectForm(mode) {
-        formMode = mode;
-        projectFormStatus.textContent = '';
-        projectFormWrap.classList.remove('hidden');
-        const isNew = mode === 'new';
-        formFields.slug.disabled = !isNew;
-        if (isNew) {
-            projectFormTitle.textContent = 'Create Project';
-            Object.values(formFields).forEach(input => { if (input) input.value = ''; });
-            applyDefaultsForSlug(formFields.slug.value);
-        } else {
-            if (!selectedProjectSlug) {
-                projectFormStatus.textContent = 'Select a project first.';
-                return;
-            }
-            const project = projectManager.listProjects().find(p => p.slug === selectedProjectSlug);
-            if (!project) {
-                projectFormStatus.textContent = 'Project not found.';
-                return;
-            }
-            projectFormTitle.textContent = `Manage Project: ${project.name || project.slug}`;
-            formFields.slug.value = project.slug;
-            formFields.name.value = project.name || '';
-            formFields.description.value = project.description || '';
-            const dataset = (project.datasets || [])[0] || {};
-            formFields.datasetSlug.value = dataset.slug || '';
-            formFields.datasetLabel.value = dataset.label || '';
-            formFields.datasetRoot.value = dataset.root || '';
-            formFields.frameCacheRoot.value = dataset.frameCacheRoot || '';
-            formFields.framesRoot.value = dataset.framesRoot || '';
-            formFields.labelTrainRoot.value = dataset.labelTrainRoot || '';
-            formFields.imagesTrainRoot.value = dataset.imagesTrainRoot || '';
-            formFields.labels.value = Array.isArray(dataset.labels) ? dataset.labels.join(', ') : '';
+        function buildDatasetPayloadFromForm() {
+            return [{
+                slug: (formFields.datasetSlug.value || '').trim().toLowerCase(),
+                label: formFields.datasetLabel.value.trim(),
+                root: formFields.datasetRoot.value.trim(),
+                frameCacheRoot: formFields.frameCacheRoot.value.trim(),
+                framesRoot: formFields.framesRoot.value.trim(),
+                labelTrainRoot: formFields.labelTrainRoot.value.trim(),
+                imagesTrainRoot: formFields.imagesTrainRoot.value.trim(),
+                labels: formFields.labels.value.split(',').map(s => s.trim()).filter(Boolean)
+            }];
         }
-    }
 
-    function closeProjectForm() {
-        projectFormWrap.classList.add('hidden');
-        formMode = null;
-        projectFormStatus.textContent = '';
-    }
-
-    function handleProjectChange(project) {
-        if (project && project.slug) {
-            selectedProjectSlug = project.slug;
-        }
-        renderProjectList();
-        renderDatasetList(project);
-        renderModelPanel(project);
-        renderCoachingPanel(project);
-    }
-
-    formFields.slug.addEventListener('input', () => {
-        if (formMode !== 'new') return;
-        applyDefaultsForSlug(formFields.slug.value);
-    });
-
-    projectLoadBtn.addEventListener('click', () => {
-        if (!selectedProjectSlug) { alert('Select a project first.'); return; }
-        projectManager.setActiveProject(selectedProjectSlug);
-    });
-
-    projectNewBtn.addEventListener('click', () => {
-        openProjectForm('new');
-    });
-
-    projectManageBtn.addEventListener('click', () => {
-        if (!selectedProjectSlug) { alert('Select a project to manage.'); return; }
-        openProjectForm('manage');
-    });
-
-    projectFormCancel.addEventListener('click', (e) => {
-        e.preventDefault();
-        closeProjectForm();
-    });
-
-    projectFormSave.addEventListener('click', async (e) => {
-        e.preventDefault();
-        projectFormStatus.textContent = '';
-        const slug = (formFields.slug.value || '').trim().toLowerCase();
-        if (!slug) {
-            projectFormStatus.textContent = 'Slug is required.';
-            return;
-        }
-        try {
+        function applyDefaultsForSlug(slug) {
+            if (!slug) return;
+            const clean = slug.trim().toLowerCase().replace(/\s+/g, '_');
+            formFields.slug.value = clean;
             if (formMode === 'new') {
-                await projectManager.createProject({
-                    slug,
-                    name: formFields.name.value.trim(),
-                    description: formFields.description.value.trim(),
-                    datasets: buildDatasetPayloadFromForm()
-                });
-                selectedProjectSlug = slug;
-                projectManager.setActiveProject(slug);
-            } else if (formMode === 'manage') {
-                await projectManager.updateProject(selectedProjectSlug, {
-                    name: formFields.name.value.trim(),
-                    description: formFields.description.value.trim(),
-                    datasets: buildDatasetPayloadFromForm()
-                });
-                projectManager.setActiveProject(selectedProjectSlug);
+                const ds = clean ? `${clean}_pose` : '';
+                if (!formFields.datasetSlug.value) formFields.datasetSlug.value = ds;
+                if (!formFields.datasetLabel.value) {
+                    const labelName = clean.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                    formFields.datasetLabel.value = labelName ? `${labelName} Dataset` : '';
+                }
+                if (!formFields.datasetRoot.value) formFields.datasetRoot.value = ds ? `datasets/${ds}` : '';
+                if (!formFields.frameCacheRoot.value) formFields.frameCacheRoot.value = clean ? `frame_cache/${clean}` : '';
+                if (!formFields.framesRoot.value) formFields.framesRoot.value = clean ? `frames/${clean}` : '';
+                if (!formFields.labelTrainRoot.value) formFields.labelTrainRoot.value = ds ? `datasets/${ds}/labels/train` : '';
+                if (!formFields.imagesTrainRoot.value) formFields.imagesTrainRoot.value = ds ? `datasets/${ds}/images/train` : '';
             }
+        }
+
+        function openProjectForm(mode) {
+            formMode = mode;
+            projectFormStatus.textContent = '';
+            projectFormWrap.classList.remove('hidden');
+            const isNew = mode === 'new';
+            formFields.slug.disabled = !isNew;
+            if (isNew) {
+                projectFormTitle.textContent = 'Create Project';
+                Object.values(formFields).forEach(input => { if (input) input.value = ''; });
+                applyDefaultsForSlug(formFields.slug.value);
+            } else {
+                if (!selectedProjectSlug) {
+                    projectFormStatus.textContent = 'Select a project first.';
+                    return;
+                }
+                const project = projectManager.listProjects().find(p => p.slug === selectedProjectSlug);
+                if (!project) {
+                    projectFormStatus.textContent = 'Project not found.';
+                    return;
+                }
+                projectFormTitle.textContent = `Manage Project: ${project.name || project.slug}`;
+                formFields.slug.value = project.slug;
+                formFields.name.value = project.name || '';
+                formFields.description.value = project.description || '';
+                const dataset = (project.datasets || [])[0] || {};
+                formFields.datasetSlug.value = dataset.slug || '';
+                formFields.datasetLabel.value = dataset.label || '';
+                formFields.datasetRoot.value = dataset.root || '';
+                formFields.frameCacheRoot.value = dataset.frameCacheRoot || '';
+                formFields.framesRoot.value = dataset.framesRoot || '';
+                formFields.labelTrainRoot.value = dataset.labelTrainRoot || '';
+                formFields.imagesTrainRoot.value = dataset.imagesTrainRoot || '';
+                formFields.labels.value = Array.isArray(dataset.labels) ? dataset.labels.join(', ') : '';
+            }
+        }
+
+        function closeProjectForm() {
+            projectFormWrap.classList.add('hidden');
+            formMode = null;
+            projectFormStatus.textContent = '';
+        }
+
+        function handleProjectChange(project) {
+            if (project && project.slug) {
+                selectedProjectSlug = project.slug;
+            }
+            renderProjectList();
+            renderDatasetList(project);
+            renderModelPanel(project);
+            renderCoachingPanel(project);
+        }
+
+        formFields.slug.addEventListener('input', () => {
+            if (formMode !== 'new') return;
+            applyDefaultsForSlug(formFields.slug.value);
+        });
+
+        projectLoadBtn.addEventListener('click', () => {
+            if (!selectedProjectSlug) { alert('Select a project first.'); return; }
+            projectManager.setActiveProject(selectedProjectSlug);
+        });
+
+        projectNewBtn.addEventListener('click', () => {
+            openProjectForm('new');
+        });
+
+        projectManageBtn.addEventListener('click', () => {
+            if (!selectedProjectSlug) { alert('Select a project to manage.'); return; }
+            openProjectForm('manage');
+        });
+
+        projectFormCancel.addEventListener('click', (e) => {
+            e.preventDefault();
             closeProjectForm();
-        } catch (err) {
-            console.error(err);
-            projectFormStatus.textContent = err?.message || 'Failed to save project.';
-        }
-    });
-
-    function prettyError(err) {
-        if (!err) return 'Unknown error.';
-        if (err instanceof Error) return err.message;
-        if (typeof err === 'string') return err;
-        try { return JSON.stringify(err); } catch { return String(err); }
-    }
-
-    async function saveCoachConfig() {
-        if (!projectManager) {
-            coachConfigStatus.textContent = 'Project manager unavailable.';
-            return;
-        }
-        const slug = selectedProjectSlug || projectManager.getActiveProject()?.slug;
-        if (!slug) {
-            coachConfigStatus.textContent = 'Select a project first.';
-            return;
-        }
-        let metrics;
-        let responses;
-        let scoring;
-        try {
-            metrics = JSON.parse(coachMetricsTextarea.value || '[]');
-            if (!Array.isArray(metrics)) throw new Error('Metrics must be an array.');
-        } catch (err) {
-            coachConfigStatus.textContent = `Metrics JSON error: ${prettyError(err)}`;
-            return;
-        }
-        try {
-            responses = JSON.parse(coachResponsesTextarea.value || '[]');
-            if (!Array.isArray(responses)) throw new Error('Responses must be an array.');
-        } catch (err) {
-            coachConfigStatus.textContent = `Responses JSON error: ${prettyError(err)}`;
-            return;
-        }
-        try {
-            const txt = coachScoringTextarea.value?.trim();
-            scoring = txt ? JSON.parse(txt) : { enabled: false };
-        } catch (err) {
-            coachConfigStatus.textContent = `Scoring JSON error: ${prettyError(err)}`;
-            return;
-        }
-        const workflow = Object.assign({}, currentProjectMeta?.workflow || {}, {
-            defaultCoachingCue: coachDefaultCueInput?.value?.trim() || '',
-            mutedMessage: coachMutedMessageInput?.value?.trim() || ''
         });
-        const analysis = Object.assign({}, currentProjectMeta?.analysis || {}, {
-            metrics,
-            responses,
-            scoring
-        });
-        coachConfigStatus.textContent = 'Saving coaching config...';
-        coachConfigSaveBtn.disabled = true;
-        try {
-            await projectManager.updateProject(slug, { workflow, analysis });
-            await projectManager.reload();
-            projectManager.setActiveProject(slug);
-            coachConfigStatus.textContent = 'Coaching config saved.';
-        } catch (err) {
-            console.error(err);
-            coachConfigStatus.textContent = `Save failed: ${prettyError(err)}`;
-        } finally {
-            coachConfigSaveBtn.disabled = false;
-        }
-    }
 
-    if (coachConfigSaveBtn) {
-        coachConfigSaveBtn.addEventListener('click', (e) => {
+        projectFormSave.addEventListener('click', async (e) => {
             e.preventDefault();
-            saveCoachConfig();
-        });
-    }
-
-    if (coachConfigResetBtn) {
-        coachConfigResetBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            renderCoachingPanel(currentProjectMeta);
-        });
-    }
-
-    if (projectManager && typeof projectManager.ready?.then === 'function') {
-        projectManager.ready.then(() => {
-            handleProjectChange(projectManager.getActiveProject());
-            projectManager.onProjectChange(handleProjectChange);
-            setProjectView('training');
-        });
-    } else {
-        datasetSummaryEl.textContent = 'Project manager unavailable; using default dataset.';
-    }
-
-    // ---------- Core state ----------
-    const defaultLabels = ['basketball','hoop','net','player'];
-    const baseColors = ['#ffb347','#21d4ff','#ffaaff','#4caf50','#ffa500','#9c27b0','#03a9f4','#ab47bc'];
-    let categories = [...defaultLabels];
-    let colorMap = {};
-
-    function rebuildColorMap() {
-      colorMap = {};
-      categories.forEach((label, idx) => {
-        colorMap[label] = baseColors[idx % baseColors.length];
-      });
-    }
-
-    rebuildColorMap();
-
-    let currentLabel = categories[0];
-    function applyDatasetLabels(dataset, preserveSelection = true) {
-      const nextLabels = Array.isArray(dataset?.labels) ? dataset.labels.filter(Boolean) : [];
-      const prior = preserveSelection ? currentLabel : null;
-      categories = nextLabels.length ? [...nextLabels] : [...defaultLabels];
-      rebuildColorMap();
-      setupCategories(prior);
-    }
-
-    let folderName = '', images = [], index = 0, boxes = [];
-    let startX = 0, startY = 0, isDrawing = false;
-
-    const gridCanvas = document.getElementById('gridCanvas');
-    const frameCanvas = document.getElementById('frameCanvas');
-    const gridCtx = gridCanvas.getContext('2d');
-    const ctx = frameCanvas.getContext('2d');
-
-    // Buttons near canvas
-    document.getElementById('prevFrameBtn').onclick = () => loadPrevious();
-    document.getElementById('nextFrameBtn').onclick = () => thenNext();
-
-    // Chips
-    function setupCategories(selectedLabel){
-      const container = document.getElementById('categories');
-      if (!container) return;
-      container.innerHTML = '';
-      if (!categories.length) categories = [...defaultLabels];
-      rebuildColorMap();
-      const initial = (selectedLabel && categories.includes(selectedLabel)) ? selectedLabel : categories[0];
-      currentLabel = initial || null;
-      categories.forEach((cat)=>{
-        const b=document.createElement('button');
-        b.className='chip'+(cat===currentLabel?' active':''); b.textContent=cat;
-        b.onclick=()=>{
-          currentLabel=cat;
-          [...container.children].forEach(c=>c.classList.remove('active'));
-          b.classList.add('active');
-        };
-        container.appendChild(b);
-      });
-    }
-    setupCategories();
-
-    // -------- Eraser & suppression (box-level, IoU-based) --------
-    let eraseMode = false;
-    const frameSuppressBoxes = new Map(); // key: "folder/image" -> [{label,x,y,w,h}]
-    function frameKey(){ return (folderName && images[index]) ? `${folderName}/${images[index]}` : null; }
-    function getSuppressed(){ const k=frameKey(); return k ? (frameSuppressBoxes.get(k)||[]) : []; }
-    function addSuppressed(box){
-      const k=frameKey(); if(!k) return;
-      if(!frameSuppressBoxes.has(k)) frameSuppressBoxes.set(k, []);
-      frameSuppressBoxes.get(k).push({label:box.label, x:box.x, y:box.y, w:box.w, h:box.h});
-    }
-    function resetSuppressed(){ const k=frameKey(); if(k) frameSuppressBoxes.delete(k); }
-    function iou(a,b){
-      const ax2=a.x+a.w, ay2=a.y+a.h, bx2=b.x+b.w, by2=b.y+b.h;
-      const x1=Math.max(a.x,b.x), y1=Math.max(a.y,b.y), x2=Math.min(ax2,bx2), y2=Math.min(ay2,by2);
-      const iw=Math.max(0,x2-x1), ih=Math.max(0,y2-y1), inter=iw*ih, ua=a.w*a.h + b.w*b.h - inter;
-      return ua>0 ? inter/ua : 0;
-    }
-
-    // Check if we have a valid current frame
-    function hasCurrentFrame() {
-      return !!(folderName && images && images.length && images[index]);
-    }
-
-    // Grid + sliders
-    const gridSlider = document.getElementById('gridSizeSlider');
-    const gridValue  = document.getElementById('gridSizeValue');
-    const gridToggle = document.getElementById('gridToggle');
-    function updateGrid() {
-      gridCanvas.style.display = gridToggle.checked ? 'block' : 'none';
-      if (!hasCurrentFrame()) return;
-      drawBoxes(false);
-    }
-    gridSlider.addEventListener('input',()=>{ gridValue.textContent=gridSlider.value; updateGrid(); });
-    gridToggle.addEventListener('change',updateGrid);
-
-    // File & frames
-    async function extractFrames(){
-      const fileInput = document.getElementById('videoInput');
-      const selected = fileInput?.files?.[0];
-      if (!selected) return;
-      const fd=new FormData(); fd.append('video',selected);
-      const uploadInfo = await fetch('/upload',{method:'POST',body:fd}).then(r=>r.json());
-      const videoPath = uploadInfo.video || '';
-      const payload = datasetBody({filename: videoPath.split('/').pop()});
-      const resp = await fetch('/extract_frames',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-      });
-      if(!resp.ok){
-        const err = await resp.text().catch(()=>resp.statusText);
-        throw new Error(err || `extract_frames failed ${resp.status}`);
-      }
-      const result = await resp.json();
-      folderName = result.folder || payload.filename?.split('.')?.[0] || folderName;
-      await populateFolderList();
-      await loadImages();
-      await loadDatasetSummary(getActiveDatasetSlug());
-    }
-    async function populateFolderList(){
-      try{
-        const resp = await fetch(withDataset('/list_frame_folders'));
-        if(!resp.ok){
-          console.warn('list_frame_folders failed', resp.status);
-          return;
-        }
-        const data=await resp.json();
-        const sel=document.getElementById('folderInput');
-        sel.innerHTML='';
-        (data.folders||[]).forEach(f=>{
-          const o=document.createElement('option');
-          o.value=f;
-          o.textContent=f;
-          sel.appendChild(o);
-        });
-        if(folderName && data.folders?.includes(folderName)){
-          sel.value = folderName;
-        }else if(sel.options.length){
-          sel.value = sel.options[0].value;
-          folderName = sel.value;
-        }
-      }catch(err){
-        console.error('list_frame_folders error', err);
-      }
-    }
-    async function loadImages(){
-      const selectEl = document.getElementById('folderInput');
-      folderName = selectEl.value || folderName;
-      if(!folderName){
-        images = [];
-        drawBoxes();
-        refreshDatasetHealth();
-        return;
-      }
-      const encodedFolder = encodeURIComponent(folderName);
-      try{
-        const resp = await fetch(withDataset(`/list_frames/${encodedFolder}`));
-        if(!resp.ok){
-          console.warn('list_frames failed', resp.status);
-          images = [];
-        }else{
-          const data=await resp.json();
-          images = data.frames || [];
-        }
-      }catch(err){
-        console.error('list_frames error', err);
-        images = [];
-      }
-      index=0;
-      refreshDatasetHealth();
-      await loadLabels(false);
-      drawBoxes();
-    }
-
-    if (importImagesBtn && imageSetInput) {
-      importImagesBtn.addEventListener('click', () => {
-        if (!getActiveDatasetSlug()) {
-          alert('Select a dataset before importing images.');
-          return;
-        }
-        imageSetInput.value = '';
-        imageSetInput.click();
-      });
-      imageSetInput.addEventListener('change', handleImageSetSelection);
-    }
-
-    async function handleImageSetSelection(event){
-      const files = Array.from(event.target.files || []);
-      if (!files.length) return;
-      const datasetSlug = getActiveDatasetSlug();
-      if (!datasetSlug) {
-        alert('Select a dataset before importing images.');
-        return;
-      }
-      let folderLabel = '';
-      try {
-        folderLabel = prompt('Folder name for this image set (optional):', '') || '';
-      } catch (_) {
-        folderLabel = '';
-      }
-      const form = new FormData();
-      form.append('dataset', datasetSlug);
-      if (folderLabel.trim()) form.append('folder', folderLabel.trim());
-      files.forEach(file => {
-        const rel = file.webkitRelativePath || file.name;
-        form.append('images', file, rel);
-      });
-      if (trainingDatasetHealth) trainingDatasetHealth.textContent = 'Uploading image set...';
-      try {
-        const res = await fetch('/upload_image_set', { method: 'POST', body: form });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          throw new Error(data?.error || `Upload failed (${res.status})`);
-        }
-        folderName = data.folder || folderName;
-        await populateFolderList();
-        const selectEl = document.getElementById('folderInput');
-        if (selectEl && data.folder) {
-          selectEl.value = data.folder;
-        }
-        await loadImages();
-        await loadDatasetSummary(datasetSlug);
-        refreshDatasetHealth();
-        if (trainingDatasetHealth && data.folder) {
-          trainingDatasetHealth.innerHTML += `<div class="muted">Imported ${data.count || files.length} image(s) into ${data.folder}.</div>`;
-        }
-      } catch (err) {
-        console.error('upload_image_set', err);
-        alert(`Failed to import images: ${err.message}`);
-        refreshDatasetHealth();
-      } finally {
-        imageSetInput.value = '';
-      }
-    }
-
-    // Navigation (Next auto-saves if there are labels)
-    async function thenNext(){
-      if (boxes && boxes.length) { await saveLabels(); }
-      if(index<images.length-1){ index++; await loadLabels(false); drawBoxes(); }
-    }
-    async function loadPrevious(){
-      if(index>0){ index--; await loadLabels(false); drawBoxes(); }
-    }
-
-
-// Keep only sensible hoop/backboard/net candidates and prefer one coherent group
-function postFilterDetections(dets, imgW, imgH, opts = {}) {
-  // Per-class min size (pixels in **original image** space)
-  const minW = { hoop: 24, net: 24, backboard: 80, player: 30, basketball: 10 };
-  const minH = { hoop: 12, net: 24, backboard: 60, player: 60, basketball: 10 };
-
-  // 1) Size gate (and optional ROI gate later)
-  let arr = dets.filter(d => {
-    const w = d.box[2] - d.box[0], h = d.box[3] - d.box[1];
-    if (minW[d.label] && w < minW[d.label]) return false;
-    if (minH[d.label] && h < minH[d.label]) return false;
-    return true;
-  });
-
-  // 2) Group hoop/backboard/net by proximity/structure and keep best group
-  const hoops = arr.filter(d => d.label === 'hoop');
-  const nets  = arr.filter(d => d.label === 'net');
-  const bbs   = arr.filter(d => d.label === 'backboard');
-
-  function center(d) { return [(d.box[0] + d.box[2]) / 2, (d.box[1] + d.box[3]) / 2]; }
-  function dist(a,b) {
-    const ac = center(a), bc = center(b);
-    return Math.hypot(ac[0]-bc[0], ac[1]-bc[1]);
-  }
-
-  const groups = [];
-  for (const h of hoops) {
-    const nearBB  = bbs .filter(b => dist(h,b) < 200);
-    const nearNet = nets.filter(n => dist(h,n) < 150 && n.box[1] > h.box[1]); // net below hoop
-    const score = (h.confidence || 0.5) * 2
-                + (nearBB.length ? 2 : 0)
-                + (nearNet.length ? 2 : 0)
-                + (nearBB[0]?.confidence || 0) * 1.5
-                + (nearNet[0]?.confidence || 0) * 1.5;
-    groups.push({ h, bb: nearBB[0], nt: nearNet[0], score });
-  }
-
-  if (groups.length) {
-    groups.sort((a,b) => b.score - a.score);
-    const g = groups[0];
-    // keep the winning trio + any non-H/N/BB detections (player/ball)
-    arr = arr.filter(d =>
-      d === g.h || d === g.bb || d === g.nt ||
-      (d.label !== 'hoop' && d.label !== 'net' && d.label !== 'backboard')
-    );
-  }
-
-  return arr;
-}
-
-
-
-// ===== Label I/O =====
-let detectConfidence = 0.05;
-const confSlider = document.getElementById('confSlider');
-const confValue  = document.getElementById('confValue');
-confSlider.addEventListener('input', () => {
-  detectConfidence = parseFloat(confSlider.value);
-  confValue.textContent = detectConfidence.toFixed(2);
-});
-
-async function loadLabels(useModel = false) {
-  const imgName = images[index];
-  if (!imgName) return;
-  const txtName = imgName.replace(/\.(jpg|png)$/i, '.txt');
-
-  if (!useModel) {
-    // ---- Load saved YOLO labels (frames -> dataset fallback) ----
-    let labelText = '';
-    try {
-      const encodedFolder = encodeURIComponent(folderName);
-      const encodedTxt = encodeURIComponent(txtName);
-      const res = await fetch(withDataset(`/load_yolo_label/${encodedFolder}/${encodedTxt}`));
-      if (!res.ok) throw new Error('no label');
-      labelText = await res.text();
-    } catch {
-      boxes = [];
-      drawBoxes();
-      updateLabelTable();
-      return;
-    }
-
-    boxes = labelText.trim().split('\n').map(line => {
-      const [cid, xC, yC, w, h] = line.split(' ').map(Number);
-      const label = categories[cid];
-      return {
-        label,
-        x: (xC - w / 2) * frameCanvas.width,
-        y: (yC - h / 2) * frameCanvas.height,
-        w: w * frameCanvas.width,
-        h: h * frameCanvas.height,
-        saved: true
-      };
-    });
-
-    drawBoxes();
-    updateLabelTable();
-    return;
-  }
-
-  // ---- Auto-detect (local model) returns {img_w,img_h,detections[]} ----
-  const resp = await fetch('/auto_detect_frame', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(datasetBody({ folder: folderName, filename: imgName, confidence: detectConfidence }))
-    });
-    if (!resp.ok) {
-      alert('Auto-detect failed'); 
-      return;
-    }
-    const payload = await resp.json();
-    const dets = Array.isArray(payload) ? payload : (payload.detections || []);
-    const imgW = Array.isArray(payload) ? 1280 : (payload.img_w || 1280);
-    const imgH = Array.isArray(payload) ? 720  : (payload.img_h || 720);
-
-    // filter away window-frame false positives & pick the best hoop group
-    const cleaned = postFilterDetections(dets, imgW, imgH);
-
-    const suppressed = getSuppressed();
-    boxes = cleaned
-      .map(o => {
-        // scale original-pixel boxes to current canvas size
-        const x1 = o.box[0] * (frameCanvas.width  / imgW);
-        const y1 = o.box[1] * (frameCanvas.height / imgH);
-        const x2 = o.box[2] * (frameCanvas.width  / imgW);
-        const y2 = o.box[3] * (frameCanvas.height / imgH);
-        return { label:o.label, x:x1, y:y1, w:(x2-x1), h:(y2-y1), auto:true, confidence:o.confidence };
-      })
-      .filter(rect => !suppressed.some(s => s.label === rect.label && iou(s, rect) > 0.45));
-
-    drawBoxes();
-    updateLabelTable();
-    }
-
-    // Debounced Auto-Detect button
-    let autoBusy = false;
-    async function autoDetectCurrent() {
-      if (autoBusy) return;
-      autoBusy = true;
-      const btn = document.querySelector('button[onclick="autoDetectCurrent()"]');
-      if (btn) { btn.disabled = true; btn.textContent = 'Auto-Detect...'; }
-      try {
-        await loadLabels(true);
-      } catch (e) {
-        console.warn('auto-detect failed', e);
-      } finally {
-        autoBusy = false;
-        if (btn) { btn.disabled = false; btn.textContent = 'Auto-Detect'; }
-      }
-    }
-
-
-    // OpenAI detect (assistive)
-    // OpenAI detect (assistive) - robust to both array/object payloads
-    let openaiBusy = false;
-    async function autoDetectOpenAI() {
-      if (openaiBusy) return;
-      openaiBusy = true;
-
-      // find button(s) labeled "OpenAI Detect"
-      const btns = [...document.querySelectorAll('button')].filter(b => b.textContent.includes('OpenAI Detect'));
-      btns.forEach(b => { b.disabled = true; b.textContent = 'OpenAI Detect...'; });
-
-      try {
-        const imgName = images[index];
-        if (!imgName) return;
-
-        const resp = await fetch('/auto_detect_frame_openai', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(datasetBody({
-            folder: folderName,
-            filename: imgName,
-            confidence: Math.max(0.15, +confSlider.value || 0.20)
-          }))
+            projectFormStatus.textContent = '';
+            const slug = (formFields.slug.value || '').trim().toLowerCase();
+            if (!slug) {
+                projectFormStatus.textContent = 'Slug is required.';
+                return;
+            }
+            try {
+                if (formMode === 'new') {
+                    await projectManager.createProject({
+                        slug,
+                        name: formFields.name.value.trim(),
+                        description: formFields.description.value.trim(),
+                        datasets: buildDatasetPayloadFromForm()
+                    });
+                    selectedProjectSlug = slug;
+                    projectManager.setActiveProject(slug);
+                } else if (formMode === 'manage') {
+                    await projectManager.updateProject(selectedProjectSlug, {
+                        name: formFields.name.value.trim(),
+                        description: formFields.description.value.trim(),
+                        datasets: buildDatasetPayloadFromForm()
+                    });
+                    projectManager.setActiveProject(selectedProjectSlug);
+                }
+                closeProjectForm();
+            } catch (err) {
+                console.error(err);
+                projectFormStatus.textContent = err?.message || 'Failed to save project.';
+            }
         });
 
-        if (!resp.ok) {
-          const err = await resp.text().catch(() => '');
-          console.warn('openai detect failed:', err);
-          alert('OpenAI detect failed. Check server logs.');
-          return;
+        function prettyError(err) {
+            if (!err) return 'Unknown error.';
+            if (err instanceof Error) return err.message;
+            if (typeof err === 'string') return err;
+            try { return JSON.stringify(err); } catch { return String(err); }
         }
 
-        const payload = await resp.json().catch(() => ({}));
-        if (payload && payload.error) {
-          console.warn('openai detect error:', payload.error);
-          alert(payload.error);
-          return;
+        async function saveCoachConfig() {
+            if (!projectManager) {
+                coachConfigStatus.textContent = 'Project manager unavailable.';
+                return;
+            }
+            const slug = selectedProjectSlug || projectManager.getActiveProject()?.slug;
+            if (!slug) {
+                coachConfigStatus.textContent = 'Select a project first.';
+                return;
+            }
+            let metrics;
+            let responses;
+            let scoring;
+            try {
+                metrics = JSON.parse(coachMetricsTextarea.value || '[]');
+                if (!Array.isArray(metrics)) throw new Error('Metrics must be an array.');
+            } catch (err) {
+                coachConfigStatus.textContent = `Metrics JSON error: ${prettyError(err)}`;
+                return;
+            }
+            try {
+                responses = JSON.parse(coachResponsesTextarea.value || '[]');
+                if (!Array.isArray(responses)) throw new Error('Responses must be an array.');
+            } catch (err) {
+                coachConfigStatus.textContent = `Responses JSON error: ${prettyError(err)}`;
+                return;
+            }
+            try {
+                const txt = coachScoringTextarea.value?.trim();
+                scoring = txt ? JSON.parse(txt) : { enabled: false };
+            } catch (err) {
+                coachConfigStatus.textContent = `Scoring JSON error: ${prettyError(err)}`;
+                return;
+            }
+            const workflow = Object.assign({}, currentProjectMeta?.workflow || {}, {
+                defaultCoachingCue: coachDefaultCueInput?.value?.trim() || '',
+                mutedMessage: coachMutedMessageInput?.value?.trim() || ''
+            });
+            const analysis = Object.assign({}, currentProjectMeta?.analysis || {}, {
+                metrics,
+                responses,
+                scoring
+            });
+            coachConfigStatus.textContent = 'Saving coaching config...';
+            coachConfigSaveBtn.disabled = true;
+            try {
+                await projectManager.updateProject(slug, { workflow, analysis });
+                await projectManager.reload();
+                projectManager.setActiveProject(slug);
+                coachConfigStatus.textContent = 'Coaching config saved.';
+            } catch (err) {
+                console.error(err);
+                coachConfigStatus.textContent = `Save failed: ${prettyError(err)}`;
+            } finally {
+                coachConfigSaveBtn.disabled = false;
+            }
         }
 
-        // Support both shapes:
-        //  - legacy: payload is an array of detections
-        //  - new:    payload = { img_w, img_h, detections: [...] }
-        const dets = Array.isArray(payload) ? payload : (payload.detections || []);
-        const imgW = Array.isArray(payload) ? 1280 : (payload.img_w || 1280);
-        const imgH = Array.isArray(payload) ? 720  : (payload.img_h || 720);
+        if (coachConfigSaveBtn) {
+            coachConfigSaveBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                saveCoachConfig();
+            });
+        }
 
-        // NEW:
-        const cleaned = postFilterDetections(dets, imgW, imgH);
+        if (coachConfigResetBtn) {
+            coachConfigResetBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                renderCoachingPanel(currentProjectMeta);
+            });
+        }
 
-        const suppressed = getSuppressed();
-        boxes = cleaned
-          .map(o => {
-            const x1 = o.box[0] * (frameCanvas.width  / imgW);
-            const y1 = o.box[1] * (frameCanvas.height / imgH);
-            const x2 = o.box[2] * (frameCanvas.width  / imgW);
-            const y2 = o.box[3] * (frameCanvas.height / imgH);
-            return { label:o.label, x:x1, y:y1, w:(x2-x1), h:(y2-y1), auto:true, confidence:o.confidence };
-          })
-          .filter(rect => !suppressed.some(s => s.label === rect.label && iou(s, rect) > 0.45));
+        if (projectManager && typeof projectManager.ready?.then === 'function') {
+            projectManager.ready.then(() => {
+                handleProjectChange(projectManager.getActiveProject());
+                projectManager.onProjectChange(handleProjectChange);
+                setProjectView('training');
+            });
+        } else {
+            datasetSummaryEl.textContent = 'Project manager unavailable; using default dataset.';
+        }
 
-        drawBoxes();
-        updateLabelTable();
+        // ---------- Core state ----------
+        const defaultLabels = ['basketball', 'hoop', 'net', 'player'];
+        const baseColors = ['#ffb347', '#21d4ff', '#ffaaff', '#4caf50', '#ffa500', '#9c27b0', '#03a9f4', '#ab47bc'];
+        let categories = [...defaultLabels];
+        let colorMap = {};
 
-      } finally {
-        openaiBusy = false;
-        btns.forEach(b => { b.disabled = false; b.textContent = 'OpenAI Detect'; });
-      }
-    }
+        function rebuildColorMap() {
+            colorMap = {};
+            categories.forEach((label, idx) => {
+                colorMap[label] = baseColors[idx % baseColors.length];
+            });
+        }
+
+        rebuildColorMap();
+
+        let currentLabel = categories[0];
+        function applyDatasetLabels(dataset, preserveSelection = true) {
+            const nextLabels = Array.isArray(dataset?.labels) ? dataset.labels.filter(Boolean) : [];
+            const prior = preserveSelection ? currentLabel : null;
+            categories = nextLabels.length ? [...nextLabels] : [...defaultLabels];
+            rebuildColorMap();
+            setupCategories(prior);
+        }
+
+        let folderName = '', images = [], index = 0, boxes = [];
+        let startX = 0, startY = 0, isDrawing = false;
+
+        const gridCanvas = document.getElementById('gridCanvas');
+        const frameCanvas = document.getElementById('frameCanvas');
+        const gridCtx = gridCanvas.getContext('2d');
+        const ctx = frameCanvas.getContext('2d');
+
+        // Buttons near canvas
+        document.getElementById('prevFrameBtn').onclick = () => loadPrevious();
+        document.getElementById('nextFrameBtn').onclick = () => thenNext();
+
+        // Chips
+        function setupCategories(selectedLabel) {
+            const container = document.getElementById('categories');
+            if (!container) return;
+            container.innerHTML = '';
+            if (!categories.length) categories = [...defaultLabels];
+            rebuildColorMap();
+            const initial = (selectedLabel && categories.includes(selectedLabel)) ? selectedLabel : categories[0];
+            currentLabel = initial || null;
+            categories.forEach((cat) => {
+                const b = document.createElement('button');
+                b.className = 'chip' + (cat === currentLabel ? ' active' : ''); b.textContent = cat;
+                b.onclick = () => {
+                    currentLabel = cat;
+                    [...container.children].forEach(c => c.classList.remove('active'));
+                    b.classList.add('active');
+                };
+                container.appendChild(b);
+            });
+        }
+        setupCategories();
+
+        // -------- Eraser & suppression (box-level, IoU-based) --------
+        let eraseMode = false;
+        const frameSuppressBoxes = new Map(); // key: "folder/image" -> [{label,x,y,w,h}]
+        function frameKey() { return (folderName && images[index]) ? `${folderName}/${images[index]}` : null; }
+        function getSuppressed() { const k = frameKey(); return k ? (frameSuppressBoxes.get(k) || []) : []; }
+        function addSuppressed(box) {
+            const k = frameKey(); if (!k) return;
+            if (!frameSuppressBoxes.has(k)) frameSuppressBoxes.set(k, []);
+            frameSuppressBoxes.get(k).push({ label: box.label, x: box.x, y: box.y, w: box.w, h: box.h });
+        }
+        function resetSuppressed() { const k = frameKey(); if (k) frameSuppressBoxes.delete(k); }
+        function iou(a, b) {
+            const ax2 = a.x + a.w, ay2 = a.y + a.h, bx2 = b.x + b.w, by2 = b.y + b.h;
+            const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y), x2 = Math.min(ax2, bx2), y2 = Math.min(ay2, by2);
+            const iw = Math.max(0, x2 - x1), ih = Math.max(0, y2 - y1), inter = iw * ih, ua = a.w * a.h + b.w * b.h - inter;
+            return ua > 0 ? inter / ua : 0;
+        }
+
+        // Check if we have a valid current frame
+        function hasCurrentFrame() {
+            return !!(folderName && images && images.length && images[index]);
+        }
+
+        // Grid + sliders
+        const gridSlider = document.getElementById('gridSizeSlider');
+        const gridValue = document.getElementById('gridSizeValue');
+        const gridToggle = document.getElementById('gridToggle');
+        function updateGrid() {
+            gridCanvas.style.display = gridToggle.checked ? 'block' : 'none';
+            if (!hasCurrentFrame()) return;
+            drawBoxes(false);
+        }
+        gridSlider.addEventListener('input', () => { gridValue.textContent = gridSlider.value; updateGrid(); });
+        gridToggle.addEventListener('change', updateGrid);
+
+        // File & frames
+        async function extractFrames() {
+            const fileInput = document.getElementById('videoInput');
+            const selected = fileInput?.files?.[0];
+            if (!selected) return;
+            const fd = new FormData(); fd.append('video', selected);
+            const uploadInfo = await fetch('/upload', { method: 'POST', body: fd }).then(r => r.json());
+            const videoPath = uploadInfo.video || '';
+            const payload = datasetBody({ filename: videoPath.split('/').pop() });
+            const resp = await fetch('/extract_frames', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!resp.ok) {
+                const err = await resp.text().catch(() => resp.statusText);
+                throw new Error(err || `extract_frames failed ${resp.status}`);
+            }
+            const result = await resp.json();
+            folderName = result.folder || payload.filename?.split('.')?.[0] || folderName;
+            await populateFolderList();
+            await loadImages();
+            await loadDatasetSummary(getActiveDatasetSlug());
+        }
+        async function populateFolderList() {
+            try {
+                const resp = await fetch(withDataset('/list_frame_folders'));
+                if (!resp.ok) {
+                    console.warn('list_frame_folders failed', resp.status);
+                    return;
+                }
+                const data = await resp.json();
+                const sel = document.getElementById('folderInput');
+                sel.innerHTML = '';
+                (data.folders || []).forEach(f => {
+                    const o = document.createElement('option');
+                    o.value = f;
+                    o.textContent = f;
+                    sel.appendChild(o);
+                });
+                if (folderName && data.folders?.includes(folderName)) {
+                    sel.value = folderName;
+                } else if (sel.options.length) {
+                    sel.value = sel.options[0].value;
+                    folderName = sel.value;
+                }
+            } catch (err) {
+                console.error('list_frame_folders error', err);
+            }
+        }
+        async function loadImages() {
+            const selectEl = document.getElementById('folderInput');
+            folderName = selectEl.value || folderName;
+            if (!folderName) {
+                images = [];
+                drawBoxes();
+                refreshDatasetHealth();
+                return;
+            }
+            const encodedFolder = encodeURIComponent(folderName);
+            try {
+                const resp = await fetch(withDataset(`/list_frames/${encodedFolder}`));
+                if (!resp.ok) {
+                    console.warn('list_frames failed', resp.status);
+                    images = [];
+                } else {
+                    const data = await resp.json();
+                    images = data.frames || [];
+                }
+            } catch (err) {
+                console.error('list_frames error', err);
+                images = [];
+            }
+            index = 0;
+            refreshDatasetHealth();
+            await loadLabels(false);
+            drawBoxes();
+        }
+
+        if (importImagesBtn && imageSetInput) {
+            importImagesBtn.addEventListener('click', () => {
+                if (!getActiveDatasetSlug()) {
+                    alert('Select a dataset before importing images.');
+                    return;
+                }
+                imageSetInput.value = '';
+                imageSetInput.click();
+            });
+            imageSetInput.addEventListener('change', handleImageSetSelection);
+        }
+
+        async function handleImageSetSelection(event) {
+            const files = Array.from(event.target.files || []);
+            if (!files.length) return;
+            const datasetSlug = getActiveDatasetSlug();
+            if (!datasetSlug) {
+                alert('Select a dataset before importing images.');
+                return;
+            }
+            let folderLabel = '';
+            try {
+                folderLabel = prompt('Folder name for this image set (optional):', '') || '';
+            } catch (_) {
+                folderLabel = '';
+            }
+            const form = new FormData();
+            form.append('dataset', datasetSlug);
+            if (folderLabel.trim()) form.append('folder', folderLabel.trim());
+            files.forEach(file => {
+                const rel = file.webkitRelativePath || file.name;
+                form.append('images', file, rel);
+            });
+            if (trainingDatasetHealth) trainingDatasetHealth.textContent = 'Uploading image set...';
+            try {
+                const res = await fetch('/upload_image_set', { method: 'POST', body: form });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(data?.error || `Upload failed (${res.status})`);
+                }
+                folderName = data.folder || folderName;
+                await populateFolderList();
+                const selectEl = document.getElementById('folderInput');
+                if (selectEl && data.folder) {
+                    selectEl.value = data.folder;
+                }
+                await loadImages();
+                await loadDatasetSummary(datasetSlug);
+                refreshDatasetHealth();
+                if (trainingDatasetHealth && data.folder) {
+                    trainingDatasetHealth.innerHTML += `<div class="muted">Imported ${data.count || files.length} image(s) into ${data.folder}.</div>`;
+                }
+            } catch (err) {
+                console.error('upload_image_set', err);
+                alert(`Failed to import images: ${err.message}`);
+                refreshDatasetHealth();
+            } finally {
+                imageSetInput.value = '';
+            }
+        }
+
+        // Navigation (Next auto-saves if there are labels)
+        async function thenNext() {
+            if (boxes && boxes.length) { await saveLabels(); }
+            if (index < images.length - 1) { index++; await loadLabels(false); drawBoxes(); }
+        }
+        async function loadPrevious() {
+            if (index > 0) { index--; await loadLabels(false); drawBoxes(); }
+        }
+
+
+        // Keep only sensible hoop/backboard/net candidates and prefer one coherent group
+        function postFilterDetections(dets, imgW, imgH, opts = {}) {
+            // Per-class min size (pixels in **original image** space)
+            const minW = { hoop: 24, net: 24, backboard: 80, player: 30, basketball: 10 };
+            const minH = { hoop: 12, net: 24, backboard: 60, player: 60, basketball: 10 };
+
+            // 1) Size gate (and optional ROI gate later)
+            let arr = dets.filter(d => {
+                const w = d.box[2] - d.box[0], h = d.box[3] - d.box[1];
+                if (minW[d.label] && w < minW[d.label]) return false;
+                if (minH[d.label] && h < minH[d.label]) return false;
+                return true;
+            });
+
+            // 2) Group hoop/backboard/net by proximity/structure and keep best group
+            const hoops = arr.filter(d => d.label === 'hoop');
+            const nets = arr.filter(d => d.label === 'net');
+            const bbs = arr.filter(d => d.label === 'backboard');
+
+            function center(d) { return [(d.box[0] + d.box[2]) / 2, (d.box[1] + d.box[3]) / 2]; }
+            function dist(a, b) {
+                const ac = center(a), bc = center(b);
+                return Math.hypot(ac[0] - bc[0], ac[1] - bc[1]);
+            }
+
+            const groups = [];
+            for (const h of hoops) {
+                const nearBB = bbs.filter(b => dist(h, b) < 200);
+                const nearNet = nets.filter(n => dist(h, n) < 150 && n.box[1] > h.box[1]); // net below hoop
+                const score = (h.confidence || 0.5) * 2
+                    + (nearBB.length ? 2 : 0)
+                    + (nearNet.length ? 2 : 0)
+                    + (nearBB[0]?.confidence || 0) * 1.5
+                    + (nearNet[0]?.confidence || 0) * 1.5;
+                groups.push({ h, bb: nearBB[0], nt: nearNet[0], score });
+            }
+
+            if (groups.length) {
+                groups.sort((a, b) => b.score - a.score);
+                const g = groups[0];
+                // keep the winning trio + any non-H/N/BB detections (player/ball)
+                arr = arr.filter(d =>
+                    d === g.h || d === g.bb || d === g.nt ||
+                    (d.label !== 'hoop' && d.label !== 'net' && d.label !== 'backboard')
+                );
+            }
+
+            return arr;
+        }
 
 
 
-    function drawGridOverlay(spacing = 15) {
-      gridCtx.save();
-      gridCtx.strokeStyle = 'rgba(200,200,200,0.3)';
-      gridCtx.lineWidth = 1;
-      for (let x = 0; x <= gridCanvas.width; x += spacing) {
-        gridCtx.beginPath(); gridCtx.moveTo(x, 0); gridCtx.lineTo(x, gridCanvas.height); gridCtx.stroke();
-      }
-      for (let y = 0; y <= gridCanvas.height; y += spacing) {
-        gridCtx.beginPath(); gridCtx.moveTo(0, y); gridCtx.lineTo(gridCanvas.width, y); gridCtx.stroke();
-      }
-      gridCtx.restore();
-    }
-
-    async function saveLabels(){
-      const imgName = images[index]; if(!imgName) return;
-      const txtName = imgName.replace(/\.(jpg|png)$/i,'.txt');
-      const content = (boxes||[]).filter(b=>categories.includes(b.label) && b.w>0 && b.h>0)
-        .map(b=>{
-          const xc=(b.x+b.w/2)/frameCanvas.width, yc=(b.y+b.h/2)/frameCanvas.height,
-                w=b.w/frameCanvas.width, h=b.h/frameCanvas.height,
-                cid=categories.indexOf(b.label);
-          return `${cid} ${xc.toFixed(6)} ${yc.toFixed(6)} ${w.toFixed(6)} ${h.toFixed(6)}`;
-        }).join('\n');
-
-      const ok = await fetch('/save_yolo_label',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(datasetBody({folder:folderName, filename:txtName, content}))
-      });
-      if(ok.status===200){
-        boxes.forEach(b=>b.saved=true);
-        await fetch('/copy_label_to_dataset',{method:'POST',headers:{'Content-Type':'application/json'},
-          body: JSON.stringify(datasetBody({folder:folderName, filename:txtName, image:imgName}))
+        // ===== Label I/O =====
+        let detectConfidence = 0.05;
+        const confSlider = document.getElementById('confSlider');
+        const confValue = document.getElementById('confValue');
+        confSlider.addEventListener('input', () => {
+            detectConfidence = parseFloat(confSlider.value);
+            confValue.textContent = detectConfidence.toFixed(2);
         });
-        updateLabelTable();
-        await loadDatasetSummary(getActiveDatasetSlug());
-      }
-    }
 
-    function updateLabelTable() {
-      const tb = document.querySelector('#labelTable tbody');
-      tb.innerHTML = '';
+        async function loadLabels(useModel = false) {
+            const imgName = images[index];
+            if (!imgName) return;
+            const txtName = imgName.replace(/\.(jpg|png)$/i, '.txt');
 
-      boxes.forEach((box, i) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
+            if (!useModel) {
+                // ---- Load saved YOLO labels (frames -> dataset fallback) ----
+                let labelText = '';
+                try {
+                    const encodedFolder = encodeURIComponent(folderName);
+                    const encodedTxt = encodeURIComponent(txtName);
+                    const res = await fetch(withDataset(`/load_yolo_label/${encodedFolder}/${encodedTxt}`));
+                    if (!res.ok) throw new Error('no label');
+                    labelText = await res.text();
+                } catch {
+                    boxes = [];
+                    drawBoxes();
+                    updateLabelTable();
+                    return;
+                }
+
+                boxes = labelText.trim().split('\n').map(line => {
+                    const [cid, xC, yC, w, h] = line.split(' ').map(Number);
+                    const label = categories[cid];
+                    return {
+                        label,
+                        x: (xC - w / 2) * frameCanvas.width,
+                        y: (yC - h / 2) * frameCanvas.height,
+                        w: w * frameCanvas.width,
+                        h: h * frameCanvas.height,
+                        saved: true
+                    };
+                });
+
+                drawBoxes();
+                updateLabelTable();
+                return;
+            }
+
+            // ---- Auto-detect (local model) returns {img_w,img_h,detections[]} ----
+            const resp = await fetch('/auto_detect_frame', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datasetBody({ folder: folderName, filename: imgName, confidence: detectConfidence }))
+            });
+            if (!resp.ok) {
+                alert('Auto-detect failed');
+                return;
+            }
+            const payload = await resp.json();
+            const dets = Array.isArray(payload) ? payload : (payload.detections || []);
+            const imgW = Array.isArray(payload) ? 1280 : (payload.img_w || 1280);
+            const imgH = Array.isArray(payload) ? 720 : (payload.img_h || 720);
+
+            // filter away window-frame false positives & pick the best hoop group
+            const cleaned = postFilterDetections(dets, imgW, imgH);
+
+            const suppressed = getSuppressed();
+            boxes = cleaned
+                .map(o => {
+                    // scale original-pixel boxes to current canvas size
+                    const x1 = o.box[0] * (frameCanvas.width / imgW);
+                    const y1 = o.box[1] * (frameCanvas.height / imgH);
+                    const x2 = o.box[2] * (frameCanvas.width / imgW);
+                    const y2 = o.box[3] * (frameCanvas.height / imgH);
+                    return { label: o.label, x: x1, y: y1, w: (x2 - x1), h: (y2 - y1), auto: true, confidence: o.confidence };
+                })
+                .filter(rect => !suppressed.some(s => s.label === rect.label && iou(s, rect) > 0.45));
+
+            drawBoxes();
+            updateLabelTable();
+        }
+
+        // Debounced Auto-Detect button
+        let autoBusy = false;
+        async function autoDetectCurrent() {
+            if (autoBusy) return;
+            autoBusy = true;
+            const btn = document.querySelector('button[onclick="autoDetectCurrent()"]');
+            if (btn) { btn.disabled = true; btn.textContent = 'Auto-Detect...'; }
+            try {
+                await loadLabels(true);
+            } catch (e) {
+                console.warn('auto-detect failed', e);
+            } finally {
+                autoBusy = false;
+                if (btn) { btn.disabled = false; btn.textContent = 'Auto-Detect'; }
+            }
+        }
+
+
+        // OpenAI detect (assistive)
+        // OpenAI detect (assistive) - robust to both array/object payloads
+        let openaiBusy = false;
+        async function autoDetectOpenAI() {
+            if (openaiBusy) return;
+            openaiBusy = true;
+
+            // find button(s) labeled "OpenAI Detect"
+            const btns = [...document.querySelectorAll('button')].filter(b => b.textContent.includes('OpenAI Detect'));
+            btns.forEach(b => { b.disabled = true; b.textContent = 'OpenAI Detect...'; });
+
+            try {
+                const imgName = images[index];
+                if (!imgName) return;
+
+                const resp = await fetch('/auto_detect_frame_openai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datasetBody({
+                        folder: folderName,
+                        filename: imgName,
+                        confidence: Math.max(0.15, +confSlider.value || 0.20)
+                    }))
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.text().catch(() => '');
+                    console.warn('openai detect failed:', err);
+                    alert('OpenAI detect failed. Check server logs.');
+                    return;
+                }
+
+                const payload = await resp.json().catch(() => ({}));
+                if (payload && payload.error) {
+                    console.warn('openai detect error:', payload.error);
+                    alert(payload.error);
+                    return;
+                }
+
+                // Support both shapes:
+                //  - legacy: payload is an array of detections
+                //  - new:    payload = { img_w, img_h, detections: [...] }
+                const dets = Array.isArray(payload) ? payload : (payload.detections || []);
+                const imgW = Array.isArray(payload) ? 1280 : (payload.img_w || 1280);
+                const imgH = Array.isArray(payload) ? 720 : (payload.img_h || 720);
+
+                // NEW:
+                const cleaned = postFilterDetections(dets, imgW, imgH);
+
+                const suppressed = getSuppressed();
+                boxes = cleaned
+                    .map(o => {
+                        const x1 = o.box[0] * (frameCanvas.width / imgW);
+                        const y1 = o.box[1] * (frameCanvas.height / imgH);
+                        const x2 = o.box[2] * (frameCanvas.width / imgW);
+                        const y2 = o.box[3] * (frameCanvas.height / imgH);
+                        return { label: o.label, x: x1, y: y1, w: (x2 - x1), h: (y2 - y1), auto: true, confidence: o.confidence };
+                    })
+                    .filter(rect => !suppressed.some(s => s.label === rect.label && iou(s, rect) > 0.45));
+
+                drawBoxes();
+                updateLabelTable();
+
+            } finally {
+                openaiBusy = false;
+                btns.forEach(b => { b.disabled = false; b.textContent = 'OpenAI Detect'; });
+            }
+        }
+
+
+
+        function drawGridOverlay(spacing = 15) {
+            gridCtx.save();
+            gridCtx.strokeStyle = 'rgba(200,200,200,0.3)';
+            gridCtx.lineWidth = 1;
+            for (let x = 0; x <= gridCanvas.width; x += spacing) {
+                gridCtx.beginPath(); gridCtx.moveTo(x, 0); gridCtx.lineTo(x, gridCanvas.height); gridCtx.stroke();
+            }
+            for (let y = 0; y <= gridCanvas.height; y += spacing) {
+                gridCtx.beginPath(); gridCtx.moveTo(0, y); gridCtx.lineTo(gridCanvas.width, y); gridCtx.stroke();
+            }
+            gridCtx.restore();
+        }
+
+        async function saveLabels() {
+            const imgName = images[index]; if (!imgName) return;
+            const txtName = imgName.replace(/\.(jpg|png)$/i, '.txt');
+            const content = (boxes || []).filter(b => categories.includes(b.label) && b.w > 0 && b.h > 0)
+                .map(b => {
+                    const xc = (b.x + b.w / 2) / frameCanvas.width, yc = (b.y + b.h / 2) / frameCanvas.height,
+                        w = b.w / frameCanvas.width, h = b.h / frameCanvas.height,
+                        cid = categories.indexOf(b.label);
+                    return `${cid} ${xc.toFixed(6)} ${yc.toFixed(6)} ${w.toFixed(6)} ${h.toFixed(6)}`;
+                }).join('\n');
+
+            const ok = await fetch('/save_yolo_label', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(datasetBody({ folder: folderName, filename: txtName, content }))
+            });
+            if (ok.status === 200) {
+                boxes.forEach(b => b.saved = true);
+                await fetch('/copy_label_to_dataset', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datasetBody({ folder: folderName, filename: txtName, image: imgName }))
+                });
+                updateLabelTable();
+                await loadDatasetSummary(getActiveDatasetSlug());
+            }
+        }
+
+        function updateLabelTable() {
+            const tb = document.querySelector('#labelTable tbody');
+            tb.innerHTML = '';
+
+            boxes.forEach((box, i) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
           <td>${box.label}</td>
           <td>${Math.round(box.x)}</td>
           <td>${Math.round(box.y)}</td>
@@ -1506,351 +1891,359 @@ async function loadLabels(useModel = false) {
             <button class="btn small" data-del="${i}" style="margin-left:8px">Delete</button>
           </td>
         `;
-        tb.appendChild(tr);
-      });
+                tb.appendChild(tr);
+            });
 
-      tb.querySelectorAll('button[data-del]').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const idx = parseInt(btn.getAttribute('data-del'), 10);
-          deleteBoxAt(idx, { suppressAuto: true });
-        });
-      });
+            tb.querySelectorAll('button[data-del]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const idx = parseInt(btn.getAttribute('data-del'), 10);
+                    deleteBoxAt(idx, { suppressAuto: true });
+                });
+            });
 
-      const s = document.getElementById('currentFrameStatus');
-      s.textContent = `${boxes.length} label(s)`;
-      s.style.color = boxes.length ? '#7adf8a' : '#97a3b6';
-    }
-
-    // Canvas draw
-    function updateFilenameDisplay(){
-      const el=document.getElementById('currentFrameInfo');
-      el.textContent = images[index] ? `${images[index]}` : '-';
-    }
-    function drawBoxes(tempPreview=false,e=null){
-      if (!hasCurrentFrame()) {
-        gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-        ctx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
-        updateFilenameDisplay();
-        return;
-      }
-      updateFilenameDisplay();
-      const img=new Image();
-      const baseImgUrl = `/frames/${encodeURIComponent(folderName)}/${encodeURIComponent(images[index])}`;
-      const urlWithDataset = withDataset(baseImgUrl);
-      const cacheBust = `${urlWithDataset}${urlWithDataset.includes('?') ? '&' : '?'}t=${Date.now()}`;
-      img.src = cacheBust;
-      img.onload = () => {
-        gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-        gridCtx.drawImage(img, 0, 0, gridCanvas.width, gridCanvas.height);
-        if (gridToggle.checked) drawGridOverlay(parseInt(gridSlider.value,10) || 15);
-
-        ctx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
-        boxes.forEach(box => {
-          const color = colorMap[box.label] || 'lime';
-          ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(box.auto ? [6] : []);
-          ctx.strokeRect(box.x, box.y, box.w, box.h);
-          ctx.setLineDash([]);
-          ctx.fillStyle = 'rgba(0,0,0,.85)';
-          const w = ctx.measureText(box.label).width + 6;
-          ctx.fillRect(box.x, box.y - 16, w, 14);
-          ctx.fillStyle = color;
-          ctx.fillText(box.label, box.x + 2, box.y - 4);
-        });
-
-        if(tempPreview && e){
-          const r=frameCanvas.getBoundingClientRect(), sx=frameCanvas.width/r.width, sy=frameCanvas.height/r.height;
-          const cx=(e.clientX-r.left)*sx, cy=(e.clientY-r.top)*sy;
-          const x=Math.min(startX,cx), y=Math.min(startY,cy), w=Math.abs(cx-startX), h=Math.abs(cy-startY);
-          ctx.setLineDash([5]); ctx.strokeStyle=colorMap[currentLabel]; ctx.strokeRect(x,y,w,h); ctx.setLineDash([]);
+            const s = document.getElementById('currentFrameStatus');
+            s.textContent = `${boxes.length} label(s)`;
+            s.style.color = boxes.length ? '#7adf8a' : '#97a3b6';
         }
-      };
-    }
 
-    // Mouse handlers (allow multiple boxes per class now)
-    frameCanvas.addEventListener('mousedown', e => {
-      const r = frameCanvas.getBoundingClientRect(), sx = frameCanvas.width / r.width, sy = frameCanvas.height / r.height;
-      const x = (e.clientX - r.left) * sx, y = (e.clientY - r.top) * sy;
+        // Canvas draw
+        function updateFilenameDisplay() {
+            const el = document.getElementById('currentFrameInfo');
+            el.textContent = images[index] ? `${images[index]}` : '-';
+        }
+        function drawBoxes(tempPreview = false, e = null) {
+            if (!hasCurrentFrame()) {
+                gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+                ctx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
+                updateFilenameDisplay();
+                return;
+            }
+            updateFilenameDisplay();
+            const img = new Image();
+            const baseImgUrl = `/frames/${encodeURIComponent(folderName)}/${encodeURIComponent(images[index])}`;
+            const urlWithDataset = withDataset(baseImgUrl);
+            const cacheBust = `${urlWithDataset}${urlWithDataset.includes('?') ? '&' : '?'}t=${Date.now()}`;
+            img.src = cacheBust;
+            img.onload = () => {
+                gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+                gridCtx.drawImage(img, 0, 0, gridCanvas.width, gridCanvas.height);
+                if (gridToggle.checked) drawGridOverlay(parseInt(gridSlider.value, 10) || 15);
 
-      if (eraseMode) {
-        const idx = hitTestBox(x, y);
-        if (idx !== -1) deleteBoxAt(idx, { suppressAuto: true });
-        return;
-      }
+                ctx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
+                boxes.forEach(box => {
+                    const color = colorMap[box.label] || 'lime';
+                    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(box.auto ? [6] : []);
+                    ctx.strokeRect(box.x, box.y, box.w, box.h);
+                    ctx.setLineDash([]);
+                    ctx.fillStyle = 'rgba(0,0,0,.85)';
+                    const w = ctx.measureText(box.label).width + 6;
+                    ctx.fillRect(box.x, box.y - 16, w, 14);
+                    ctx.fillStyle = color;
+                    ctx.fillText(box.label, box.x + 2, box.y - 4);
+                });
 
-      startX = x; startY = y; isDrawing = true;
-    });
+                if (tempPreview && e) {
+                    const r = frameCanvas.getBoundingClientRect(), sx = frameCanvas.width / r.width, sy = frameCanvas.height / r.height;
+                    const cx = (e.clientX - r.left) * sx, cy = (e.clientY - r.top) * sy;
+                    const x = Math.min(startX, cx), y = Math.min(startY, cy), w = Math.abs(cx - startX), h = Math.abs(cy - startY);
+                    ctx.setLineDash([5]); ctx.strokeStyle = colorMap[currentLabel]; ctx.strokeRect(x, y, w, h); ctx.setLineDash([]);
+                }
+            };
+        }
 
-    frameCanvas.addEventListener('mousemove', e => {
-      if (!isDrawing || eraseMode) return;
-      drawBoxes(true, e);
-    });
+        // Mouse handlers (allow multiple boxes per class now)
+        frameCanvas.addEventListener('mousedown', e => {
+            const r = frameCanvas.getBoundingClientRect(), sx = frameCanvas.width / r.width, sy = frameCanvas.height / r.height;
+            const x = (e.clientX - r.left) * sx, y = (e.clientY - r.top) * sy;
 
-    frameCanvas.addEventListener('mouseup', e => {
-      if (eraseMode) return;
-      if (!isDrawing) return;
-      const r = frameCanvas.getBoundingClientRect(), sx = frameCanvas.width / r.width, sy = frameCanvas.height / r.height;
-      const ex = (e.clientX - r.left) * sx, ey = (e.clientY - r.top) * sy;
-      const x = Math.min(startX, ex), y = Math.min(startY, ey), w = Math.abs(ex - startX), h = Math.abs(ey - startY);
+            if (eraseMode) {
+                const idx = hitTestBox(x, y);
+                if (idx !== -1) deleteBoxAt(idx, { suppressAuto: true });
+                return;
+            }
 
-      // *** no "one box per label" filter anymore ***
-      boxes.push({ label: currentLabel, x, y, w, h });
+            startX = x; startY = y; isDrawing = true;
+        });
 
-      isDrawing = false; drawBoxes(); updateLabelTable();
-    });
+        frameCanvas.addEventListener('mousemove', e => {
+            if (!isDrawing || eraseMode) return;
+            drawBoxes(true, e);
+        });
 
-    function deleteBoxAt(index, { suppressAuto = true } = {}) {
-      if (index < 0 || index >= boxes.length) return;
-      const removed = boxes.splice(index, 1)[0];
-      if (suppressAuto && removed) addSuppressed(removed); // suppress only this box (IoU-based)
-      drawBoxes(); updateLabelTable();
-    }
+        frameCanvas.addEventListener('mouseup', e => {
+            if (eraseMode) return;
+            if (!isDrawing) return;
+            const r = frameCanvas.getBoundingClientRect(), sx = frameCanvas.width / r.width, sy = frameCanvas.height / r.height;
+            const ex = (e.clientX - r.left) * sx, ey = (e.clientY - r.top) * sy;
+            const x = Math.min(startX, ex), y = Math.min(startY, ey), w = Math.abs(ex - startX), h = Math.abs(ey - startY);
 
-    function hitTestBox(px, py) {
-      for (let i = boxes.length - 1; i >= 0; i--) {
-        const b = boxes[i];
-        if (px >= b.x && py >= b.y && px <= b.x + b.w && py <= b.y + b.h) return i;
-      }
-      return -1;
-    }
+            // *** no "one box per label" filter anymore ***
+            boxes.push({ label: currentLabel, x, y, w, h });
 
-    // Rotate
-    async function rotateFrame(degrees){
-      if(!images[index])return;
-      const body=datasetBody({folder:folderName, filename:images[index], degrees, rotate_labels:true});
-      const r=await fetch('/rotate_frame',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      if(r.ok) drawBoxes(false);
-    }
+            isDrawing = false; drawBoxes(); updateLabelTable();
+        });
+
+        function deleteBoxAt(index, { suppressAuto = true } = {}) {
+            if (index < 0 || index >= boxes.length) return;
+            const removed = boxes.splice(index, 1)[0];
+            if (suppressAuto && removed) addSuppressed(removed); // suppress only this box (IoU-based)
+            drawBoxes(); updateLabelTable();
+        }
+
+        function hitTestBox(px, py) {
+            for (let i = boxes.length - 1; i >= 0; i--) {
+                const b = boxes[i];
+                if (px >= b.x && py >= b.y && px <= b.x + b.w && py <= b.y + b.h) return i;
+            }
+            return -1;
+        }
+
+        // Rotate
+        async function rotateFrame(degrees) {
+            if (!images[index]) return;
+            const body = datasetBody({ folder: folderName, filename: images[index], degrees, rotate_labels: true });
+            const r = await fetch('/rotate_frame', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (r.ok) drawBoxes(false);
+        }
 
 
 
-    // Training monitor (unchanged)
-    const trainEl={ wrap:document.getElementById('trainMonitor'), run:document.getElementById('t_run'),
-      epoch:document.getElementById('t_epoch'), epochs:document.getElementById('t_epochs'), loss:document.getElementById('t_loss'),
-      map:document.getElementById('t_map'), eta:document.getElementById('t_eta'), log:document.getElementById('t_log'),
-      prog:document.getElementById('t_progress'), plot:document.getElementById('trainPlot') };
-    let trainPollTimer=null;
-    // Training monitor refs stay as-is...
-
-    
-
-    async function startTraining() {
-      const datasetSlug = getActiveDatasetSlug();
-      if (!datasetSlug) {
-        alert('Select a project dataset before starting training.');
-        return;
-      }
-      const folder = folderName || document.getElementById('folderInput')?.value;
-      if (!folder) {
-        alert('Select a frame folder (e.g., IMG_2830) and click Load before starting training.');
-        return;
-      }
-
-      const epochs = parseInt(trainEpochInput?.value || '120', 10) || 120;
-      const batch = parseInt(trainBatchInput?.value || '16', 10) || 16;
-      const imgsz = parseInt(trainImgSizeInput?.value || '640', 10) || 640;
-      let valRatio = parseFloat(trainValInput?.value || '0.1');
-      if (isNaN(valRatio) || valRatio < 0) valRatio = 0.1;
-      if (valRatio > 0.5) valRatio = 0.5;
-
-      const btn = document.getElementById('trainBtn');
-      btn.disabled = true;
-      const prev = btn.textContent;
-      btn.textContent = 'Starting...';
-
-      try {
-        const payload = {
-          dataset: datasetSlug,
-          folder,
-          epochs,
-          batch,
-          imgsz,
-          val_ratio: valRatio
+        // Training monitor (unchanged)
+        const trainEl = {
+            wrap: document.getElementById('trainMonitor'), run: document.getElementById('t_run'),
+            epoch: document.getElementById('t_epoch'), epochs: document.getElementById('t_epochs'), loss: document.getElementById('t_loss'),
+            map: document.getElementById('t_map'), eta: document.getElementById('t_eta'), log: document.getElementById('t_log'),
+            prog: document.getElementById('t_progress'), plot: document.getElementById('trainPlot')
         };
-        const res = await fetch('/start_training', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) {
-          const txt = await res.text().catch(()=>'');
-          console.error('start_training failed:', res.status, txt);
-          alert(`Training did not start (HTTP ${res.status}). See console for details.`);
-          return;
+        let trainPollTimer = null;
+        // Training monitor refs stay as-is...
+
+
+
+        async function startTraining() {
+            const datasetSlug = getActiveDatasetSlug();
+            if (!datasetSlug) {
+                alert('Select a project dataset before starting training.');
+                return;
+            }
+            const folder = folderName || document.getElementById('folderInput')?.value;
+            if (!folder) {
+                alert('Select a frame folder (e.g., IMG_2830) and click Load before starting training.');
+                return;
+            }
+
+            const epochs = parseInt(trainEpochInput?.value || '120', 10) || 120;
+            const batch = parseInt(trainBatchInput?.value || '16', 10) || 16;
+            const imgsz = parseInt(trainImgSizeInput?.value || '640', 10) || 640;
+            let valRatio = parseFloat(trainValInput?.value || '0.1');
+            if (isNaN(valRatio) || valRatio < 0) valRatio = 0.1;
+            if (valRatio > 0.5) valRatio = 0.5;
+
+            const btn = document.getElementById('trainBtn');
+            btn.disabled = true;
+            const prev = btn.textContent;
+            btn.textContent = 'Starting...';
+
+            try {
+                const payload = {
+                    dataset: datasetSlug,
+                    folder,
+                    epochs,
+                    batch,
+                    imgsz,
+                    val_ratio: valRatio
+                };
+                const res = await fetch('/start_training', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                    const txt = await res.text().catch(() => '');
+                    console.error('start_training failed:', res.status, txt);
+                    alert(`Training did not start (HTTP ${res.status}). See console for details.`);
+                    return;
+                }
+                let data;
+                try { data = await res.json(); }
+                catch { data = { status: 'ok', note: 'non-JSON response' }; }
+
+                trainEl.wrap.style.display = 'block';
+                trainEl.log.textContent = (data.status || 'started') + ' ...';
+                tryTrainSSE() || startTrainPolling();
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            } finally {
+                btn.disabled = false;
+                btn.textContent = prev;
+            }
         }
-        let data;
-        try { data = await res.json(); }
-        catch { data = { status: 'ok', note: 'non-JSON response' }; }
 
-        trainEl.wrap.style.display = 'block';
-        trainEl.log.textContent = (data.status || 'started') + ' ...';
-        tryTrainSSE() || startTrainPolling();
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-      } finally {
-        btn.disabled = false;
-        btn.textContent = prev;
-      }
-    }
-
-    function tryTrainSSE(){ if(!('EventSource'in window))return false;
-      try{ const es=new EventSource('/train_stream'); es.onmessage=(ev)=>renderTrain(JSON.parse(ev.data));
-        es.onerror=()=>{es.close();startTrainPolling()}; return true; }catch{return false}
-    }
-    function startTrainPolling(){ clearInterval(trainPollTimer);
-      trainPollTimer=setInterval(async()=>{ try{const js=await fetch('/train_status',{cache:'no-store'}).then(r=>r.json()); renderTrain(js);}catch{} },2000);
-    }
-    function renderTrain(s){ if(!s)return; trainEl.wrap.style.display='block';
-      trainEl.run.textContent=s.run||'-'; trainEl.epoch.textContent=s.epoch??0; trainEl.epochs.textContent=s.epochs??0;
-      trainEl.loss.textContent=(s.loss_train!=null||s.loss_val!=null)?`${fmt(s.loss_train)} / ${fmt(s.loss_val)}`:'-';
-      trainEl.map.textContent=(s.map50!=null||s.map50_95!=null)?`${pct(s.map50)} / ${pct(s.map50_95)}`:'-';
-      trainEl.eta.textContent=s.eta_human||s.eta||'-'; trainEl.log.textContent=s.last_log||'-';
-      if(s.epoch!=null&&s.epochs){ trainEl.prog.value=Math.max(0,Math.min(1,s.epoch/Math.max(1,s.epochs))); }
-      if(s.run){ trainEl.plot.src=`/runs/detect/${s.run}/results.png?cb=${Date.now()}`; trainEl.plot.style.display='block'; }
-      if(s.done){ clearInterval(trainPollTimer); }
-    }
-    function fmt(v){ return (v==null)?'-':(typeof v==='number'?v.toFixed(4):String(v)); }
-    function pct(v){ return (v==null)?'-':(v<=1?(v*100).toFixed(1)+'%':v.toFixed(1)); }
-
-    // Models + ONNX (unchanged)
-    const modelsStatus=document.getElementById('modelsStatus');
-    const modelTbody=document.querySelector('#modelTable tbody');
-    async function activateDetectorForDataset(ptPath){
-      const datasetSlug=getActiveDatasetSlug();
-      const projectSlug=selectedProjectSlug || projectManager?.getActiveProject()?.slug;
-      if(!datasetSlug || !projectSlug){
-        alert('Select a project and dataset before choosing a detector.');
-        return;
-      }
-      modelsStatus.textContent='Updating detector...';
-      try{
-        const res=await fetch(`/api/projects/${encodeURIComponent(projectSlug)}/detector`,{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({dataset: datasetSlug, detector: ptPath})
-        });
-        if(!res.ok){
-          const txt=await res.text().catch(()=>res.statusText);
-          throw new Error(txt || `HTTP ${res.status}`);
+        function tryTrainSSE() {
+            if (!('EventSource' in window)) return false;
+            try {
+                const es = new EventSource('/train_stream'); es.onmessage = (ev) => renderTrain(JSON.parse(ev.data));
+                es.onerror = () => { es.close(); startTrainPolling() }; return true;
+            } catch { return false }
         }
-        await projectManager.reload();
-        projectManager.setActiveProject(projectSlug);
-        modelsStatus.textContent='Detector updated.';
-        refreshModelTable();
-      }catch(err){
-        console.error('activateDetectorForDataset', err);
-        modelsStatus.textContent='Failed to update detector.';
-        alert(`Failed to set detector: ${err.message}`);
-      }
-    }
-    document.getElementById('refreshModelsBtn').addEventListener('click',refreshModelTable);
-    async function refreshModelTable(){
-      modelsStatus.textContent='Loading...'; modelTbody.innerHTML='';
-      try{
-        const data=await fetch('/list_trained_models',{cache:'no-store'}).then(r=>r.json());
-        const models = (data.models||[]).slice(0,5);
-        if (!models.length){
-          modelsStatus.textContent='No models found.';
-          return;
+        function startTrainPolling() {
+            clearInterval(trainPollTimer);
+            trainPollTimer = setInterval(async () => { try { const js = await fetch('/train_status', { cache: 'no-store' }).then(r => r.json()); renderTrain(js); } catch { } }, 2000);
         }
-        models.forEach(m=>{
-          const tr=document.createElement('tr');
-          const runTd=document.createElement('td'); runTd.textContent=m.run;
-          const modTd=document.createElement('td'); modTd.className='muted'; modTd.textContent=m.mtime_human || '-';
-          const pathTd=document.createElement('td');
-          const relPath=(m.pt_path||'').replace(/^.*runs[\\/]/,'runs/');
-          const code=document.createElement('code'); code.textContent=relPath;
-          pathTd.appendChild(code);
-          const actionsTd=document.createElement('td');
+        function renderTrain(s) {
+            if (!s) return; trainEl.wrap.style.display = 'block';
+            trainEl.run.textContent = s.run || '-'; trainEl.epoch.textContent = s.epoch ?? 0; trainEl.epochs.textContent = s.epochs ?? 0;
+            trainEl.loss.textContent = (s.loss_train != null || s.loss_val != null) ? `${fmt(s.loss_train)} / ${fmt(s.loss_val)}` : '-';
+            trainEl.map.textContent = (s.map50 != null || s.map50_95 != null) ? `${pct(s.map50)} / ${pct(s.map50_95)}` : '-';
+            trainEl.eta.textContent = s.eta_human || s.eta || '-'; trainEl.log.textContent = s.last_log || '-';
+            if (s.epoch != null && s.epochs) { trainEl.prog.value = Math.max(0, Math.min(1, s.epoch / Math.max(1, s.epochs))); }
+            if (s.run) { trainEl.plot.src = `/runs/detect/${s.run}/results.png?cb=${Date.now()}`; trainEl.plot.style.display = 'block'; }
+            if (s.done) { clearInterval(trainPollTimer); }
+        }
+        function fmt(v) { return (v == null) ? '-' : (typeof v === 'number' ? v.toFixed(4) : String(v)); }
+        function pct(v) { return (v == null) ? '-' : (v <= 1 ? (v * 100).toFixed(1) + '%' : v.toFixed(1)); }
 
-          const useBtn=document.createElement('button');
-          useBtn.className='btn';
-          useBtn.textContent='Use for dataset';
-          useBtn.addEventListener('click',()=>activateDetectorForDataset(m.pt_path));
+        // Models + ONNX (unchanged)
+        const modelsStatus = document.getElementById('modelsStatus');
+        const modelTbody = document.querySelector('#modelTable tbody');
+        async function activateDetectorForDataset(ptPath) {
+            const datasetSlug = getActiveDatasetSlug();
+            const projectSlug = selectedProjectSlug || projectManager?.getActiveProject()?.slug;
+            if (!datasetSlug || !projectSlug) {
+                alert('Select a project and dataset before choosing a detector.');
+                return;
+            }
+            modelsStatus.textContent = 'Updating detector...';
+            try {
+                const res = await fetch(`/api/projects/${encodeURIComponent(projectSlug)}/detector`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dataset: datasetSlug, detector: ptPath })
+                });
+                if (!res.ok) {
+                    const txt = await res.text().catch(() => res.statusText);
+                    throw new Error(txt || `HTTP ${res.status}`);
+                }
+                await projectManager.reload();
+                projectManager.setActiveProject(projectSlug);
+                modelsStatus.textContent = 'Detector updated.';
+                refreshModelTable();
+            } catch (err) {
+                console.error('activateDetectorForDataset', err);
+                modelsStatus.textContent = 'Failed to update detector.';
+                alert(`Failed to set detector: ${err.message}`);
+            }
+        }
+        document.getElementById('refreshModelsBtn').addEventListener('click', refreshModelTable);
+        async function refreshModelTable() {
+            modelsStatus.textContent = 'Loading...'; modelTbody.innerHTML = '';
+            try {
+                const data = await fetch('/list_trained_models', { cache: 'no-store' }).then(r => r.json());
+                const models = (data.models || []).slice(0, 5);
+                if (!models.length) {
+                    modelsStatus.textContent = 'No models found.';
+                    return;
+                }
+                models.forEach(m => {
+                    const tr = document.createElement('tr');
+                    const runTd = document.createElement('td'); runTd.textContent = m.run;
+                    const modTd = document.createElement('td'); modTd.className = 'muted'; modTd.textContent = m.mtime_human || '-';
+                    const pathTd = document.createElement('td');
+                    const relPath = (m.pt_path || '').replace(/^.*runs[\\/]/, 'runs/');
+                    const code = document.createElement('code'); code.textContent = relPath;
+                    pathTd.appendChild(code);
+                    const actionsTd = document.createElement('td');
 
-          const exportBtn=document.createElement('button');
-          exportBtn.className='btn';
-          exportBtn.style.marginLeft='6px';
-          exportBtn.textContent='Export ONNX...';
-          exportBtn.addEventListener('click',()=>openOnnxExport(m.pt_path));
+                    const useBtn = document.createElement('button');
+                    useBtn.className = 'btn';
+                    useBtn.textContent = 'Use for dataset';
+                    useBtn.addEventListener('click', () => activateDetectorForDataset(m.pt_path));
 
-          actionsTd.appendChild(useBtn);
-          actionsTd.appendChild(exportBtn);
+                    const exportBtn = document.createElement('button');
+                    exportBtn.className = 'btn';
+                    exportBtn.style.marginLeft = '6px';
+                    exportBtn.textContent = 'Export ONNX...';
+                    exportBtn.addEventListener('click', () => openOnnxExport(m.pt_path));
 
-          tr.appendChild(runTd);
-          tr.appendChild(modTd);
-          tr.appendChild(pathTd);
-          tr.appendChild(actionsTd);
-          modelTbody.appendChild(tr);
+                    actionsTd.appendChild(useBtn);
+                    actionsTd.appendChild(exportBtn);
+
+                    tr.appendChild(runTd);
+                    tr.appendChild(modTd);
+                    tr.appendChild(pathTd);
+                    tr.appendChild(actionsTd);
+                    modelTbody.appendChild(tr);
+                });
+                modelsStatus.textContent = 'Done.';
+            } catch (e) {
+                console.error('refreshModelTable', e);
+                modelsStatus.textContent = 'Failed to load models.';
+            }
+        }
+
+        (function () { // ONNX modal
+            const btn = document.getElementById('onnxExportBtn'), modal = document.getElementById('onnxModal');
+            const ptSelect = document.getElementById('ptSelect'), imgszInput = document.getElementById('imgszInput'), opsetInput = document.getElementById('opsetInput');
+            const profileSelect = document.getElementById('profileSelect'), activateChk = document.getElementById('activateChk');
+            const statusEl = document.getElementById('onnxStatus'), cancelBtn = document.getElementById('onnxCancel'), doExportBtn = document.getElementById('onnxDoExport');
+            window.openOnnxExport = (pt) => { modal.style.display = 'block'; refreshPtList().then(() => { const o = [...ptSelect.options].find(o => o.value === pt); if (o) ptSelect.value = o.value; }); };
+            async function refreshPtList() {
+                statusEl.textContent = 'Loading trained weights...'; ptSelect.innerHTML = '';
+                try {
+                    const data = await fetch('/list_trained_models', { cache: 'no-store' }).then(r => r.json());
+                    (data.models || []).forEach(m => { const o = document.createElement('option'); o.value = m.pt_path; o.textContent = `${m.run} - ${m.mtime_human}`; ptSelect.appendChild(o); });
+                    statusEl.textContent = ptSelect.value ? 'Ready.' : 'No best.pt found. Train first.';
+                } catch { statusEl.textContent = 'Failed to load weights.'; }
+            }
+            btn.addEventListener('click', () => { modal.style.display = 'block'; refreshPtList(); });
+            cancelBtn.addEventListener('click', () => { modal.style.display = 'none'; });
+            modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+            doExportBtn.addEventListener('click', async () => {
+                const body = {
+                    pt_path: ptSelect.value, imgsz: +(imgszInput.value || 640), opset: +(opsetInput.value || 17),
+                    profile: profileSelect.value, simplify: true, dynamic: false, activate: activateChk.checked
+                };
+                statusEl.textContent = 'Exporting...'; doExportBtn.disabled = true;
+                try {
+                    const r = await fetch('/export_onnx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                    const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Export failed');
+                    statusEl.innerHTML = `saved ONNX exported.<br>Model: <code>${d.detector_cfg?.model_url || '(not activated)'}</code><br>imgsz=${body.imgsz} opset=${body.opset}`;
+                    refreshModelTable();
+                } catch (e) { statusEl.textContent = '    ' + e.message; } finally { doExportBtn.disabled = false; }
+            });
+        })();
+
+        // Init
+        window.addEventListener('DOMContentLoaded', () => { gridValue.textContent = gridSlider.value; updateGrid(); populateFolderList(); refreshModelTable(); });
+
+        // Expose used fns
+        window.extractFrames = extractFrames;
+        window.loadImages = loadImages;
+        window.thenNext = thenNext;
+        window.loadPrevious = loadPrevious;
+        window.autoDetectCurrent = autoDetectCurrent;
+        window.saveLabels = saveLabels;
+        window.rotateFrame = rotateFrame;
+        window.startTraining = startTraining;
+        window.activateDetectorForDataset = activateDetectorForDataset;
+
+        // Eraser toggle button
+        const eraserBtn = document.getElementById('eraserBtn');
+        eraserBtn.addEventListener('click', () => {
+            eraseMode = !eraseMode;
+            eraserBtn.classList.toggle('primary', eraseMode);
+            eraserBtn.textContent = eraseMode ? 'Eraser Erasing... (click a box)' : 'Eraser Erase One';
         });
-        modelsStatus.textContent='Done.';
-      }catch(e){
-        console.error('refreshModelTable', e);
-        modelsStatus.textContent='Failed to load models.';
-      }
-    }
 
-    (function(){ // ONNX modal
-      const btn=document.getElementById('onnxExportBtn'), modal=document.getElementById('onnxModal');
-      const ptSelect=document.getElementById('ptSelect'), imgszInput=document.getElementById('imgszInput'), opsetInput=document.getElementById('opsetInput');
-      const profileSelect=document.getElementById('profileSelect'), activateChk=document.getElementById('activateChk');
-      const statusEl=document.getElementById('onnxStatus'), cancelBtn=document.getElementById('onnxCancel'), doExportBtn=document.getElementById('onnxDoExport');
-      window.openOnnxExport=(pt)=>{ modal.style.display='block'; refreshPtList().then(()=>{ const o=[...ptSelect.options].find(o=>o.value===pt); if(o) ptSelect.value=o.value; }); };
-      async function refreshPtList(){ statusEl.textContent='Loading trained weights...'; ptSelect.innerHTML='';
-        try{ const data=await fetch('/list_trained_models',{cache:'no-store'}).then(r=>r.json());
-          (data.models||[]).forEach(m=>{ const o=document.createElement('option'); o.value=m.pt_path; o.textContent=`${m.run} - ${m.mtime_human}`; ptSelect.appendChild(o); });
-          statusEl.textContent=ptSelect.value?'Ready.':'No best.pt found. Train first.';
-        }catch{ statusEl.textContent='Failed to load weights.'; } }
-      btn.addEventListener('click',()=>{ modal.style.display='block'; refreshPtList(); });
-      cancelBtn.addEventListener('click',()=>{ modal.style.display='none'; });
-      modal.addEventListener('click',(e)=>{ if(e.target===modal) modal.style.display='none'; });
-      doExportBtn.addEventListener('click', async ()=>{
-        const body={pt_path:ptSelect.value, imgsz:+(imgszInput.value||640), opset:+(opsetInput.value||17),
-          profile:profileSelect.value, simplify:true, dynamic:false, activate:activateChk.checked};
-        statusEl.textContent='Exporting...'; doExportBtn.disabled=true;
-        try{ const r=await fetch('/export_onnx',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-             const d=await r.json(); if(!r.ok) throw new Error(d.error||'Export failed');
-             statusEl.innerHTML=`saved ONNX exported.<br>Model: <code>${d.detector_cfg?.model_url||'(not activated)'}</code><br>imgsz=${body.imgsz} opset=${body.opset}`;
-             refreshModelTable();
-        }catch(e){ statusEl.textContent='    '+e.message; } finally{ doExportBtn.disabled=false; }
-      });
-    })();
+        // Reset ignore for this frame
+        const resetIgnoreBtn = document.getElementById('resetIgnoreBtn');
+        resetIgnoreBtn.addEventListener('click', () => {
+            resetSuppressed();
+            alert('Ignore cleared for this frame.');
+        });
 
-    // Init
-    window.addEventListener('DOMContentLoaded',()=>{ gridValue.textContent=gridSlider.value; updateGrid(); populateFolderList(); refreshModelTable(); });
-
-    // Expose used fns
-    window.extractFrames   = extractFrames;
-    window.loadImages      = loadImages;
-    window.thenNext        = thenNext;
-    window.loadPrevious    = loadPrevious;
-    window.autoDetectCurrent = autoDetectCurrent;
-    window.saveLabels      = saveLabels;
-    window.rotateFrame     = rotateFrame;
-    window.startTraining   = startTraining;
-    window.activateDetectorForDataset = activateDetectorForDataset;
-
-    // Eraser toggle button
-    const eraserBtn = document.getElementById('eraserBtn');
-    eraserBtn.addEventListener('click', () => {
-      eraseMode = !eraseMode;
-      eraserBtn.classList.toggle('primary', eraseMode);
-      eraserBtn.textContent = eraseMode ? 'Eraser Erasing... (click a box)' : 'Eraser Erase One';
-    });
-
-    // Reset ignore for this frame
-    const resetIgnoreBtn = document.getElementById('resetIgnoreBtn');
-    resetIgnoreBtn.addEventListener('click', () => {
-      resetSuppressed();
-      alert('Ignore cleared for this frame.');
-    });
-
-    // Robust clear
-    window.clearBoxes = function () { boxes = []; drawBoxes(); updateLabelTable(); };
-  </script>
+        // Robust clear
+        window.clearBoxes = function () { boxes = []; drawBoxes(); updateLabelTable(); };
+    </script>
 </body>
+
 </html>
-
-
-
-
-
-

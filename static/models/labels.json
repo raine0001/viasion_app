@@ -1,6 +1,6 @@
 {
     "version": 1,
-    "namespace": "viason",
+    "namespace": "viasion",
     "classes": [
         "basketball", // 0
         "hoop", // 1

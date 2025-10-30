@@ -1,2 +1,2 @@
-// Entry point for viason web app
-console.log('viason app started');
+// Entry point for viasion web app
+console.log('viasion app started');
