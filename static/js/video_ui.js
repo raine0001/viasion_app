@@ -1324,173 +1324,328 @@ function clearNewSessionPromptTimers() {
 }
 
 // keep session in landscape mode
-
-async function startLandscapeRecorder(videoEl, opts = {}) {
-  const fps = opts.fps || 30;
-  const wantW = opts.width || 1280;
-  const wantH = opts.height || 720;
-  const overlayEl = document.getElementById(opts.overlayId || 'overlay');
-  const bufferWindowMs = opts.bufferWindowMs ?? Math.max(4000, (window.__MICROCLIP_MS ?? 3000) + (window.__MICROCLIP_PRE_MS ?? 360) + 1000);
-  const sliceMs = Math.max(50, Math.round(1000 / fps));
-
-  const cvs = document.createElement('canvas');
-  const ctx = cvs.getContext('2d', { alpha: false });
-
-  function layoutForLandscape() {
-    cvs.width = wantW;
-    cvs.height = wantH;
-    const vW = videoEl.videoWidth || wantW;
-    const vH = videoEl.videoHeight || wantH;
-    const isPortraitStream = vH > vW;
-    const scaleCover = Math.max(wantW / vW, wantH / vH);
-    return { vW, vH, isPortraitStream, scaleCover };
-  }
-
-  const stream = cvs.captureStream(fps);
-
-  const mimeCandidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
-  const mimeType = mimeCandidates.find(m => {
-    try { return MediaRecorder.isTypeSupported?.(m); } catch { return false; }
-  }) || 'video/webm';
-
-  const recorder = new MediaRecorder(stream, { mimeType });
-  const buffer = [];
-  let initChunk = null;
-  let activeCapture = null;
-  let requestTimer = null;
-  let lastChunkTime = performance.now();
-
-  recorder.ondataavailable = (e) => {
-    if (!e?.data || !e.data.size) return;
-    const now = performance.now();
-    const duration = Math.max(1, now - lastChunkTime);
-    lastChunkTime = now;
-
-    if (!initChunk) {
-      initChunk = e.data;
-    }
-
-    buffer.push({ blob: e.data, duration, ts: now });
-    while (buffer.length && (now - buffer[0].ts) > bufferWindowMs) buffer.shift();
-
-    if (activeCapture) {
-      activeCapture.chunks.push(e.data);
-      activeCapture.remainingMs -= duration;
-      if (activeCapture.remainingMs <= 0) {
-        const parts = activeCapture.chunks.slice();
-        if (initChunk && parts[0] !== initChunk) parts.unshift(initChunk);
-        const clipBlob = new Blob(parts, { type: mimeType });
-        const resolver = activeCapture.resolve;
-        activeCapture = null;
-        resolver(clipBlob);
-      }
-    }
-  };
-
-  recorder.onstop = () => {
-    if (requestTimer) clearInterval(requestTimer);
-    if (activeCapture) {
-      const rejecter = activeCapture.reject;
-      activeCapture = null;
-      rejecter?.(new Error('recorder stopped'));
-    }
-  };
-
-  try { recorder.start(sliceMs); }
-  catch {
-    recorder.start();
-    requestTimer = setInterval(() => {
-      try { recorder.requestData?.(); } catch { }
-    }, sliceMs);
-  }
-
-  let rafId = 0;
-  const draw = () => {
-    const { vW, vH, isPortraitStream, scaleCover } = layoutForLandscape();
-    const w = cvs.width;
-    const h = cvs.height;
-
-    ctx.clearRect(0, 0, w, h);
-    ctx.save();
-
-    if (isPortraitStream) {
-      ctx.translate(w, 0);
-      ctx.rotate(Math.PI / 2);
-
-      const drawW = h / scaleCover;
-      const drawH = w / scaleCover;
-      const x = -((drawW - vW) / 2);
-      const y = -((drawH - vH) / 2);
-      ctx.drawImage(videoEl, x, y, drawW, drawH);
-      if (overlayEl && overlayEl.width > 0 && overlayEl.height > 0) {
-        ctx.drawImage(overlayEl, x, y, drawW, drawH);
-      }
-    } else {
-      const drawW = vW * scaleCover;
-      const drawH = vH * scaleCover;
-      const x = (w - drawW) / 2;
-      const y = (h - drawH) / 2;
-      ctx.drawImage(videoEl, x, y, drawW, drawH);
-      if (overlayEl && overlayEl.width > 0 && overlayEl.height > 0) {
-        ctx.drawImage(overlayEl, x, y, drawW, drawH);
-      }
-    }
-
-    ctx.restore();
-    rafId = requestAnimationFrame(draw);
-  };
-
-  if (videoEl.readyState >= 2) draw();
-  else videoEl.addEventListener('loadedmetadata', draw, { once: true });
-
-  const captureClip = ({ preMs, totalMs } = {}) => {
-    const total = Math.max(200, Number.isFinite(totalMs) ? totalMs : (window.__MICROCLIP_MS ?? 3000));
-    const pre = Math.max(0, Math.min(Number.isFinite(preMs) ? preMs : (window.__MICROCLIP_PRE_MS ?? 360), total));
-
-    const chunks = [];
-    let covered = 0;
-    for (let i = buffer.length - 1; i >= 0 && covered < pre; i--) {
-      const entry = buffer[i];
-      chunks.unshift(entry.blob);
-      covered += entry.duration;
-    }
-    let remainingMs = Math.max(0, total - covered);
-    if (remainingMs <= 0) {
-      const parts = chunks.slice();
-      if (initChunk && parts[0] !== initChunk) parts.unshift(initChunk);
-      return Promise.resolve(new Blob(parts, { type: mimeType }));
-    }
-    return new Promise((resolve, reject) => {
-      if (activeCapture) {
-        activeCapture.reject?.(new Error('capture in progress'));
-        activeCapture = null;
-      }
-      activeCapture = {
-        chunks,
-        remainingMs,
-        resolve,
-        reject
-      };
-    });
-  };
-
-  return {
-    stream,
-    captureClip,
-    stop: () => {
-      cancelAnimationFrame(rafId);
-      if (requestTimer) clearInterval(requestTimer);
-      videoEl.removeEventListener?.('loadedmetadata', draw);
-      try { recorder.stop(); } catch { }
-      stream?.getTracks?.().forEach(track => track.stop());
-      buffer.length = 0;
-      if (activeCapture) {
-        activeCapture.reject?.(new Error('recorder stopped'));
-        activeCapture = null;
-      }
-    }
-  };
-}
+
+
+async function startLandscapeRecorder(videoEl, opts = {}) {
+
+  const fps = opts.fps || 30;
+
+  const wantW = opts.width || 1280;
+
+  const wantH = opts.height || 720;
+
+  const overlayEl = document.getElementById(opts.overlayId || 'overlay');
+
+  const bufferWindowMs = opts.bufferWindowMs ?? Math.max(4000, (window.__MICROCLIP_MS ?? 3000) + (window.__MICROCLIP_PRE_MS ?? 360) + 1000);
+
+  const sliceMs = Math.max(50, Math.round(1000 / fps));
+
+
+
+  const cvs = document.createElement('canvas');
+
+  const ctx = cvs.getContext('2d', { alpha: false });
+
+
+
+  function layoutForLandscape() {
+
+    cvs.width = wantW;
+
+    cvs.height = wantH;
+
+    const vW = videoEl.videoWidth || wantW;
+
+    const vH = videoEl.videoHeight || wantH;
+
+    const isPortraitStream = vH > vW;
+
+    const scaleCover = Math.max(wantW / vW, wantH / vH);
+
+    return { vW, vH, isPortraitStream, scaleCover };
+
+  }
+
+
+
+  const stream = cvs.captureStream(fps);
+
+
+
+  const mimeCandidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+
+  const mimeType = mimeCandidates.find(m => {
+
+    try { return MediaRecorder.isTypeSupported?.(m); } catch { return false; }
+
+  }) || 'video/webm';
+
+
+
+  const recorder = new MediaRecorder(stream, { mimeType });
+
+  const buffer = [];
+
+  let initChunk = null;
+
+  let activeCapture = null;
+
+  let requestTimer = null;
+
+  let lastChunkTime = performance.now();
+
+
+
+  recorder.ondataavailable = (e) => {
+
+    if (!e?.data || !e.data.size) return;
+
+    const now = performance.now();
+
+    const duration = Math.max(1, now - lastChunkTime);
+
+    lastChunkTime = now;
+
+
+
+    if (!initChunk) {
+
+      initChunk = e.data;
+
+    }
+
+
+
+    buffer.push({ blob: e.data, duration, ts: now });
+
+    while (buffer.length && (now - buffer[0].ts) > bufferWindowMs) buffer.shift();
+
+
+
+    if (activeCapture) {
+      activeCapture.liveChunks.push(e.data);
+      activeCapture.remainingMs -= duration;
+
+      if (activeCapture.remainingMs <= 0) {
+        const parts = typeof activeCapture.buildParts === 'function'
+          ? activeCapture.buildParts(activeCapture.liveChunks)
+          : activeCapture.liveChunks.slice();
+
+        const clipBlob = new Blob(parts, { type: mimeType });
+        const resolver = activeCapture.resolve;
+
+        activeCapture = null;
+        resolver(clipBlob);
+      }
+    }
+
+  };
+
+
+
+  recorder.onstop = () => {
+
+    if (requestTimer) clearInterval(requestTimer);
+
+    if (activeCapture) {
+
+      const rejecter = activeCapture.reject;
+
+      activeCapture = null;
+
+      rejecter?.(new Error('recorder stopped'));
+
+    }
+
+  };
+
+
+
+  try { recorder.start(sliceMs); }
+
+  catch {
+
+    recorder.start();
+
+    requestTimer = setInterval(() => {
+
+      try { recorder.requestData?.(); } catch { }
+
+    }, sliceMs);
+
+  }
+
+
+
+  let rafId = 0;
+
+  const draw = () => {
+
+    const { vW, vH, isPortraitStream, scaleCover } = layoutForLandscape();
+
+    const w = cvs.width;
+
+    const h = cvs.height;
+
+
+
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.save();
+
+
+
+    if (isPortraitStream) {
+
+      ctx.translate(w, 0);
+
+      ctx.rotate(Math.PI / 2);
+
+
+
+      const drawW = h / scaleCover;
+
+      const drawH = w / scaleCover;
+
+      const x = -((drawW - vW) / 2);
+
+      const y = -((drawH - vH) / 2);
+
+      ctx.drawImage(videoEl, x, y, drawW, drawH);
+
+      if (overlayEl && overlayEl.width > 0 && overlayEl.height > 0) {
+
+        ctx.drawImage(overlayEl, x, y, drawW, drawH);
+
+      }
+
+    } else {
+
+      const drawW = vW * scaleCover;
+
+      const drawH = vH * scaleCover;
+
+      const x = (w - drawW) / 2;
+
+      const y = (h - drawH) / 2;
+
+      ctx.drawImage(videoEl, x, y, drawW, drawH);
+
+      if (overlayEl && overlayEl.width > 0 && overlayEl.height > 0) {
+
+        ctx.drawImage(overlayEl, x, y, drawW, drawH);
+
+      }
+
+    }
+
+
+
+    ctx.restore();
+
+    rafId = requestAnimationFrame(draw);
+
+  };
+
+
+
+  if (videoEl.readyState >= 2) draw();
+
+  else videoEl.addEventListener('loadedmetadata', draw, { once: true });
+
+
+
+  const captureClip = ({ preMs, totalMs } = {}) => {
+
+    const total = Math.max(200, Number.isFinite(totalMs) ? totalMs : (window.__MICROCLIP_MS ?? 3000));
+
+    const pre = Math.max(0, Math.min(Number.isFinite(preMs) ? preMs : (window.__MICROCLIP_PRE_MS ?? 360), total));
+
+
+
+    const preChunks = [];
+
+    let covered = 0;
+
+    for (let i = buffer.length - 1; i >= 0 && covered < pre; i--) {
+
+      const entry = buffer[i];
+
+      preChunks.unshift(entry.blob);
+
+      covered += entry.duration;
+
+    }
+
+    const buildParts = (liveChunks = []) => {
+      const parts = [];
+      if (initChunk) parts.push(initChunk);
+      for (const blob of preChunks) {
+        if (!initChunk || blob !== initChunk) parts.push(blob);
+      }
+      for (const blob of liveChunks) {
+        if (!initChunk || blob !== initChunk) parts.push(blob);
+      }
+      return parts;
+    };
+
+    let remainingMs = Math.max(0, total - covered);
+
+    if (remainingMs <= 0) {
+      return Promise.resolve(new Blob(buildParts(), { type: mimeType }));
+    }
+
+    return new Promise((resolve, reject) => {
+      if (activeCapture) {
+        activeCapture.reject?.(new Error('capture in progress'));
+        activeCapture = null;
+      }
+      activeCapture = {
+        preChunks,
+        liveChunks: [],
+        remainingMs,
+        resolve,
+        reject,
+        buildParts
+      };
+    });
+
+  };
+
+  return {
+
+    stream,
+
+    captureClip,
+
+    stop: () => {
+
+      cancelAnimationFrame(rafId);
+
+      if (requestTimer) clearInterval(requestTimer);
+
+      videoEl.removeEventListener?.('loadedmetadata', draw);
+
+      try { recorder.stop(); } catch { }
+
+      stream?.getTracks?.().forEach(track => track.stop());
+
+      buffer.length = 0;
+
+      if (activeCapture) {
+
+        activeCapture.reject?.(new Error('recorder stopped'));
+
+        activeCapture = null;
+
+      }
+
+    }
+
+  };
+
+}
+
 // Reset to start overlay state
 function finalizeToStartOverlay() {
     if (__newSessionFinalized !== false) return;
