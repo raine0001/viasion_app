@@ -1396,6 +1396,7 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
     function finalizeActiveCapture(reason = 'complete') {
         if (!activeCapture) return null;
+        activeCapture.flushRequested = false;
         let parts = [];
         try {
             if (typeof activeCapture.buildParts === 'function') {
@@ -1466,7 +1467,13 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
             activeCapture.remainingMs -= duration;
 
             if (activeCapture.remainingMs <= 0) {
-                finalizeActiveCapture('complete');
+                const needsFlush = !activeCapture.flushRequested && typeof recorder.requestData === 'function';
+                if (needsFlush) {
+                    activeCapture.flushRequested = true;
+                    try { recorder.requestData(); } catch { }
+                } else {
+                    finalizeActiveCapture('complete');
+                }
             }
         }
 
