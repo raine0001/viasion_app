@@ -26,6 +26,18 @@
   const modalShotListEl = modalEl ? modalEl.querySelector('[data-modal-shots]') : null;
   const modalActionBarEl = modalEl ? modalEl.querySelector('[data-modal-actions]') : null;
 
+  if (modalVideoEl) {
+    const enforcePlaybackRate = () => {
+      try {
+        modalVideoEl.defaultPlaybackRate = PLAYBACK_RATE;
+        modalVideoEl.playbackRate = PLAYBACK_RATE;
+      } catch {}
+    };
+    enforcePlaybackRate();
+    modalVideoEl.addEventListener('loadedmetadata', enforcePlaybackRate);
+    modalVideoEl.addEventListener('play', enforcePlaybackRate);
+  }
+
   const state = {
     posts: [],
     filters: [],
