@@ -1,3 +1,4 @@
+
 // /static/coachAssistant.js
 
 // --- Coach voice state (persisted) ---
@@ -12,10 +13,166 @@ window.__COACH_QUEUE = [];
 // One voice, one line — let shot:summary own speaking
 window.viason_ONLY_REALTIME = true;
 
+const DEFAULT_CUE = 'Eyes on the rim. Hold your finish.';
+const GOLF_DEFAULT_CUE = 'Smooth tempo and balanced finish.';
+
+function getCoachSlug() {
+    try {
+        const mgr = window.viasonProjectManager;
+        if (mgr && typeof mgr.getActiveProject === 'function') {
+            const active = mgr.getActiveProject();
+            if (active && active.slug) return String(active.slug).toLowerCase();
+        }
+    } catch { }
+    try {
+        const fallback = window.__VIASON_ACTIVE_PROJECT;
+        if (fallback) {
+            if (typeof fallback === 'string') return fallback.toLowerCase();
+            if (fallback.slug) return String(fallback.slug).toLowerCase();
+        }
+    } catch { }
+    return 'basketball';
+}
+
+try { window.getCoachSlug = getCoachSlug; } catch { }
+
+function composeGolfCue(snap) {
+    const choose = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const cues = [];
+    const push = (sev, lines) => {
+        if (!lines || !lines.length) return;
+        cues.push({ sev, lines });
+    };
+
+    const tempo = Number(snap?.tempoRatio);
+    if (Number.isFinite(tempo)) {
+        if (tempo < 2.6) {
+            push(18 + ((2.6 - tempo) * 8), [
+                `Tempo ${tempo.toFixed(2)}:1 - give the backswing more time before you transition.`,
+                'Slow the takeaway and count to three to the top.'
+            ]);
+        } else if (tempo > 3.6) {
+            push(18 + ((tempo - 3.6) * 8), [
+                `Tempo ${tempo.toFixed(2)}:1 - smooth the transition into the downswing.`,
+                'Blend the change of direction; start the downswing as the backswing finishes.'
+            ]);
+        }
+    }
+
+    const backswingPlane = Number.isFinite(snap?.backswingPlaneDeg) ? Number(snap.backswingPlaneDeg) : null;
+    if (backswingPlane != null && backswingPlane > 12) {
+        push(16 + (backswingPlane - 12), [
+            `Backswing ${backswingPlane.toFixed(0)} deg steep - rotate around the spine instead of lifting.`,
+            'Keep the club on plane by turning the shoulders, not picking the arms up.'
+        ]);
+    }
+
+    const downswingPlane = Number.isFinite(snap?.downswingPlaneDeg) ? Number(snap.downswingPlaneDeg) : null;
+    if (downswingPlane != null && downswingPlane > 8) {
+        push(20 + (downswingPlane - 8), [
+            `Downswing ${downswingPlane.toFixed(0)} deg over plane - let the trail elbow shallow.`,
+            'Drop the trail elbow in transition so the club shallows before impact.'
+        ]);
+    }
+
+    const spineAngle = Number.isFinite(snap?.impactSpineAngle)
+        ? Number(snap.impactSpineAngle)
+        : (Number.isFinite(snap?.torsoLeanAngle) ? Number(snap.torsoLeanAngle) : null);
+    if (spineAngle != null) {
+        if (spineAngle > 45) {
+            push(14 + (spineAngle - 45), [
+                `Impact tilt ${spineAngle.toFixed(0)} deg - stay taller through strike.`,
+                'Hold the spine angle; avoid diving forward at impact.'
+            ]);
+        } else if (spineAngle < 28) {
+            push(10 + (28 - spineAngle), [
+                `Impact tilt ${spineAngle.toFixed(0)} deg - keep some forward bend.`,
+                'Maintain posture; don\'t jump early out of the shot.'
+            ]);
+        }
+    }
+
+    const balanceCm = Number(snap?.finishBalanceCm);
+    if (Number.isFinite(balanceCm) && balanceCm > 7) {
+        push(12 + (balanceCm - 7), [
+            `Finish balance drift ${balanceCm.toFixed(1)} cm - post up on the lead side.`,
+            'Hold the finish stacked over the lead foot.'
+        ]);
+    }
+
+    const indexDrop = Number(snap?.indexBelowWristPx);
+    if (Number.isFinite(indexDrop) && indexDrop <= 0) {
+        push(11, [
+            'Let the lead index finger sit under the grip at finish to square the face.',
+            'Relax the hands so the lead index finishes below the handle.'
+        ]);
+    }
+
+    const holdFrames = Number(snap?.followThroughHoldFrames);
+    if (Number.isFinite(holdFrames) && holdFrames < 2) {
+        push(9, [
+            'Hold the finish for a full beat to control the face.',
+            'Freeze the follow-through for a breath longer.'
+        ]);
+    }
+
+    const forearmAngle = Number(snap?.shoulderToWristAngle);
+    if (Number.isFinite(forearmAngle)) {
+        const off = Math.max(0, 90 - forearmAngle);
+        if (off > 6) {
+            push(13 + off, [
+                `Lead forearm ${off.toFixed(0)} deg shy of vertical - extend up through impact.`,
+                'Stand the lead forearm tall at the finish.'
+            ]);
+        }
+    }
+
+    if (window.SWING_DEBUG === true) {
+        try {
+            console.debug('[coach:golf]', {
+                cues: cues.map(c => ({ sev: c.sev, sample: c.lines[0] })),
+                tempo,
+                backswingPlane,
+                downswingPlane,
+                spineAngle,
+                balanceCm
+            });
+        } catch { }
+    }
+
+    if (cues.length) {
+        cues.sort((a, b) => b.sev - a.sev);
+        return choose(cues[0].lines);
+    }
+
+    const positives = [];
+    if (Number.isFinite(tempo) && tempo >= 2.6 && tempo <= 3.4) {
+        positives.push(`Tempo ${tempo.toFixed(2)}:1 is on point - keep that rhythm.`);
+    }
+    if (Number.isFinite(backswingPlane) && backswingPlane <= 12) {
+        positives.push('Backswing plane is neutral - great rotation.');
+    }
+    if (Number.isFinite(downswingPlane) && downswingPlane <= 8) {
+        positives.push('Downswing is shallow and efficient - hold that feel.');
+    }
+    if (Number.isFinite(balanceCm) && balanceCm <= 7) {
+        positives.push('Balanced finish - stay posted over the lead side.');
+    }
+    if (positives.length) return choose(positives);
+
+    return GOLF_DEFAULT_CUE;
+}
+
+
+
 
 window.generatePoseCoaching = window.generatePoseCoaching || function (pose) {
     // ultra-safe fallback, metrics-based but minimal, so we don't throw during early boot
     try {
+        if (getCoachSlug() === 'golf') {
+            const line = composeGolfCue(pose || {}) || GOLF_DEFAULT_CUE;
+            return { line, bullets: [] };
+        }
         const p = pose || {};
         const msgs = [];
         if (Number(p.elbowExtDeg) && p.elbowExtDeg < 150) msgs.push('Extend the elbow through release.');
@@ -353,12 +510,12 @@ function preferShotNumber(s) {
 
         // Elbow extension
         if (Number.isFinite(p.elbowExtDeg) && p.elbowExtDeg < 150)
-            out.push(`Elbow extension ${Math.round(p.elbowExtDeg)}° — finish longer.`);
+            out.push(`Elbow extension ${Math.round(p.elbowExtDeg)} deg — finish longer.`);
 
         // Release height
         if ((p.releaseAboveShoulder === false) ||
             (Number.isFinite(p.shoulderToWristAngle) && p.shoulderToWristAngle < 52))
-            out.push(`Release height low${Number.isFinite(p.shoulderToWristAngle) ? ` (${Math.round(p.shoulderToWristAngle)}°)` : ''}.`);
+            out.push(`Release height low${Number.isFinite(p.shoulderToWristAngle) ? ` (${Math.round(p.shoulderToWristAngle)} deg)` : ''}.`);
 
         // Wrist/fingers
         if (p.fingersDown === false ||
@@ -379,13 +536,13 @@ function preferShotNumber(s) {
 
         // Torso lean guard
         if (Number.isFinite(p.torsoLeanAngle) && Math.abs(p.torsoLeanAngle) > 12)
-            out.push(`Torso lean ${Math.round(p.torsoLeanAngle)}° — stay taller.`);
+            out.push(`Torso lean ${Math.round(p.torsoLeanAngle)} deg — stay taller.`);
 
         // Foot notes are allowed but last
         if (Number.isFinite(p.feetToHoopDeg) && p.feetToHoopDeg > 22)
-            out.push(`Square feet to rim (${Math.round(p.feetToHoopDeg)}° off).`);
+            out.push(`Square feet to rim (${Math.round(p.feetToHoopDeg)} deg off).`);
         if (Number.isFinite(p.feetAngleDiff) && p.feetAngleDiff > 10)
-            out.push(`Toes parallel (Δ ${Math.round(p.feetAngleDiff)}°).`);
+            out.push(`Toes parallel (Δ ${Math.round(p.feetAngleDiff)} deg).`);
         if (Number.isFinite(p.footStagger) && p.footStagger > 8)
             out.push(`Level base (front/back stagger ${Math.round(p.footStagger)}px).`);
 
@@ -670,9 +827,9 @@ window.addEventListener('hud:start-session', () => {
         if (Number.isFinite(p.elbowExtDeg)) {
             const miss = Math.max(0, T.elbowExtGood - p.elbowExtDeg);
             add('elbow', miss, [
-                `Finish with stronger arm extension (now ~${fmt(p.elbowExtDeg, 0)}°).`,
-                `Straighten the elbow through the snap; aim ≥ ${T.elbowExtGood}°.`,
-                `Drive the elbow long on finish (currently ${fmt(p.elbowExtDeg, 0)}°).`
+                `Finish with stronger arm extension (now ~${fmt(p.elbowExtDeg, 0)} deg).`,
+                `Straighten the elbow through the snap; aim ≥ ${T.elbowExtGood} deg.`,
+                `Drive the elbow long on finish (currently ${fmt(p.elbowExtDeg, 0)} deg).`
             ], { val: p.elbowExtDeg });
         }
 
@@ -680,9 +837,9 @@ window.addEventListener('hud:start-session', () => {
         if (Number.isFinite(p.armVerticalityDeg)) {
             const over = Math.max(0, p.armVerticalityDeg - T.armVertMax);
             add('armVertical', over, [
-                `Get the forearm more vertical at release (${fmt(p.armVerticalityDeg, 0)}° off).`,
-                `Reach up for a taller finish; trim ${fmt(over, 0)}° of tilt.`,
-                `Lift the forearm closer to vertical (target ≤ ${T.armVertMax}°).`
+                `Get the forearm more vertical at release (${fmt(p.armVerticalityDeg, 0)} deg off).`,
+                `Reach up for a taller finish; trim ${fmt(over, 0)} deg of tilt.`,
+                `Lift the forearm closer to vertical (target ≤ ${T.armVertMax} deg).`
             ], { val: p.armVerticalityDeg });
         }
 
@@ -691,7 +848,7 @@ window.addEventListener('hud:start-session', () => {
         if (p.releaseAboveShoulder === false || (Number.isFinite(sw) && sw < T.relAngleMin)) {
             const sev = Number.isFinite(sw) ? Math.max(0, T.relAngleMin - sw) : 12;
             add('releaseHeight', sev, [
-                `Release above the shoulder; lift to ≥ ${T.relAngleMin}° (now ${fmt(sw, 0)}°).`,
+                `Release above the shoulder; lift to ≥ ${T.relAngleMin} deg (now ${fmt(sw, 0)} deg).`,
                 `Get the wrist higher at release; finish above the shoulder.`,
                 `Raise the release point before the snap.`
             ], { val: sw });
@@ -724,7 +881,7 @@ window.addEventListener('hud:start-session', () => {
         // Lower body power
         if (Number.isFinite(p.kneeFlex) && p.kneeFlex < T.kneeFlexMin) {
             add('kneeFlex', (T.kneeFlexMin - p.kneeFlex), [
-                `Add more knee bend to generate power (now ~${fmt(p.kneeFlex, 0)}°).`,
+                `Add more knee bend to generate power (now ~${fmt(p.kneeFlex, 0)} deg).`,
                 `Load the knees a touch more, then rise.`,
                 `Small extra knee load will help the lift.`
             ], { val: p.kneeFlex });
@@ -743,7 +900,7 @@ window.addEventListener('hud:start-session', () => {
         // Torso lean
         if (Number.isFinite(p.torsoLeanAngle) && Math.abs(p.torsoLeanAngle) > T.torsoLeanMax) {
             add('torsoLean', Math.abs(p.torsoLeanAngle) - T.torsoLeanMax, [
-                `Stay taller through your lift (torso lean ${fmt(p.torsoLeanAngle, 0)}°).`,
+                `Stay taller through your lift (torso lean ${fmt(p.torsoLeanAngle, 0)} deg).`,
                 `Keep your torso stacked over your hips.`,
                 `Reduce the forward lean at finish.`
             ], { val: p.torsoLeanAngle });
@@ -769,7 +926,7 @@ window.addEventListener('hud:start-session', () => {
         // Feet to rim
         if (Number.isFinite(p.feetToHoopDeg) && p.feetToHoopDeg > T.feetToHoopMax) {
             add('feetSquare', p.feetToHoopDeg - T.feetToHoopMax, [
-                `Square your feet a touch more to the rim (${fmt(p.feetToHoopDeg, 0)}° off).`,
+                `Square your feet a touch more to the rim (${fmt(p.feetToHoopDeg, 0)} deg off).`,
                 `Point your toes a bit more toward the basket.`,
                 `Reduce the turnout toward the sidelines.`
             ], { val: p.feetToHoopDeg });
@@ -778,7 +935,7 @@ window.addEventListener('hud:start-session', () => {
         // Toe parallel
         if (Number.isFinite(p.feetAngleDiff) && p.feetAngleDiff > T.toeParallelMax) {
             add('toesParallel', p.feetAngleDiff - T.toeParallelMax, [
-                `Make your toes more parallel (Δ ${fmt(p.feetAngleDiff, 0)}°).`,
+                `Make your toes more parallel (Δ ${fmt(p.feetAngleDiff, 0)} deg).`,
                 `Match toe angles left and right.`,
                 `Line up the toes; avoid splaying.`
             ], { val: p.feetAngleDiff });
@@ -904,6 +1061,25 @@ window.addEventListener('hud:start-session', () => {
             return 'Eyes on the rim. Hold the finish.';
         }
     };
+    function composeCoachLine(snap) {
+        const slug = getCoachSlug();
+        const fallback = slug === 'golf' ? GOLF_DEFAULT_CUE : DEFAULT_CUE;
+        try {
+            if (slug === 'golf') {
+                const line = composeGolfCue(snap);
+                if (line) return line;
+                return fallback;
+            }
+            if (typeof window.composePoseFeedback === 'function') {
+                return window.composePoseFeedback(snap);
+            }
+            return fallback;
+        } catch {
+            return fallback;
+        }
+    }
+    try { window.composeCoachLine = composeCoachLine; } catch { }
+
 
 
     // Table bullets: top 2–3 different categories (no duplicates)
@@ -1249,9 +1425,7 @@ function formatCoachLine(s) {
         const golden = window.viason_MEM?.get?.()?.golden || null;
 
         const cues = [];
-        const poseLine = (snap && typeof composePoseFeedback === 'function')
-            ? composePoseFeedback(snap)
-            : '';
+        const poseLine = snap ? composeCoachLine(snap) : '';
         if (poseLine) cues.push(poseLine.trim());
 
         try {
@@ -1270,7 +1444,11 @@ function formatCoachLine(s) {
         if (Number.isFinite(sc)) body += ` Score ${Math.round(sc)}.`;
 
         const n = preferShotNumber(s);
-        return n > 0 ? `Shot ${n}, ${body}` : body;
+        if (n > 0) {
+            const label = getCoachSlug() === 'golf' ? 'Swing' : 'Shot';
+            return `${label} ${n}, ${body}`;
+        }
+        return body;
     } catch (err) {
         console.warn('[coachAssistant:formatCoachLine]', err);
         return 'Pose metrics captured.';
@@ -1860,7 +2038,8 @@ window.addEventListener('shot:feedback:request', (e) => {
 
         function withShotPrefix(text) {
             const n = getShotNumber();
-            return (Number.isFinite(n) && n > 0) ? `Shot ${n}, ${text}` : String(text || '');
+            const label = getCoachSlug() === 'golf' ? 'Swing' : 'Shot';
+            return (Number.isFinite(n) && n > 0) ? `${label} ${n}, ${text}` : String(text || '');
         }
         // Always use AI for pose assessment. If unavailable, show connection error - no rule fallback.
         function postDisconnected() {
@@ -1894,7 +2073,7 @@ window.addEventListener('shot:feedback:request', (e) => {
         // If AI is explicitly off, fall back to local rule-based line immediately
         if (llmMode === 'off') {
             try {
-                const local = composePoseFeedback(snap);
+                const local = composeCoachLine(snap);
                 if (local) {
                     const out = withShotPrefix(local);
                     window.__lastCoachText = out;
@@ -1908,8 +2087,11 @@ window.addEventListener('shot:feedback:request', (e) => {
             const ctrl = new AbortController();
             const ms = Math.max(1200, Number(window.COACH_AI_TIMEOUT_MS || 2500));
             const t = setTimeout(() => { try { ctrl.abort(); } catch { } }, ms);
+            const slug = getCoachSlug();
+            const discipline = slug === 'golf' ? 'golf swing coach' : 'basketball shooting coach';
+            const cueLabel = slug === 'golf' ? 'swing' : 'release';
             const body = {
-                prompt: `You are a concise basketball shooting coach. Using only these metrics, give 1 or 2 short specific release cues. Metrics: ${JSON.stringify(snap)}`,
+                prompt: `You are a concise ${discipline}. Using only these metrics, give 1 or 2 short specific ${cueLabel} cues. Metrics: ${JSON.stringify(snap)}`,
                 model: (window.viason && window.viason.model) || 'gpt-4o-mini',
                 lang: 'en-US',
                 shot: snap,
@@ -1934,7 +2116,7 @@ window.addEventListener('shot:feedback:request', (e) => {
             }
             // No text returned -> treat as unavailable; fall back to local
             try {
-                const local = composePoseFeedback(snap);
+                const local = composeCoachLine(snap);
                 if (local) {
                     const out = withShotPrefix(local);
                     window.__lastCoachText = out;
@@ -1948,7 +2130,7 @@ window.addEventListener('shot:feedback:request', (e) => {
             if (window.viason_RELEASE_TRACE === true) console.warn('[coach:ai:error]', e?.message || e);
             // Fallback to local rule-based line on any error
             try {
-                const local = composePoseFeedback(snap);
+                const local = composeCoachLine(snap);
                 if (local) {
                     const out = withShotPrefix(local);
                     window.__lastCoachText = out;
@@ -2141,12 +2323,12 @@ window.addEventListener('shot:feedback:request', (e) => {
             const html = `
         <div style="font-weight:700; margin-bottom:6px;">Release Pose</div>
         <div style="display:grid; grid-template-columns:auto auto; gap:4px 10px; text-align:left;">
-          <div>Arm verticality</div><div>${f(snap.armVerticalityDeg, 0)}°</div>
-          <div>Elbow extension</div><div>${f(snap.elbowExtDeg, 0)}°</div>
+          <div>Arm verticality</div><div>${f(snap.armVerticalityDeg, 0)} deg</div>
+          <div>Elbow extension</div><div>${f(snap.elbowExtDeg, 0)} deg</div>
           <div>Release > shoulder</div><div>${yesNo(snap.releaseAboveShoulder)}</div>
           <div>Stance ratio</div><div>${f(snap.stanceRatio, 2)}×</div>
-          <div>Feet -> rim</div><div>${f(snap.feetToHoopDeg, 0)}°</div>
-          <div>Torso lean</div><div>${f(snap.torsoLeanAngle, 0)}°</div>
+          <div>Feet -> rim</div><div>${f(snap.feetToHoopDeg, 0)} deg</div>
+          <div>Torso lean</div><div>${f(snap.torsoLeanAngle, 0)} deg</div>
           <div>Foot pop</div><div>${f(snap.footLiftPx, 0)} px</div>
           <div>Center offset X</div><div>${f(snap.frameOffsetX, 0)} px</div>
         </div>`;
@@ -2257,19 +2439,19 @@ window.addEventListener('shot:feedback:request', (e) => {
             const trends = [];
             // Improvements: knee flex (higher better)
             if (Number.isFinite(E.kneeFlex) && Number.isFinite(L.kneeFlex) && (L.kneeFlex - E.kneeFlex) >= 6)
-                trends.push(`Knee flex improved late (${round(L.kneeFlex)}° vs ${round(E.kneeFlex)}°).`);
+                trends.push(`Knee flex improved late (${round(L.kneeFlex)} deg vs ${round(E.kneeFlex)} deg).`);
             // Arm verticality (lower is better)
             if (Number.isFinite(E.armVert) && Number.isFinite(L.armVert) && (E.armVert - L.armVert) >= 4)
-                trends.push(`Arm finished taller (vertical) late (${round(L.armVert)}° vs ${round(E.armVert)}°).`);
+                trends.push(`Arm finished taller (vertical) late (${round(L.armVert)} deg vs ${round(E.armVert)} deg).`);
             // Elbow extension (higher better)
             if (Number.isFinite(E.elbow) && Number.isFinite(L.elbow) && (L.elbow - E.elbow) >= 5)
-                trends.push(`Elbow extension strengthened (${round(L.elbow)}° vs ${round(E.elbow)}°).`);
+                trends.push(`Elbow extension strengthened (${round(L.elbow)} deg vs ${round(E.elbow)} deg).`);
             // Toes -> hoop (lower better)
             if (Number.isFinite(E.toes) && Number.isFinite(L.toes) && (E.toes - L.toes) >= 5)
-                trends.push(`Feet more square to rim (${round(L.toes)}° vs ${round(E.toes)}°).`);
+                trends.push(`Feet more square to rim (${round(L.toes)} deg vs ${round(E.toes)} deg).`);
             // Feet angle diff (lower better)
             if (Number.isFinite(E.feetDiff) && Number.isFinite(L.feetDiff) && (E.feetDiff - L.feetDiff) >= 5)
-                trends.push(`Toe angles more parallel (${round(L.feetDiff)}° vs ${round(E.feetDiff)}°).`);
+                trends.push(`Toe angles more parallel (${round(L.feetDiff)} deg vs ${round(E.feetDiff)} deg).`);
             // Foot stagger (lower better)
             if (Number.isFinite(E.stagger) && Number.isFinite(L.stagger) && (E.stagger - L.stagger) >= 6)
                 trends.push(`Stance stagger reduced (${round(L.stagger)}px vs ${round(E.stagger)}px).`);
@@ -2278,7 +2460,7 @@ window.addEventListener('shot:feedback:request', (e) => {
                 trends.push(`Better follow‑through hold late (${round(L.hold)} vs ${round(E.hold)} frames).`);
             // Head on rim (lower better)
             if (Number.isFinite(E.head) && Number.isFinite(L.head) && (E.head - L.head) >= 6)
-                trends.push(`Gaze held on rim more consistently (${round(L.head)}° vs ${round(E.head)}°).`);
+                trends.push(`Gaze held on rim more consistently (${round(L.head)} deg vs ${round(E.head)} deg).`);
             // Fingers down (higher % better)
             if (Number.isFinite(E.fingers) && Number.isFinite(L.fingers) && (L.fingers - E.fingers) >= 20)
                 trends.push(`Wrist snap improved - fingers down more often (${round(L.fingers)}% vs ${round(E.fingers)}%).`);
@@ -3019,7 +3201,7 @@ Draft to refine (optional): '${draftLine}'` : ''}
             try {
                 const poseSnap = shot?.poseSnapshot || getPoseSnapshotFrom(shot);
                 if (poseSnap && typeof window.composePoseFeedback === 'function') {
-                    localText = String(window.composePoseFeedback(poseSnap) || '').trim();
+                    localText = String(composeCoachLine(poseSnap) || '').trim();
                 }
             } catch { }
 
@@ -3230,13 +3412,13 @@ if (!SR) {
                 const tgt = g.stanceWidthFeet ? `, target ${Math.round(g.stanceWidthFeet)}px (Δ${w - Math.round(g.stanceWidthFeet)})` : '';
                 const angle = Math.round(p.feetAngleDiff || 0);
                 const stag = Math.round(p.feetStagger || 0);
-                return say(`Feet width ${w}px${tgt}. Toe alignment off by ${angle}°. ${stag > 10 ? 'Feet staggered; level your base.' : 'Base is level.'}`);
+                return say(`Feet width ${w}px${tgt}. Toe alignment off by ${angle} deg. ${stag > 10 ? 'Feet staggered; level your base.' : 'Base is level.'}`);
             }
             if (/release|follow/.test(q)) {
                 const ang = Math.round(p.shoulderToWristAngle ?? 0);
                 const high = p.releaseAboveShoulder ? "above" : "below";
                 const wristVsElbow = (p.wristY != null && p.elbowY != null && p.wristY > p.elbowY + 10) ? "low" : "high";
-                return say(`Arm angle ${ang}°. Release is ${high} shoulder. Wrist finished ${wristVsElbow}. Aim for a higher vertical finish.`);
+                return say(`Arm angle ${ang} deg. Release is ${high} shoulder. Wrist finished ${wristVsElbow}. Aim for a higher vertical finish.`);
             }
             if (/power|leg|knee/.test(q)) {
                 const k = Math.round(p.kneeFlex || 0);
@@ -3246,7 +3428,7 @@ if (!SR) {
             if (/arc|entry/.test(q)) {
                 const ea = Math.round(last.entryAngle ?? 0);
                 const ga = g.entryAngle ? Math.round(g.entryAngle) : 50;
-                return say(`Entry angle ${ea}°. ${Math.abs(ea - ga) <= 5 ? 'On target.' : ea < ga ? 'A bit flat - add arc.' : 'A tad steep - soften the arc.'}`);
+                return say(`Entry angle ${ea} deg. ${Math.abs(ea - ga) <= 5 ? 'On target.' : ea < ga ? 'A bit flat - add arc.' : 'A tad steep - soften the arc.'}`);
             }
             if (/(accur|make|made)/.test(q)) {
                 return say('Pose-only mode: accuracy tracking is disabled. Focus on repeating the pose cues.');
@@ -3542,7 +3724,7 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
                 const ang = p.shoulderToWristAngle;
                 parts.push(ang == null
                     ? "I couldn't read your arm angle."
-                    : `Release angle was ~${Math.round(ang)}°. Try finishing near 50-60° with a full follow-through.`);
+                    : `Release angle was ~${Math.round(ang)} deg. Try finishing near 50-60 deg with a full follow-through.`);
             }
             // Power / knee bend
             if (/(power|legs|knee|dip|bend)/.test(n)) {
@@ -3555,7 +3737,7 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
             if (/(arc|entry|angle)/.test(n)) {
                 const arc = Math.round(L.arcHeight || 0);
                 const entry = L.entryAngle ?? '-';
-                parts.push(`Arc ~${arc}px, entry ${entry}°. Target mid-40s to low-50s.`);
+                parts.push(`Arc ~${arc}px, entry ${entry} deg. Target mid-40s to low-50s.`);
             }
             // Accuracy (pose-only mode disabled tracking)
             if (/(make|accuracy|percent|score)/.test(n)) {
@@ -3564,7 +3746,7 @@ if (!SR) { console.warn('[viason Voice] SpeechRecognition not supported'); retur
 
             if (!parts.length) {
                 const issues = window.summarizePoseIssues?.(L) || [];
-                parts.push(`Pose snapshot: arc ${Math.round(L.arcHeight || 0)}px, entry ${L.entryAngle ?? '-'}°, release ${L.releaseAngle ?? '-'}°. Focus on smooth, tall mechanics.`);
+                parts.push(`Pose snapshot: arc ${Math.round(L.arcHeight || 0)}px, entry ${L.entryAngle ?? '-'} deg, release ${L.releaseAngle ?? '-'} deg. Focus on smooth, tall mechanics.`);
                 if (issues[0]) parts.push(issues[0]);
             }
             return parts.join(' ');
