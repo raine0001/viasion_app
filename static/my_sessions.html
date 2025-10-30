@@ -2213,6 +2213,20 @@
 
         if (!name) name = pick('displayName', 'fullName', 'name', 'username');
 
+        if (!name) {
+          try {
+            const stored = localStorage.getItem('firstname');
+            if (stored && stored.trim()) name = stored.trim();
+          } catch { }
+        }
+
+        if (!name) {
+          try {
+            const fallbackName = window.__USER_NAME || window.__USER_DISPLAY_NAME || null;
+            if (fallbackName && typeof fallbackName === 'string') name = fallbackName.trim();
+          } catch { }
+        }
+
         if (!name && Array.isArray(__SESSIONS) && __SESSIONS.length) {
 
           const guess = __SESSIONS[0]?.athleteName || __SESSIONS[0]?.playerName || '';
@@ -3657,7 +3671,8 @@
 
           __SESSIONS = Array.isArray(json.sessions) ? json.sessions : [];
 
-          updateGreeting(json.profile || json.user || null);
+          const profile = json.profile || json.user || await loadUserProfile();
+          updateGreeting(profile);
 
         } catch (err) {
 
