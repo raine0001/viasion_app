@@ -64,6 +64,7 @@ import time
 from pathlib import Path
 import io
 import wave
+import mimetypes
 from datetime import date, datetime, timezone
 from collections import defaultdict
 import random
@@ -1938,8 +1939,81 @@ def api_session_get(sid):
 
 
 @app.route("/sessions/<sid>/<path:filename>")
+def _range_aware_send(path, mimetype=None):
+    """Return a response that honours Range headers for large media files."""
+    if mimetype is None:
+        mimetype, _ = mimetypes.guess_type(path)
+
+    range_header = request.headers.get("Range")
+    if not range_header:
+        return send_file(path, mimetype=mimetype, conditional=True)
+
+    size = os.path.getsize(path)
+    range_match = re.match(r"bytes=(\d*)-(\d*)", range_header)
+    if not range_match:
+        return send_file(path, mimetype=mimetype, conditional=True)
+
+    start_str, end_str = range_match.groups()
+    try:
+        byte1 = int(start_str) if start_str else 0
+    except ValueError:
+        byte1 = 0
+    try:
+        byte2 = int(end_str) if end_str else size - 1
+    except ValueError:
+        byte2 = size - 1
+
+    byte1 = max(0, min(byte1, size - 1))
+    byte2 = max(byte1, min(byte2, size - 1))
+    length = byte2 - byte1 + 1
+    if length <= 0:
+        return Response(status=416)
+
+    def generate():
+        with open(path, "rb") as fh:
+            fh.seek(byte1)
+            remaining = length
+            chunk_size = 8192
+            while remaining > 0:
+                chunk = fh.read(min(chunk_size, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                yield chunk
+
+    headers = {
+        "Content-Range": f"bytes {byte1}-{byte2}/{size}",
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(length),
+    }
+
+    if request.method == "HEAD":
+        resp = Response(status=206, headers=headers, mimetype=mimetype)
+        resp.direct_passthrough = True
+        return resp
+
+    return Response(
+        generate(),
+        status=206,
+        headers=headers,
+        mimetype=mimetype,
+        direct_passthrough=True,
+    )
+
+
+@app.route("/sessions/<sid>/<path:filename>")
 def serve_session_file(sid, filename):
-    return send_from_directory(_session_path(sid), filename)
+    base_path = Path(_session_path(sid)).resolve()
+    target_path = (base_path / filename).resolve()
+
+    if not str(target_path).startswith(str(base_path)) or not target_path.exists():
+        abort(404)
+
+    mimetype, _ = mimetypes.guess_type(str(target_path))
+    if mimetype and (mimetype.startswith("video/") or mimetype.startswith("audio/")):
+        return _range_aware_send(str(target_path), mimetype=mimetype)
+
+    return send_file(str(target_path), mimetype=mimetype, conditional=True)
 
 
 def _sanitize_tags(tags):

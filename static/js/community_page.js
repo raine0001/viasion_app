@@ -53,6 +53,7 @@
     };
 
     const clipCache = new Map();
+    const CLIP_CACHE_LIMIT = 6;
 
     function revokeClipUrl(path) {
         const entry = clipCache.get(path);
@@ -62,6 +63,19 @@
         clipCache.delete(path);
     }
 
+    function trimClipCache() {
+        if (clipCache.size <= CLIP_CACHE_LIMIT) return;
+        const ordered = [...clipCache.entries()].sort((a, b) => {
+            const aTs = a[1]?.fetchedAt ?? 0;
+            const bTs = b[1]?.fetchedAt ?? 0;
+            return aTs - bTs;
+        });
+        while (clipCache.size > CLIP_CACHE_LIMIT && ordered.length) {
+            const [oldPath] = ordered.shift();
+            revokeClipUrl(oldPath);
+        }
+    }
+
     function clearClipCache() {
         for (const [path, entry] of clipCache.entries()) {
             if (entry?.url) {
@@ -69,44 +83,69 @@
             }
             clipCache.delete(path);
         }
+        for (const loader of state.clipLoads.values()) {
+            try { loader.controller?.abort(); } catch { }
+        }
         state.clipLoads.clear();
     }
 
-    async function ensureClipUrl(path) {
+    function scheduleClipWarm(path) {
+        if (!path) return null;
+        if (clipCache.has(path)) return null;
+        const existing = state.clipLoads.get(path);
+        if (existing?.promise) return existing.promise;
+        const controller = new AbortController();
+        const promise = (async () => {
+            try {
+                const response = await fetch(path, { cache: 'force-cache', signal: controller.signal });
+                if (!response.ok) {
+                    throw new Error(`clip fetch failed (${response.status})`);
+                }
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                clipCache.set(path, { url, size: blob.size, fetchedAt: Date.now() });
+                trimClipCache();
+            } catch (err) {
+                if (err?.name !== 'AbortError') {
+                    console.warn('[community] warm failed', err);
+                }
+            } finally {
+                state.clipLoads.delete(path);
+            }
+        })();
+        state.clipLoads.set(path, { promise, controller });
+        return promise;
+    }
+
+    async function resolveClipSource(path) {
         if (!path) return null;
         const cached = clipCache.get(path);
         if (cached?.url) return cached.url;
-        if (state.clipLoads.has(path)) {
-            return state.clipLoads.get(path);
-        }
-        const promise = (async () => {
-            const response = await fetch(path, { cache: 'force-cache' });
-            if (!response.ok) {
-                throw new Error(`clip fetch failed (${response.status})`);
+        const inFlight = state.clipLoads.get(path);
+        if (inFlight?.promise) {
+            try {
+                await Promise.race([
+                    inFlight.promise,
+                    new Promise(resolve => setTimeout(resolve, 150))
+                ]);
+            } catch (err) {
+                if (err?.name !== 'AbortError') {
+                    console.warn('[community] warm wait failed', err);
+                }
             }
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-            clipCache.set(path, { url, size: blob.size });
-            state.clipLoads.delete(path);
-            return url;
-        })();
-        state.clipLoads.set(path, promise);
-        try {
-            const url = await promise;
-            return url;
-        } catch (err) {
-            state.clipLoads.delete(path);
-            clipCache.delete(path);
-            throw err;
+            const warmed = clipCache.get(path);
+            if (warmed?.url) return warmed.url;
         }
+        scheduleClipWarm(path);
+        return path;
     }
 
     function prefetchClip(path) {
         if (!path) return;
-        if (clipCache.has(path) || state.clipLoads.has(path)) return;
-        ensureClipUrl(path).catch(err => {
-            console.warn('[community] prefetch failed', err);
-        });
+        if (clipCache.has(path)) return;
+        const loader = state.clipLoads.get(path);
+        if (loader?.promise) return;
+        scheduleClipWarm(path);
     }
 
     function slugify(value) {
@@ -569,12 +608,12 @@
             showShotOverlay('Clip missing for this swing. Moving on.', true);
             return;
         }
-        showBufferingOverlay('Loading swing…');
+        showBufferingOverlay('Loading swing...');
         const token = Symbol('clip');
         state.loadingClipToken = token;
-        let clipUrl = null;
+        let clipUrl = shot.clip;
         try {
-            clipUrl = await ensureClipUrl(shot.clip);
+            clipUrl = await resolveClipSource(shot.clip);
         } catch (err) {
             if (state.loadingClipToken !== token) return;
             console.warn('[community] clip load failed', err);
@@ -625,7 +664,7 @@
         const container = document.createElement('div');
         container.className = 'overlay-content loading';
         const paragraph = document.createElement('p');
-        paragraph.textContent = message || 'Loading swing…';
+        paragraph.textContent = message || 'Loading swing...';
         container.appendChild(paragraph);
         modalOverlayEl.appendChild(container);
         modalOverlayEl.classList.add('show');
