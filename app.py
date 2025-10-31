@@ -1937,8 +1937,6 @@ def api_session_get(sid):
         return jsonify({"error": "session not found"}), 404
     return jsonify(sess)
 
-
-@app.route("/sessions/<sid>/<path:filename>")
 def _range_aware_send(path, mimetype=None):
     """Return a response that honours Range headers for large media files."""
     if mimetype is None:
