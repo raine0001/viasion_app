@@ -136,7 +136,7 @@
             const warmed = clipCache.get(path);
             if (warmed?.url) return warmed.url;
         }
-        scheduleClipWarm(path);
+        window.setTimeout(() => scheduleClipWarm(path), 250);
         return path;
     }
 
@@ -550,8 +550,6 @@
         if (modalActionBarEl) {
             modalActionBarEl.dataset.visible = '1';
         }
-        const bufferClips = (detail?.shots || []).slice(0, 3).map(shot => shot?.clip).filter(Boolean);
-        bufferClips.forEach(prefetchClip);
     }
 
     function jumpToShot(index) {

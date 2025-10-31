@@ -1937,10 +1937,32 @@ def api_session_get(sid):
         return jsonify({"error": "session not found"}), 404
     return jsonify(sess)
 
-def _range_aware_send(path, mimetype=None):
-    """Return a response that honours Range headers for large media files."""
+def _range_aware_send(path=None, mimetype=None, *, sid=None, filename=None):
+    """Return a response that honours Range headers for large media files.
+
+    Can be called directly with a resolved `path`, or with `sid`/`filename`
+    so it remains compatible with older route registrations.
+    """
+    if sid is not None and filename is not None:
+        base_path = Path(_session_path(sid)).resolve()
+        target_path = (base_path / filename).resolve()
+        if not str(target_path).startswith(str(base_path)) or not target_path.exists():
+            abort(404)
+        path = str(target_path)
+        if mimetype is None:
+            mimetype, _ = mimetypes.guess_type(path)
+
+    if path is None:
+        abort(404)
+
     if mimetype is None:
         mimetype, _ = mimetypes.guess_type(path)
+
+    # Non-media types fall back to standard send_file handling
+    if not mimetype or not (
+        mimetype.startswith("video/") or mimetype.startswith("audio/")
+    ):
+        return send_file(path, mimetype=mimetype, conditional=True)
 
     range_header = request.headers.get("Range")
     if not range_header:
@@ -2001,17 +2023,7 @@ def _range_aware_send(path, mimetype=None):
 
 @app.route("/sessions/<sid>/<path:filename>")
 def serve_session_file(sid, filename):
-    base_path = Path(_session_path(sid)).resolve()
-    target_path = (base_path / filename).resolve()
-
-    if not str(target_path).startswith(str(base_path)) or not target_path.exists():
-        abort(404)
-
-    mimetype, _ = mimetypes.guess_type(str(target_path))
-    if mimetype and (mimetype.startswith("video/") or mimetype.startswith("audio/")):
-        return _range_aware_send(str(target_path), mimetype=mimetype)
-
-    return send_file(str(target_path), mimetype=mimetype, conditional=True)
+    return _range_aware_send(sid=sid, filename=filename)
 
 
 def _sanitize_tags(tags):
