@@ -916,7 +916,9 @@ function getClipHrefForShot(idx1Based, shot) {
     if (shot?.clip?.path) return shot.clip.path;
     try {
         const sid = window.__SESSION_ID;
-        if (sid != null) return `/sessions/${sid}/clips/shot-${idx1Based}.webm`;
+        if (sid != null) {
+            return `/sessions/${sid}/clips/shot-${idx1Based}.mp4`;
+        }
     } catch { }
     return null;
 }
@@ -1050,8 +1052,8 @@ window.recordShotSummary = function recordShotSummary(summary) {
     if ((!summary.clip || !summary.clip.path) && Number.isFinite(summary?.shotId) && summary.shotId > 0) {
         const activeSid = window.__SESSION_ID;
         if (activeSid) {
-            const fallbackPath = `/sessions/${activeSid}/clips/shot-${summary.shotId}.webm`;
-            summary.clip = { ...(summary.clip || {}), path: fallbackPath };
+            const fallbackPath = `/sessions/${activeSid}/clips/shot-${summary.shotId}.mp4`;
+            summary.clip = { ...(summary.clip || {}), path: fallbackPath, source: `/sessions/${activeSid}/clips/shot-${summary.shotId}.webm` };
         }
     }
     const originalWeighted = Number.isFinite(summary?.weightedScore) ? summary.weightedScore : null;

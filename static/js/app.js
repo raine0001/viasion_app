@@ -983,16 +983,31 @@ window.poseDetectSerial = poseDetectSerial;
                 const r = await fetch('/api/microclip/upload', { method: 'POST', body: fd });
                 const j = await r.json().catch(() => null);
                 const sid = window.__SESSION_ID || null;
-                const file = sid ? `/sessions/${sid}/clips/shot-${shotId}.webm` : null;
-                window.updateShot?.(shotId, {
-                    clip: {
-                        status: r.ok ? 'saved' : 'error',
-                        path: j?.path || file,
-                        bytes: blob.size,
-                        frame: releaseFrame,
-                        ms: totalMs
-                    }
-                });
+                const basePath = sid ? `/sessions/${sid}/clips/shot-${shotId}` : null;
+                const fallbackMp4 = basePath ? `${basePath}.mp4` : null;
+                const fallbackWebm = basePath ? `${basePath}.webm` : null;
+                const normalizePath = (value) => {
+                    if (!value || typeof value !== 'string') return value;
+                    if (/^[a-z]+:/i.test(value)) return value;
+                    const trimmed = value.replace(/^\/+/, '');
+                    return `/${trimmed}`;
+                };
+                const resolvedPath = j?.path || fallbackMp4 || fallbackWebm;
+                const normalizedPath = normalizePath(resolvedPath);
+                const clipMeta = {
+                    status: r.ok ? 'saved' : 'error',
+                    path: normalizedPath || resolvedPath || null,
+                    bytes: blob.size,
+                    frame: releaseFrame,
+                    ms: totalMs
+                };
+                if (j?.source || fallbackWebm) {
+                    clipMeta.source = normalizePath(j?.source || fallbackWebm) || fallbackWebm;
+                }
+                if (j?.mp4) {
+                    clipMeta.mp4 = normalizePath(j.mp4);
+                }
+                window.updateShot?.(shotId, { clip: clipMeta });
                 return r.ok;
             } catch (err) {
                 window.updateShot?.(shotId, { clip: { status: 'error', reason: String(err) } });

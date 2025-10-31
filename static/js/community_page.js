@@ -136,7 +136,6 @@
             const warmed = clipCache.get(path);
             if (warmed?.url) return warmed.url;
         }
-        window.setTimeout(() => scheduleClipWarm(path), 250);
         return path;
     }
 
@@ -562,9 +561,10 @@
     function startPlayback(detail) {
         if (!modalVideoEl) return;
         modalVideoEl.setAttribute('playsinline', '');
-        modalVideoEl.preload = 'auto';
-        modalVideoEl.controls = false;
-        modalVideoEl.muted = false;
+        modalVideoEl.preload = 'metadata';
+        modalVideoEl.controls = true;
+        modalVideoEl.muted = true;
+        modalVideoEl.autoplay = true;
         modalVideoEl.defaultPlaybackRate = PLAYBACK_RATE;
         modalVideoEl.playbackRate = PLAYBACK_RATE;
         stopOverlayTimer();
@@ -626,16 +626,29 @@
         modalVideoEl.load();
         modalVideoEl.defaultPlaybackRate = PLAYBACK_RATE;
         modalVideoEl.playbackRate = PLAYBACK_RATE;
+
         await new Promise(resolve => {
-            const onLoaded = () => {
-                modalVideoEl.removeEventListener('loadedmetadata', onLoaded);
-                const playPromise = modalVideoEl.play();
-                if (playPromise && typeof playPromise.catch === 'function') {
-                    playPromise.catch(err => console.warn('[community] auto play blocked', err));
-                }
+            let settled = false;
+            const settle = () => {
+                if (settled) return;
+                settled = true;
+                window.clearTimeout(timer);
+                modalVideoEl.removeEventListener('playing', onPlaying);
                 resolve();
             };
-            modalVideoEl.addEventListener('loadedmetadata', onLoaded, { once: true });
+            const onPlaying = () => settle();
+            modalVideoEl.addEventListener('playing', onPlaying, { once: true });
+            const timer = window.setTimeout(() => settle(), 1200);
+            const playPromise = modalVideoEl.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(err => {
+                    console.warn('[community] auto play blocked', err);
+                    try {
+                        modalVideoEl.muted = true;
+                        modalVideoEl.play().catch(() => {});
+                    } catch { }
+                });
+            }
         });
         const upcoming = shots[state.activeShotIndex + 1];
         if (upcoming?.clip) prefetchClip(upcoming.clip);

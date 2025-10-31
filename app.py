@@ -133,6 +133,71 @@ def _trace(*args, **kwargs):
     except Exception:
         pass
 
+PARTIAL_CHUNK_BYTES = 512 * 1024  # 512 KB initial streaming chunk
+FFMPEG_BIN = os.getenv("FFMPEG_BIN") or shutil.which("ffmpeg") or "ffmpeg"
+
+
+def _remux_to_mp4(src: Path) -> Path | None:
+    """Remux a WebM clip to fast-start MP4 for smoother streaming."""
+    try:
+        src_path = Path(src)
+    except Exception:
+        return None
+    if not src_path.exists():
+        return None
+    dst_path = src_path.with_suffix(".mp4")
+    try:
+        if dst_path.exists() and dst_path.stat().st_mtime >= src_path.stat().st_mtime:
+            return dst_path
+    except Exception:
+        # If we cannot stat the files, attempt conversion anyway.
+        pass
+
+    cmd = [
+        FFMPEG_BIN,
+        "-y",
+        "-i",
+        str(src_path),
+        "-c",
+        "copy",
+        "-movflags",
+        "+faststart",
+        str(dst_path),
+    ]
+    try:
+        subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+        )
+        _trace("[clip:ffmpeg] remux ok", {"src": str(src_path), "dst": str(dst_path)})
+        return dst_path
+    except FileNotFoundError:
+        _trace("[clip:ffmpeg] binary not found", {"cmd": cmd})
+    except subprocess.CalledProcessError as exc:
+        stderr_text = ""
+        try:
+            stderr_text = exc.stderr.decode("utf-8", errors="ignore") if exc.stderr else ""
+        except Exception:
+            stderr_text = str(exc.stderr)
+        _trace(
+            "[clip:ffmpeg] remux failed",
+            {"cmd": cmd, "code": exc.returncode, "stderr": stderr_text[-400:]},
+        )
+        try:
+            if dst_path.exists():
+                dst_path.unlink()
+        except Exception:
+            pass
+    except Exception as exc:
+        _trace("[clip:ffmpeg] remux exception", exc)
+        try:
+            if dst_path.exists():
+                dst_path.unlink()
+        except Exception:
+            pass
+    return None
 
 REQUIRED_LABELS = {"basketball", "hoop", "net", "backboard", "player"}
 CONFIDENCE_THRESHOLD = 0.01  # Lowered from 0.75 to 0.01 for improved detection
@@ -1300,10 +1365,10 @@ def _arcmm_clip_candidates(sid: str, idx: int) -> Path | None:
     if not clips_dir.exists():
         return None
     names = [
-        f"shot-{idx}.webm",
-        f"shot_{idx}.webm",
         f"shot-{idx}.mp4",
         f"shot_{idx}.mp4",
+        f"shot-{idx}.webm",
+        f"shot_{idx}.webm",
     ]
     for name in names:
         p = clips_dir / name
@@ -1852,9 +1917,21 @@ def api_microclip_upload():
                 print(f"[microclip] repaired header for {dest_path}", flush=True)
         else:
             print(f"[microclip] repair skipped (no cached header) for {dest_path}", flush=True)
-    rel_path = f"sessions/{safe_sid}/clips/{filename}"
+    stream_filename = filename
+    remuxed = None
+    try:
+        remuxed = _remux_to_mp4(dest_path)
+        if remuxed:
+            stream_filename = remuxed.name
+    except Exception as exc:
+        _trace("[microclip] remux error", exc)
+    rel_path = f"sessions/{safe_sid}/clips/{stream_filename}"
+    payload = {"ok": True, "path": rel_path}
+    if remuxed:
+        payload["mp4"] = rel_path
+        payload["source"] = f"sessions/{safe_sid}/clips/{filename}"
     # enqueue background job here (fbf worker reads this path)
-    return jsonify(ok=True, path=rel_path)
+    return jsonify(payload)
 
 
 @app.post("/api/microclip/result")
@@ -1876,8 +1953,18 @@ def api_session_shot_video(sid):
     name = f"shot_{idx}{ext}"
     dst = os.path.join(d, name)
     f.save(dst)
-    url = f"/sessions/{sid}/{name}"
-    return jsonify({"ok": True, "url": url, "name": name})
+    stream_name = name
+    try:
+        converted = _remux_to_mp4(Path(dst))
+        if converted:
+            stream_name = converted.name
+    except Exception as exc:
+        _trace("[shot_video] remux error", exc)
+    url = f"/sessions/{sid}/{stream_name}"
+    payload = {"ok": True, "url": url, "name": stream_name}
+    if stream_name != name:
+        payload["source"] = f"/sessions/{sid}/{name}"
+    return jsonify(payload)
 
 
 @app.post("/api/sessions/<sid>/end")
@@ -1962,26 +2049,34 @@ def _range_aware_send(path=None, mimetype=None, *, sid=None, filename=None):
     if not mimetype or not (
         mimetype.startswith("video/") or mimetype.startswith("audio/")
     ):
-        return send_file(path, mimetype=mimetype, conditional=True)
-
-    range_header = request.headers.get("Range")
-    if not range_header:
-        return send_file(path, mimetype=mimetype, conditional=True)
+        resp = send_file(path, mimetype=mimetype, conditional=True)
+        resp.headers.setdefault("Accept-Ranges", "bytes")
+        return resp
 
     size = os.path.getsize(path)
-    range_match = re.match(r"bytes=(\d*)-(\d*)", range_header)
-    if not range_match:
-        return send_file(path, mimetype=mimetype, conditional=True)
-
-    start_str, end_str = range_match.groups()
-    try:
-        byte1 = int(start_str) if start_str else 0
-    except ValueError:
+    range_header = request.headers.get("Range")
+    partial = False
+    if not range_header:
         byte1 = 0
-    try:
-        byte2 = int(end_str) if end_str else size - 1
-    except ValueError:
-        byte2 = size - 1
+        byte2 = min(size - 1, PARTIAL_CHUNK_BYTES - 1)
+        partial = byte2 < size - 1
+    else:
+        range_match = re.match(r"bytes=(\d*)-(\d*)", range_header)
+        if not range_match:
+            resp = send_file(path, mimetype=mimetype, conditional=True)
+            resp.headers.setdefault("Accept-Ranges", "bytes")
+            return resp
+
+        start_str, end_str = range_match.groups()
+        try:
+            byte1 = int(start_str) if start_str else 0
+        except ValueError:
+            byte1 = 0
+        try:
+            byte2 = int(end_str) if end_str else size - 1
+        except ValueError:
+            byte2 = size - 1
+        partial = True
 
     byte1 = max(0, min(byte1, size - 1))
     byte2 = max(byte1, min(byte2, size - 1))
@@ -2001,29 +2096,74 @@ def _range_aware_send(path=None, mimetype=None, *, sid=None, filename=None):
                 remaining -= len(chunk)
                 yield chunk
 
+    status_code = 206 if partial or range_header else 200
     headers = {
-        "Content-Range": f"bytes {byte1}-{byte2}/{size}",
         "Accept-Ranges": "bytes",
         "Content-Length": str(length),
     }
+    if status_code == 206:
+        headers["Content-Range"] = f"bytes {byte1}-{byte2}/{size}"
 
     if request.method == "HEAD":
-        resp = Response(status=206, headers=headers, mimetype=mimetype)
+        resp = Response(status=status_code, headers=headers, mimetype=mimetype)
         resp.direct_passthrough = True
         return resp
 
-    return Response(
+    resp = Response(
         generate(),
-        status=206,
+        status=status_code,
         headers=headers,
         mimetype=mimetype,
         direct_passthrough=True,
     )
+    resp.headers.setdefault("Accept-Ranges", "bytes")
+    return resp
 
 
 @app.route("/sessions/<sid>/<path:filename>")
 def serve_session_file(sid, filename):
     return _range_aware_send(sid=sid, filename=filename)
+
+
+def _preferred_clip_rel(sid: str, idx_display: int) -> str:
+    """Return the best clip URL for a shot, preferring MP4 when available."""
+    clips_dir = Path(_session_path(sid)) / "clips"
+    mp4_candidate = clips_dir / f"shot-{idx_display}.mp4"
+    if mp4_candidate.exists():
+        return f"/sessions/{sid}/clips/shot-{idx_display}.mp4"
+    webm_candidate = clips_dir / f"shot-{idx_display}.webm"
+    if webm_candidate.exists():
+        remuxed = _remux_to_mp4(webm_candidate)
+        if remuxed and remuxed.exists():
+            return f"/sessions/{sid}/clips/{remuxed.name}"
+        return f"/sessions/{sid}/clips/shot-{idx_display}.webm"
+    return f"/sessions/{sid}/clips/shot-{idx_display}.webm"
+
+
+def _ensure_shot_clip_urls(sid: str, shots: list[dict]) -> bool:
+    updated = False
+    if not isinstance(shots, list):
+        return updated
+    for i, shot in enumerate(shots, start=1):
+        if not isinstance(shot, dict):
+            continue
+        idx_val = shot.get("idx")
+        try:
+            idx_display = int(idx_val) if idx_val is not None else i
+            if idx_display <= 0:
+                idx_display = i
+        except Exception:
+            idx_display = i
+        current = shot.get("clip")
+        if isinstance(current, dict):
+            current_path = current.get("path") or current.get("url") or current.get("href")
+        else:
+            current_path = current
+        preferred = _preferred_clip_rel(sid, idx_display)
+        if not isinstance(current_path, str) or current_path != preferred:
+            shot["clip"] = preferred
+            updated = True
+    return updated
 
 
 def _sanitize_tags(tags):
@@ -2080,7 +2220,7 @@ def api_community_publish():
         entry = incoming_map.get(idx_display) or incoming_map.get(idx_server) or {}
         clip_rel = entry.get("clip")
         if not isinstance(clip_rel, str) or not clip_rel.strip():
-            clip_rel = f"/sessions/{sid}/clips/shot-{idx_display}.webm"
+            clip_rel = _preferred_clip_rel(sid, idx_display)
         coach_note = entry.get("coachNote") or shot.get("coachNote")
         if isinstance(coach_note, str):
             coach_note = coach_note.strip()
@@ -2177,6 +2317,19 @@ def api_community_publish():
 @app.get("/api/community/feed")
 def api_community_feed():
     posts = _load_community_feed()
+    changed = False
+    for post in posts:
+        sid = post.get("id")
+        if not sid:
+            continue
+        shots = post.get("shots")
+        if _ensure_shot_clip_urls(sid, shots):
+            changed = True
+    if changed:
+        try:
+            _write_community_feed(posts)
+        except Exception as exc:
+            _trace("community:feed update failed", exc)
     return jsonify({"posts": posts})
 
 
@@ -2187,6 +2340,12 @@ def api_community_session_detail(sid):
         return jsonify({"error": "session not published"}), 404
     with open(detail_path, "r", encoding="utf-8") as f:
         detail = json.load(f)
+    if _ensure_shot_clip_urls(sid, detail.get("shots") or []):
+        try:
+            with open(detail_path, "w", encoding="utf-8") as f:
+                json.dump(detail, f, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            _trace("community:detail update failed", exc)
     return jsonify(detail)
 
 

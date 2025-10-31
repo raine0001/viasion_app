@@ -437,13 +437,26 @@ async function persistShotFromSummary(detail) {
         ? (weightedScoreRaw <= 1 ? weightedScoreRaw * 100 : weightedScoreRaw)
         : null;
 
+    const normalizeClipPath = (value) => {
+        if (!value || typeof value !== 'string') return value;
+        if (/^[a-z]+:/i.test(value)) return value;
+        const trimmed = value.replace(/^\/+/, '');
+        return `/${trimmed}`;
+    };
+
     const coerceClip = (value) => {
         if (!value) return null;
-        if (typeof value === 'string') return { path: value };
+        if (typeof value === 'string') {
+            return { path: normalizeClipPath(value) };
+        }
         if (typeof value === 'object') {
-            const path = value.path || value.url || value.href || null;
+            const raw = value.path || value.url || value.href || null;
+            const path = normalizeClipPath(raw);
             if (path) {
-                return { ...value, path };
+                const next = { ...value, path };
+                if (next.source) next.source = normalizeClipPath(next.source);
+                if (next.mp4) next.mp4 = normalizeClipPath(next.mp4);
+                return next;
             }
         }
         return null;
@@ -464,7 +477,7 @@ async function persistShotFromSummary(detail) {
         const sidActive = window.__SESSION_ID || __sid || null;
         const clipNumber = Number.isFinite(shotId) && shotId > 0 ? shotId : (Number.isFinite(idx) && idx > 0 ? idx : null);
         if (sidActive && clipNumber) {
-            clipInfo = { path: `/sessions/${sidActive}/clips/shot-${clipNumber}.webm` };
+            clipInfo = { path: `/sessions/${sidActive}/clips/shot-${clipNumber}.mp4`, source: `/sessions/${sidActive}/clips/shot-${clipNumber}.webm` };
         }
     }
     if (clipInfo && !clipInfo.status) {
@@ -640,7 +653,7 @@ async function publishCommunityRecap(detail) {
         const idx1 = Number.isFinite(shot?.shotId) && shot.shotId > 0 ? shot.shotId : (idx + 1);
         const clipPath = (shot?.clip && typeof shot.clip.path === 'string')
             ? shot.clip.path
-            : `/sessions/${sid}/clips/shot-${idx1}.webm`;
+            : `/sessions/${sid}/clips/shot-${idx1}.mp4`;
         const poseScore = Number.isFinite(shot?.poseScore) ? Math.round(shot.poseScore) : null;
         const weightedScore = Number.isFinite(shot?.weightedScore) ? shot.weightedScore : null;
         const coachNote = typeof shot?.viasion === 'string' && shot.viasion.trim()
