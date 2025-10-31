@@ -735,6 +735,10 @@ window.poseDetectSerial = poseDetectSerial;
 (function installMicroclip() {
     if (window.__mcInstalled) return; window.__mcInstalled = true;
 
+    if (typeof window.DEBUG_MICROCLIP === 'undefined') {
+        window.DEBUG_MICROCLIP = true;
+    }
+
     const supported =
         typeof MediaRecorder === 'function' &&
         (MediaRecorder.isTypeSupported?.('video/webm;codecs=vp9') ||
@@ -3489,6 +3493,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Re-arm when hoop is locked/confirmed (basketball-style flows)
     const handleHoopReady = () => {
         if (!projectRequiresTargetSelection()) return;
+        if (window.__HUD_MANAGES_COUNTDOWN === true) {
+            if (window.__shotTrackingArmed !== true) {
+                scheduleArmWhenReady(0);
+            }
+            return;
+        }
+        if (window.__armCountdownActive === true) return;
+        if (window.__shotTrackingArmed === true) return;
         const secondsRaw = getWorkflowCountdownSeconds();
         const seconds = Number.isFinite(secondsRaw) && secondsRaw > 0 ? secondsRaw : 5;
         const cue = getWorkflowReadyPrompt();

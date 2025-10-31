@@ -19,8 +19,7 @@
                         "hoop",
                         "net",
                         "player"
-                    ],
-                    "detector": "runs/detect/g_pose_20251027_171605/weights/best.pt"
+                    ]
                 }
             ],
             "modules": {
@@ -53,7 +52,11 @@
                 "countdownSeconds": 3,
                 "attemptLabel": "shot",
                 "attemptsLabel": "Shots Taken",
-                "readyPrompt": "Shoot when ready."
+                "readyPrompt": "Shoot when ready.",
+                "clip": {
+                    "totalMs": 3000,
+                    "preMs": 360
+                }
             },
             "analysis": {
                 "metrics": [
@@ -230,7 +233,7 @@
                         "iron"
                     ],
                     "project": "golf",
-                    "detector": "runs/detect/g_pose_20251028_123053/weights/best.pt"
+                    "detector": "runs/detect/g_pose_20251027_171605/weights/best.pt"
                 }
             ],
             "modules": {
@@ -259,7 +262,22 @@
                 "countdownSeconds": 5,
                 "attemptLabel": "swing",
                 "attemptsLabel": "Swings Taken",
-                "readyPrompt": "Swing when ready."
+                "readyPrompt": "Swing when ready.",
+                "clip": {
+                    "totalMs": 4800,
+                    "preMs": 2000
+                },
+                "poseStreakNeed": 1,
+                "swingDetection": {
+                    "shoulderMargin": 18,
+                    "hipMargin": 26,
+                    "shoulderRatio": 0.15,
+                    "hipRatio": 0.1,
+                    "belowMemoryFrames": 140,
+                    "minBackswingFrames": 3,
+                    "maxSwingFrames": 210,
+                    "cooldownMs": 1000
+                }
             },
             "analysis": {
                 "metrics": [

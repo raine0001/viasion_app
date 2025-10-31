@@ -48,7 +48,66 @@
         activeShotIndex: -1,
         overlayTimer: null,
         loadingDetail: false,
+        loadingClipToken: null,
+        clipLoads: new Map(),
     };
+
+    const clipCache = new Map();
+
+    function revokeClipUrl(path) {
+        const entry = clipCache.get(path);
+        if (entry?.url) {
+            try { URL.revokeObjectURL(entry.url); } catch { }
+        }
+        clipCache.delete(path);
+    }
+
+    function clearClipCache() {
+        for (const [path, entry] of clipCache.entries()) {
+            if (entry?.url) {
+                try { URL.revokeObjectURL(entry.url); } catch { }
+            }
+            clipCache.delete(path);
+        }
+        state.clipLoads.clear();
+    }
+
+    async function ensureClipUrl(path) {
+        if (!path) return null;
+        const cached = clipCache.get(path);
+        if (cached?.url) return cached.url;
+        if (state.clipLoads.has(path)) {
+            return state.clipLoads.get(path);
+        }
+        const promise = (async () => {
+            const response = await fetch(path, { cache: 'force-cache' });
+            if (!response.ok) {
+                throw new Error(`clip fetch failed (${response.status})`);
+            }
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            clipCache.set(path, { url, size: blob.size });
+            state.clipLoads.delete(path);
+            return url;
+        })();
+        state.clipLoads.set(path, promise);
+        try {
+            const url = await promise;
+            return url;
+        } catch (err) {
+            state.clipLoads.delete(path);
+            clipCache.delete(path);
+            throw err;
+        }
+    }
+
+    function prefetchClip(path) {
+        if (!path) return;
+        if (clipCache.has(path) || state.clipLoads.has(path)) return;
+        ensureClipUrl(path).catch(err => {
+            console.warn('[community] prefetch failed', err);
+        });
+    }
 
     function slugify(value) {
         if (!value) return 'unknown';
@@ -318,6 +377,16 @@
         state.loadingDetail = true;
         showModal();
         setModalLoading(post);
+        clearClipCache();
+        state.loadingClipToken = null;
+        if (modalVideoEl) {
+            modalVideoEl.pause();
+            if (modalVideoEl.src && modalVideoEl.src.startsWith('blob:')) {
+                try { URL.revokeObjectURL(modalVideoEl.src); } catch { }
+            }
+            modalVideoEl.removeAttribute('src');
+            modalVideoEl.load();
+        }
         try {
             const res = await fetch(DETAIL_ENDPOINT(post.sessionId || post.id), { cache: 'no-store' });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -436,12 +505,14 @@
                 });
                 modalShotListEl.parentElement?.removeAttribute('hidden');
             } else {
-                modalShotListEl.parentElement?.setAttribute('hidden', 'hidden');
+                    modalShotListEl.parentElement?.setAttribute('hidden', 'hidden');
             }
         }
         if (modalActionBarEl) {
             modalActionBarEl.dataset.visible = '1';
         }
+        const bufferClips = (detail?.shots || []).slice(0, 3).map(shot => shot?.clip).filter(Boolean);
+        bufferClips.forEach(prefetchClip);
     }
 
     function jumpToShot(index) {
@@ -453,6 +524,8 @@
 
     function startPlayback(detail) {
         if (!modalVideoEl) return;
+        modalVideoEl.setAttribute('playsinline', '');
+        modalVideoEl.preload = 'auto';
         modalVideoEl.controls = false;
         modalVideoEl.muted = false;
         modalVideoEl.defaultPlaybackRate = PLAYBACK_RATE;
@@ -461,11 +534,7 @@
         state.activeShotIndex = -1;
         modalVideoEl.addEventListener('ended', onVideoEnded);
         modalVideoEl.addEventListener('error', onVideoError);
-        modalVideoEl.addEventListener('loadeddata', () => {
-            modalVideoEl.playbackRate = PLAYBACK_RATE;
-            modalVideoEl.play().catch(() => { });
-        }, { once: true });
-        nextShot();
+        nextShot().catch(err => console.warn('[community] playback start failed', err));
     }
 
     function onVideoEnded() {
@@ -484,30 +553,55 @@
         }
     }
 
-    function nextShot() {
+    async function nextShot() {
         if (!state.activeDetail || !modalVideoEl) return;
         const shots = Array.isArray(state.activeDetail.shots) ? state.activeDetail.shots : [];
-        state.activeShotIndex += 1;
-        if (state.activeShotIndex >= shots.length) {
+        const targetIndex = state.activeShotIndex + 1;
+        if (targetIndex >= shots.length) {
+            state.activeShotIndex = shots.length;
             showSessionSummary();
             return;
         }
+        state.activeShotIndex = targetIndex;
         const shot = shots[state.activeShotIndex];
         highlightShotRow(state.activeShotIndex);
         if (!shot || !shot.clip) {
             showShotOverlay('Clip missing for this swing. Moving on.', true);
             return;
         }
+        showBufferingOverlay('Loading swing…');
+        const token = Symbol('clip');
+        state.loadingClipToken = token;
+        let clipUrl = null;
+        try {
+            clipUrl = await ensureClipUrl(shot.clip);
+        } catch (err) {
+            if (state.loadingClipToken !== token) return;
+            console.warn('[community] clip load failed', err);
+            showShotOverlay('Unable to load clip. Moving on.', true);
+            return;
+        }
+        if (state.loadingClipToken !== token) return;
         hideOverlay();
-        const cacheBust = shot.clip.includes('?') ? '&' : '?';
         modalVideoEl.pause();
-        modalVideoEl.src = `${shot.clip}${cacheBust}cb=${Date.now()}`;
+        modalVideoEl.removeAttribute('src');
+        modalVideoEl.src = clipUrl;
         modalVideoEl.load();
         modalVideoEl.defaultPlaybackRate = PLAYBACK_RATE;
         modalVideoEl.playbackRate = PLAYBACK_RATE;
-        modalVideoEl.play().catch(err => {
-            console.warn('[community] auto play blocked', err);
+        await new Promise(resolve => {
+            const onLoaded = () => {
+                modalVideoEl.removeEventListener('loadedmetadata', onLoaded);
+                const playPromise = modalVideoEl.play();
+                if (playPromise && typeof playPromise.catch === 'function') {
+                    playPromise.catch(err => console.warn('[community] auto play blocked', err));
+                }
+                resolve();
+            };
+            modalVideoEl.addEventListener('loadedmetadata', onLoaded, { once: true });
         });
+        const upcoming = shots[state.activeShotIndex + 1];
+        if (upcoming?.clip) prefetchClip(upcoming.clip);
     }
 
     function highlightShotRow(index) {
@@ -522,6 +616,19 @@
         if (!modalOverlayEl) return;
         modalOverlayEl.classList.remove('show');
         modalOverlayEl.innerHTML = '';
+    }
+
+    function showBufferingOverlay(message) {
+        if (!modalOverlayEl) return;
+        stopOverlayTimer();
+        modalOverlayEl.innerHTML = '';
+        const container = document.createElement('div');
+        container.className = 'overlay-content loading';
+        const paragraph = document.createElement('p');
+        paragraph.textContent = message || 'Loading swing…';
+        container.appendChild(paragraph);
+        modalOverlayEl.appendChild(container);
+        modalOverlayEl.classList.add('show');
     }
 
     function showShotOverlay(message, skipToNext) {
@@ -560,24 +667,24 @@
         stopOverlayTimer();
         btn.addEventListener('click', skipToNext ? showNextAfterSkip : () => {
             stopOverlayTimer();
-            nextShot();
+            nextShot().catch(err => console.warn('[community] overlay advance failed', err));
         });
         if (skipToNext) {
             state.overlayTimer = setTimeout(() => {
                 state.overlayTimer = null;
-                nextShot();
+                nextShot().catch(err => console.warn('[community] overlay auto advance failed', err));
             }, 1500);
         } else {
             state.overlayTimer = setTimeout(() => {
                 state.overlayTimer = null;
-                nextShot();
+                nextShot().catch(err => console.warn('[community] overlay auto advance failed', err));
             }, OVERLAY_HOLD_MS);
         }
     }
 
     function showNextAfterSkip() {
         stopOverlayTimer();
-        nextShot();
+        nextShot().catch(err => console.warn('[community] overlay skip failed', err));
     }
 
     function showSessionSummary() {
@@ -665,13 +772,18 @@
         stopOverlayTimer();
         state.activeDetail = null;
         state.activeShotIndex = -1;
+        state.loadingClipToken = null;
         if (modalVideoEl) {
             modalVideoEl.pause();
+            if (modalVideoEl.src && modalVideoEl.src.startsWith('blob:')) {
+                try { URL.revokeObjectURL(modalVideoEl.src); } catch { }
+            }
             modalVideoEl.removeAttribute('src');
             modalVideoEl.load();
             modalVideoEl.removeEventListener('ended', onVideoEnded);
             modalVideoEl.removeEventListener('error', onVideoError);
         }
+        clearClipCache();
         modalEl.classList.remove('open');
         document.body.classList.remove('modal-open');
     }
@@ -689,12 +801,12 @@
                 const action = ev.target?.getAttribute?.('data-action');
                 if (action === 'next') {
                     stopOverlayTimer();
-                    nextShot();
+                    nextShot().catch(err => console.warn('[community] next action failed', err));
                 } else if (action === 'previous') {
                     stopOverlayTimer();
                     const prev = Math.max(-1, state.activeShotIndex - 2);
                     state.activeShotIndex = prev;
-                    nextShot();
+                    nextShot().catch(err => console.warn('[community] previous action failed', err));
                 }
             });
         }

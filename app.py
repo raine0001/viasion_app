@@ -1107,6 +1107,78 @@ COMMUNITY_DIR = os.path.join(SESSIONS_DIR, "_community")
 COMMUNITY_FEED_PATH = os.path.join(COMMUNITY_DIR, "feed.json")
 os.makedirs(COMMUNITY_DIR, exist_ok=True)
 
+MICROCLIP_HEADER_PATH = os.path.join(SESSIONS_DIR, "_microclip_header.bin")
+MICROCLIP_HEADER_MAX = 2 * 1024 * 1024  # allow up to 2 MiB for header capture
+MICROCLIP_CLUSTER_MARKER = b"\x1f\x43\xb6\x75"
+
+
+def _is_valid_webm_header(data: bytes) -> bool:
+    if not data or len(data) < 4:
+        return False
+    # WebM/Matroska files start with 0x1A45DFA3 (EBML)
+    return data[0:4] == b"\x1a\x45\xdf\xa3"
+
+
+def _trim_to_webm_header(data: bytes) -> bytes:
+    """Return only the EBML header section up to (but not including) the first Cluster."""
+    if not data:
+        return data
+    idx = data.find(MICROCLIP_CLUSTER_MARKER, 4)
+    if idx != -1:
+        return data[:idx]
+    return data
+
+
+def _load_cached_microclip_header() -> bytes | None:
+    if os.path.exists(MICROCLIP_HEADER_PATH):
+        try:
+            with open(MICROCLIP_HEADER_PATH, "rb") as f:
+                return f.read()
+        except OSError:
+            return None
+    return None
+
+
+def _maybe_cache_microclip_header(sample: bytes) -> None:
+    if not sample or not _is_valid_webm_header(sample):
+        return
+    sample = sample[:MICROCLIP_HEADER_MAX]
+    if MICROCLIP_CLUSTER_MARKER not in sample:
+        return
+    header_only = _trim_to_webm_header(sample)
+    if not header_only:
+        return
+    cached = _load_cached_microclip_header()
+    if cached and len(header_only) == len(cached) and cached.startswith(header_only):
+        return
+    try:
+        with open(MICROCLIP_HEADER_PATH, "wb") as f:
+            f.write(header_only)
+    except OSError:
+        pass
+
+
+def _repair_microclip_header(path: Path) -> bool:
+    header = _load_cached_microclip_header()
+    if not header:
+        return False
+    header = _trim_to_webm_header(header[:MICROCLIP_HEADER_MAX])
+    if not header:
+        return False
+    try:
+        file_size = path.stat().st_size
+        if file_size < 4:
+            return False
+        with open(path, "r+b") as f:
+            original = f.read(min(len(header), MICROCLIP_HEADER_MAX))
+            if _is_valid_webm_header(original):
+                return False
+            f.seek(0)
+            f.write(header[: min(len(header), file_size)])
+        return True
+    except OSError:
+        return False
+
 
 def _session_path(sid: str):
     d = os.path.join(SESSIONS_DIR, sid)
@@ -1165,10 +1237,13 @@ def _write_community_feed(posts: list[dict]):
 
 
 def _ensure_preview_image(sid: str) -> str | None:
-    preview_path = os.path.join(_session_path(sid), "preview.jpg")
+    base_dir = os.path.join(SESSIONS_DIR, sid)
+    if not os.path.isdir(base_dir):
+        return None
+    preview_path = os.path.join(base_dir, "preview.jpg")
     if os.path.exists(preview_path):
         return preview_path
-    clips_dir = Path(_session_path(sid)) / "clips"
+    clips_dir = Path(base_dir) / "clips"
     if not clips_dir.exists():
         return None
     first_clip = None
@@ -1746,6 +1821,36 @@ def api_microclip_upload():
     filename = f"shot-{safe_shot}.webm"
     dest_path = clips_dir / filename
     clip.save(dest_path)
+    try:
+        with open(dest_path, "rb") as f:
+            sample = f.read(MICROCLIP_HEADER_MAX)
+        head_bytes = [b for b in sample[:4]]
+        size_bytes = dest_path.stat().st_size
+        print(
+            f"[microclip] saved {dest_path} size={size_bytes} head={head_bytes}",
+            flush=True,
+        )
+    except Exception as exc:
+        print(f"[microclip] head inspect failed for {dest_path}: {exc}", flush=True)
+        sample = b""
+    if _is_valid_webm_header(sample):
+        try:
+            _maybe_cache_microclip_header(sample)
+        except Exception as exc:
+            print(f"[microclip] cache header failed: {exc}", flush=True)
+    else:
+        if _repair_microclip_header(dest_path):
+            try:
+                with open(dest_path, "rb") as f:
+                    repaired_head = [b for b in f.read(4)]
+                print(
+                    f"[microclip] repaired header for {dest_path}; new head={repaired_head}",
+                    flush=True,
+                )
+            except Exception:
+                print(f"[microclip] repaired header for {dest_path}", flush=True)
+        else:
+            print(f"[microclip] repair skipped (no cached header) for {dest_path}", flush=True)
     rel_path = f"sessions/{safe_sid}/clips/{filename}"
     # enqueue background job here (fbf worker reads this path)
     return jsonify(ok=True, path=rel_path)

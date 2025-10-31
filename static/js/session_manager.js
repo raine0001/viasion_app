@@ -437,6 +437,40 @@ async function persistShotFromSummary(detail) {
         ? (weightedScoreRaw <= 1 ? weightedScoreRaw * 100 : weightedScoreRaw)
         : null;
 
+    const coerceClip = (value) => {
+        if (!value) return null;
+        if (typeof value === 'string') return { path: value };
+        if (typeof value === 'object') {
+            const path = value.path || value.url || value.href || null;
+            if (path) {
+                return { ...value, path };
+            }
+        }
+        return null;
+    };
+    const shotStoreEntry = (Number.isFinite(shotId) && window.__shots instanceof Map && typeof window.__shots.get === 'function')
+        ? window.__shots.get(shotId)
+        : null;
+    let clipInfo =
+        coerceClip(detail?.clip) ||
+        coerceClip(detail?.clipPath) ||
+        coerceClip(detail?.clipUrl) ||
+        coerceClip(shotStoreEntry?.clip);
+    if (!clipInfo && Number.isFinite(idx)) {
+        const listEntry = Array.isArray(window.__shotList) ? window.__shotList[idx - 1] : null;
+        clipInfo = coerceClip(listEntry?.clip);
+    }
+    if (!clipInfo) {
+        const sidActive = window.__SESSION_ID || __sid || null;
+        const clipNumber = Number.isFinite(shotId) && shotId > 0 ? shotId : (Number.isFinite(idx) && idx > 0 ? idx : null);
+        if (sidActive && clipNumber) {
+            clipInfo = { path: `/sessions/${sidActive}/clips/shot-${clipNumber}.webm` };
+        }
+    }
+    if (clipInfo && !clipInfo.status) {
+        clipInfo.status = 'saved';
+    }
+
     const payload = {
         idx,
         t: Date.now(),
@@ -453,6 +487,9 @@ async function persistShotFromSummary(detail) {
             : (typeof detail?.text === 'string' ? detail.text.trim() : ''));
     if (coachLine) {
         payload.coachNote = coachLine;
+    }
+    if (clipInfo) {
+        payload.clip = clipInfo;
     }
     if (normalizedPoseScore != null) {
         payload.poseScore = normalizedPoseScore;
@@ -676,4 +713,3 @@ window.addEventListener('viasion:session-review', (e) => {
     __communityPendingSummary = e?.detail || null;
     publishCommunityRecapIfReady();
 });
-

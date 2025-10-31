@@ -1039,6 +1039,21 @@ window.__finalizedShotIds ||= new Set();
 // Record a finalized shot summary (UI only, no server)
 window.recordShotSummary = function recordShotSummary(summary) {
     summary = normalizeShotScore(summary);
+    const shotRecord = (Number.isFinite(summary?.shotId) && window.__shots instanceof Map && typeof window.__shots.get === 'function')
+        ? window.__shots.get(summary.shotId)
+        : null;
+    if (!summary.clip && shotRecord?.clip) {
+        summary.clip = (typeof shotRecord.clip === 'string')
+            ? { path: shotRecord.clip }
+            : { ...shotRecord.clip };
+    }
+    if ((!summary.clip || !summary.clip.path) && Number.isFinite(summary?.shotId) && summary.shotId > 0) {
+        const activeSid = window.__SESSION_ID;
+        if (activeSid) {
+            const fallbackPath = `/sessions/${activeSid}/clips/shot-${summary.shotId}.webm`;
+            summary.clip = { ...(summary.clip || {}), path: fallbackPath };
+        }
+    }
     const originalWeighted = Number.isFinite(summary?.weightedScore) ? summary.weightedScore : null;
     const debugKey = Number.isFinite(summary?.shotId) ? String(summary.shotId) : null;
     const debugSnapshot = debugKey && window.__POSE_SCORE_DEBUG?.get?.(debugKey);
@@ -1328,6 +1343,8 @@ function clearNewSessionPromptTimers() {
 
 async function startLandscapeRecorder(videoEl, opts = {}) {
 
+    try { window.__HUD_MANAGES_COUNTDOWN = true; } catch { }
+
     const fps = opts.fps || 30;
 
     const wantW = opts.width || 1280;
@@ -1339,6 +1356,8 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
     const bufferWindowMs = opts.bufferWindowMs ?? Math.max(4000, (window.__MICROCLIP_MS ?? 3000) + (window.__MICROCLIP_PRE_MS ?? 360) + 1000);
 
     const sliceMs = Math.max(50, Math.round(1000 / fps));
+    const MIN_FINAL_CHUNK_BYTES = 4096;
+    const MIN_FINAL_CHUNK_DELAY = 160;
 
 
 
@@ -1382,22 +1401,98 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
 
 
-    const recorder = new MediaRecorder(stream, { mimeType });
-
     const buffer = [];
 
     let initChunk = null;
 
     let activeCapture = null;
 
+    const headerChunks = [];
+    let recorder = new MediaRecorder(stream, { mimeType });
+    let fallbackInitChunk = null;
+    const initReadyWaiters = new Set();
+
     let requestTimer = null;
 
     let lastChunkTime = performance.now();
 
+    const stopWaiters = new Set();
+    const CLUSTER_SIGNATURE = [0x1f, 0x43, 0xb6, 0x75];
+    let initNotified = false;
+    let headerCaptured = false;
+
+    function resolveInitWaiters() {
+        if (initNotified) return;
+        initNotified = true;
+        if (!initReadyWaiters.size) return;
+        const waiters = Array.from(initReadyWaiters);
+        initReadyWaiters.clear();
+        waiters.forEach((fn) => {
+            try { fn(); } catch { }
+        });
+    }
+
+    async function splitWebmHeaderBlob(blob) {
+        try {
+            const buf = await blob.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            const sigLen = CLUSTER_SIGNATURE.length;
+            const limit = Math.max(0, bytes.length - sigLen);
+            for (let i = 0; i <= limit; i++) {
+                let match = true;
+                for (let j = 0; j < sigLen; j++) {
+                    if (bytes[i + j] !== CLUSTER_SIGNATURE[j]) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) {
+                    const header = blob.slice(0, i);
+                    const payload = blob.slice(i);
+                    if (header.size > 0) {
+                        return { header, payload };
+                    }
+                    break;
+                }
+            }
+        } catch (err) {
+            if (window.DEBUG_MICROCLIP === true) {
+                console.warn('[landscapeRecorder] header split failed', err);
+            }
+        }
+        return { header: blob, payload: null };
+    }
+
+    function clearRequestTimer() {
+        if (requestTimer) {
+            clearInterval(requestTimer);
+            requestTimer = null;
+        }
+    }
+
+    function notifyStopWaiters() {
+        if (!stopWaiters.size) return;
+        const waiters = Array.from(stopWaiters);
+        stopWaiters.clear();
+        waiters.forEach(fn => {
+            try { fn(); } catch { }
+        });
+    }
+
     function finalizeActiveCapture(reason = 'complete') {
-        if (!activeCapture) return null;
+        if (!activeCapture || activeCapture.finalized) return null;
+        activeCapture.finalized = true;
         activeCapture.flushRequested = false;
+        if (activeCapture.finalizeTimer) {
+            clearTimeout(activeCapture.finalizeTimer);
+            activeCapture.finalizeTimer = null;
+        }
+        if (activeCapture.stopTimer) {
+            clearTimeout(activeCapture.stopTimer);
+            activeCapture.stopTimer = null;
+        }
         let parts = [];
+        const headerBlob = initChunk || fallbackInitChunk;
         try {
             if (typeof activeCapture.buildParts === 'function') {
                 parts = activeCapture.buildParts(activeCapture.liveChunks || []);
@@ -1405,15 +1500,15 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
                 const live = Array.isArray(activeCapture.liveChunks)
                     ? activeCapture.liveChunks.slice()
                     : [];
-                parts = initChunk
-                    ? [initChunk, ...live.filter(blob => blob !== initChunk)]
+                parts = headerBlob
+                    ? [headerBlob, ...live.filter(blob => blob !== headerBlob)]
                     : live;
             }
         } catch (err) {
             console.warn('[landscapeRecorder] finalize failed to build parts', err, { reason });
             parts = [];
         }
-        if (!parts.length && initChunk) parts = [initChunk];
+        if (!parts.length && headerBlob) parts = [headerBlob];
         if (window.DEBUG_MICROCLIP === true) {
             const sizes = parts.map(p => p?.size ?? 0);
             const headBytesPromise = (async () => {
@@ -1443,77 +1538,97 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         return null;
     }
 
-
-
-    recorder.ondataavailable = (e) => {
-
+    async function handleData(r, e) {
+        if (recorder !== r) return;
         if (!e?.data || !e.data.size) return;
-
+        if (window.DEBUG_MICROCLIP === true) {
+            console.log('[landscapeRecorder] chunk', {
+                size: e.data.size,
+                flushRequested: !!(activeCapture?.flushRequested)
+            });
+        }
+        let blobData = e.data;
         const now = performance.now();
-
         const duration = Math.max(1, now - lastChunkTime);
-
         lastChunkTime = now;
 
-
-
-        if (!initChunk) {
-
-            initChunk = e.data;
-
-        }
-
-
-
-        buffer.push({ blob: e.data, duration, ts: now });
-
-        while (buffer.length && (now - buffer[0].ts) > bufferWindowMs) buffer.shift();
-
-
-
-        if (activeCapture) {
-            activeCapture.liveChunks.push(e.data);
-            activeCapture.remainingMs -= duration;
-
-            if (activeCapture.remainingMs <= 0) {
-                const needsFlush = !activeCapture.flushRequested && typeof recorder.requestData === 'function';
-                if (needsFlush) {
-                    activeCapture.flushRequested = true;
-                    try { recorder.requestData(); } catch { }
-                } else {
-                    finalizeActiveCapture('complete');
+        if (!headerCaptured) {
+            headerChunks.push(blobData);
+            const combined =
+                headerChunks.length === 1
+                    ? headerChunks[0]
+                    : new Blob(headerChunks, { type: blobData.type || mimeType });
+            try {
+                const { header, payload } = await splitWebmHeaderBlob(combined);
+                const headerBlob = header && header.size ? header : combined;
+                initChunk = headerBlob;
+                fallbackInitChunk = headerBlob;
+                if (!payload || !payload.size) {
+                    if (window.DEBUG_MICROCLIP === true) {
+                        console.log('[landscapeRecorder] waiting for first Cluster chunk');
+                    }
+                    return;
                 }
+                headerCaptured = true;
+                resolveInitWaiters();
+                headerChunks.length = 0;
+                blobData = payload;
+            } catch (err) {
+                if (window.DEBUG_MICROCLIP === true) {
+                    console.warn('[landscapeRecorder] header parse pending', err);
+                }
+                return;
             }
         }
 
-    };
+        const entry = { blob: blobData, duration, ts: now };
+        buffer.push(entry);
+        while (buffer.length && (now - buffer[0].ts) > bufferWindowMs) buffer.shift();
 
-
-
-    recorder.onstop = () => {
-
-        if (requestTimer) clearInterval(requestTimer);
-
-        finalizeActiveCapture('recorder-stop');
-
-    };
-
-
-
-    try { recorder.start(sliceMs); }
-
-    catch {
-
-        recorder.start();
-
-        requestTimer = setInterval(() => {
-
-            try { recorder.requestData?.(); } catch { }
-
-        }, sliceMs);
-
+        if (activeCapture) {
+            activeCapture.liveChunks.push(blobData);
+            activeCapture.remainingMs -= duration;
+            if (activeCapture.flushRequested) {
+                const sinceFlush = now - (activeCapture.flushRequestTime || now);
+                if (!activeCapture.finalized && (blobData.size >= MIN_FINAL_CHUNK_BYTES || sinceFlush >= MIN_FINAL_CHUNK_DELAY)) {
+                    finalizeActiveCapture('flush-complete');
+                }
+            } else if (activeCapture.remainingMs <= 0) {
+                activeCapture.flushRequested = true;
+                activeCapture.flushRequestTime = now;
+                if (activeCapture.finalizeTimer) {
+                    clearTimeout(activeCapture.finalizeTimer);
+                    activeCapture.finalizeTimer = null;
+                }
+                activeCapture.finalizeTimer = setTimeout(() => {
+                    if (activeCapture && !activeCapture.finalized) {
+                        finalizeActiveCapture('flush-timeout');
+                    }
+                }, Math.max(300, sliceMs * 6));
+            }
+        }
     }
 
+    recorder.ondataavailable = (e) => {
+        const maybe = handleData(recorder, e);
+        if (maybe && typeof maybe.catch === 'function') {
+            maybe.catch((err) => {
+                if (window.DEBUG_MICROCLIP === true) {
+                    console.warn('[landscapeRecorder] handleData failed', err);
+                }
+            });
+        }
+    };
+    recorder.addEventListener('stop', () => {
+        notifyStopWaiters();
+    });
+    try { recorder.start(sliceMs); }
+    catch {
+        try { recorder.start(); } catch { }
+        requestTimer = setInterval(() => {
+            try { recorder.requestData?.(); } catch { }
+        }, sliceMs);
+    }
 
 
     let rafId = 0;
@@ -1594,6 +1709,16 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
 
 
+    const waitForInitChunk = () => {
+        const headerBlob = initChunk || fallbackInitChunk;
+        if (initNotified && headerBlob && headerBlob.size) {
+            return Promise.resolve();
+        }
+        return new Promise((resolve) => {
+            initReadyWaiters.add(resolve);
+        });
+    };
+
     const captureClip = ({ preMs, totalMs } = {}) => {
 
         const total = Math.max(200, Number.isFinite(totalMs) ? totalMs : (window.__MICROCLIP_MS ?? 3000));
@@ -1618,35 +1743,91 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
         const buildParts = (liveChunks = []) => {
             const parts = [];
-            if (initChunk) parts.push(initChunk);
+            const headerBlob = initChunk || fallbackInitChunk;
+            if (headerBlob) parts.push(headerBlob);
             for (const blob of preChunks) {
-                if (!initChunk || blob !== initChunk) parts.push(blob);
+                if (!headerBlob || blob !== headerBlob) parts.push(blob);
             }
             for (const blob of liveChunks) {
-                if (!initChunk || blob !== initChunk) parts.push(blob);
+                if (!headerBlob || blob !== headerBlob) parts.push(blob);
             }
             return parts;
         };
 
         let remainingMs = Math.max(0, total - covered);
+        const ready = waitForInitChunk();
 
         if (remainingMs <= 0) {
-            return Promise.resolve(new Blob(buildParts(), { type: mimeType }));
+            return ready.then(() => new Blob(buildParts(), { type: mimeType }));
         }
 
-    return new Promise((resolve, reject) => {
-      if (activeCapture) {
-        finalizeActiveCapture('preempted');
-      }
-      activeCapture = {
-        preChunks,
-        liveChunks: [],
-        remainingMs,
-        resolve,
-        reject,
-        buildParts
-      };
-    });
+        return ready.then(() => new Promise((resolve, reject) => {
+            if (activeCapture) {
+                finalizeActiveCapture('preempted');
+            }
+
+            const liveChunks = [];
+            let currentCapture = null;
+
+            const clearTimer = () => {
+                if (currentCapture && currentCapture.finalizeTimer) {
+                    clearTimeout(currentCapture.finalizeTimer);
+                    currentCapture.finalizeTimer = null;
+                }
+                if (currentCapture && currentCapture.stopTimer) {
+                    clearTimeout(currentCapture.stopTimer);
+                    currentCapture.stopTimer = null;
+                }
+            };
+
+            const logHead = (blob) => {
+                if (window.DEBUG_MICROCLIP === true) {
+                    try {
+                        const headPromise = (async () => {
+                            try {
+                                const buf = await blob.slice(0, 4).arrayBuffer();
+                                return Array.from(new Uint8Array(buf));
+                            } catch { return null; }
+                        })();
+                        Promise.resolve(headPromise).then(headBytes => {
+                            console.log('[landscapeRecorder] clip finalized', { headBytes });
+                        });
+                    } catch { }
+                }
+            };
+
+            const resolveWithBlob = (blob) => {
+                clearTimer();
+                logHead(blob);
+                resolve(blob);
+            };
+
+            const rejectWithError = (err) => {
+                clearTimer();
+                reject(err);
+            };
+
+            currentCapture = {
+                preChunks,
+                liveChunks,
+                remainingMs,
+                resolve: resolveWithBlob,
+                reject: rejectWithError,
+                buildParts,
+                flushRequested: false,
+                finalized: false,
+                finalizeTimer: null,
+                flushRequestTime: null
+            };
+
+            currentCapture.finalizeTimer = setTimeout(() => {
+                if (activeCapture && activeCapture === currentCapture && !activeCapture.finalized) {
+                    finalizeActiveCapture('deadline');
+                }
+            }, Math.max(700, remainingMs + 900));
+
+            activeCapture = currentCapture;
+        }));
 
     };
 
@@ -1656,23 +1837,23 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
         captureClip,
 
-        stop: () => {
+        stop: async () => {
 
             cancelAnimationFrame(rafId);
 
-            if (requestTimer) clearInterval(requestTimer);
+            clearRequestTimer();
 
             videoEl.removeEventListener?.('loadedmetadata', draw);
 
-        try { recorder.stop(); } catch { }
+            try { recorder.stop(); } catch { }
 
-        stream?.getTracks?.().forEach(track => track.stop());
+            stream?.getTracks?.().forEach(track => track.stop());
 
-        buffer.length = 0;
+            buffer.length = 0;
 
-        finalizeActiveCapture('stop-call');
+            finalizeActiveCapture('stop-call');
 
-    }
+        }
 
   };
 
@@ -2076,6 +2257,7 @@ export function initHUDForVideo(videoEl) {
 window.initHUDForVideo = initHUDForVideo;
 
 function kickoffCountdownArmFromHoop() {
+    if (!requiresTargetSelection()) return;
     const sec = Number(window.__sessionCountdownSecs || getCountdownSeconds());
     const prompt = window.__sessionReadyPrompt || getReadyPrompt();
     try {
@@ -2091,6 +2273,7 @@ function kickoffCountdownArmFromHoop() {
 
 /* ------------------------- Hoop lock listeners ------------------------- */
 window.addEventListener('hoop:locked', () => {
+    if (!projectRequiresTargetSelection()) return;
     window.__hoopConfirmed = true;
     try { window.__SESSION_ACTIVE = true; } catch { }
     hidePromptMessage();

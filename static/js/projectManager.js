@@ -7,6 +7,11 @@
         moduleRegistry: new Map()
     };
 
+    const defaultClipConfig = {
+        totalMs: Number(window.__MICROCLIP_MS) || 3000,
+        preMs: Number(window.__MICROCLIP_PRE_MS) || 360
+    };
+
     const fallbackManifest = {
         defaultProject: 'basketball',
         projects: {
@@ -60,6 +65,7 @@
 
     function notifyListeners() {
         const project = getActiveProject();
+        applyProjectGlobals(project);
         try {
             window.__viasion_ACTIVE_PROJECT = project || null;
         } catch {
@@ -130,6 +136,28 @@
 
     function getManifest() {
         return state.manifest;
+    }
+
+    function applyProjectGlobals(project) {
+        const clip = project?.workflow?.clip || project?.clip || null;
+        const total = Number(clip?.totalMs);
+        if (Number.isFinite(total) && total > 0) {
+            window.__MICROCLIP_MS = total;
+        } else {
+            window.__MICROCLIP_MS = defaultClipConfig.totalMs;
+        }
+
+        const maxPre = Math.max(0, (window.__MICROCLIP_MS || defaultClipConfig.totalMs) - 120);
+        const pre = Number(clip?.preMs);
+        const resolvedPre = Number.isFinite(pre) && pre >= 0 ? Math.min(pre, maxPre) : Math.min(defaultClipConfig.preMs, maxPre);
+        window.__MICROCLIP_PRE_MS = resolvedPre;
+
+        const poseStreakNeed = Number(project?.workflow?.poseStreakNeed);
+        if (Number.isFinite(poseStreakNeed) && poseStreakNeed > 0) {
+            window.POSE_STREAK_NEED = poseStreakNeed;
+        } else {
+            window.POSE_STREAK_NEED = window.POSE_STREAK_NEED || 2;
+        }
     }
 
     async function createProject(payload) {
