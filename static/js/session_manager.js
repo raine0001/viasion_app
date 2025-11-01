@@ -282,7 +282,7 @@ async function startSession() {
                 try {
                     if (window.PREF_ALLOW_MIC === false) return;
                     if (window.__VOICE_READY !== true) {
-                        window.showToast?.('Voice commands are sleeping—enable the microphone in Settings and say "Hey Viasion" to wake me.', 'warn', 5200);
+                        window.showToast?.('Voice commands are sleeping—enable the microphone in Settings and say "Hey VIᵃSION" to wake me.', 'warn', 5200);
                     }
                 } catch { }
             }, 3600);

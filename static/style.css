@@ -8,6 +8,21 @@
   box-sizing: border-box;
   font-family: "Poppins", sans-serif;
 }
+
+.brand-mark,
+.brand-name {
+  font-family: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
+.brand-mark sup,
+.brand-name sup {
+  font-size: 0.58em;
+  vertical-align: text-top;
+  margin-left: 1px;
+  letter-spacing: normal;
+}
 .sidebar {
   position: absolute;
   top: 0;

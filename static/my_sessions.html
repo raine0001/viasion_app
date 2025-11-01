@@ -4168,7 +4168,7 @@
                     if (!localStorage.getItem(SUPPORT_PROMPT_KEY)) {
                         setTimeout(() => {
                             openSupportWidget();
-                            window.showToast?.('Need a hand? Ask Viasion anything in Help & Support.', 'success', 5200);
+                            window.showToast?.('Need a hand? Ask VIᵃSION anything in Help & Support.', 'success', 5200);
                         }, 1600);
                         localStorage.setItem(SUPPORT_PROMPT_KEY, String(Date.now()));
                     }
@@ -4180,7 +4180,7 @@
                     if (ready) {
                         if (!voiceReadyNotified) {
                             voiceReadyNotified = true;
-                            window.showToast?.('Voice commands are ready. Say "Hey Viasion" to ask for help.', 'success', 4200);
+                            window.showToast?.('Voice commands are ready. Say "Hey VIᵃSION" to ask for help.', 'success', 4200);
                         }
                     } else if (voiceReadyNotified) {
                         voiceReadyNotified = false;

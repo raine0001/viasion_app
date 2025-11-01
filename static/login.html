@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Login • viasion</title>
+    <title>Login • VIᵃSION</title>
     <link rel="stylesheet" href="/static/style.css" />
     <script>
         (function redirectIfAuthenticated() {
@@ -51,6 +51,14 @@
             border-radius: 14px;
             background: #fff;
             box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+        }
+
+        .card h2 {
+            margin: 0 0 18px;
+            text-align: center;
+            font-size: 26px;
+            font-weight: 700;
+            color: #0f172a;
         }
 
         input,
@@ -255,7 +263,7 @@
 
 <body>
     <div class="card">
-        <h2>Welcome to viasion</h2>
+        <h1>Welcome to <span class="brand-mark">VI<sup>a</sup>SION</span></h1>
         <input id="name" placeholder="First name or User Name" />
         <input id="email" placeholder="Email" />
         <input id="password" type="password" placeholder="Password" />
@@ -267,17 +275,17 @@
     </div>
     <div class="faq-assistant" aria-live="polite">
         <h3>Need a quick answer?</h3>
-        <p>Ask Vi<sup>a</sup>sion.</p>
+        <p>Ask <span class="brand-mark">VI<sup>a</sup>SION</span>.</p>
         <div id="faqThread" class="faq-thread"></div>
         <div class="faq-suggestions">
-            <button type="button" data-faq="What is Viasion?">What is Vi<sup>a</sup>sion?</button>
-            <button type="button" data-faq="How do I use Viasion?">How do I use Vi<sup>a</sup>sion?</button>
+            <button type="button" data-faq="What is VIᵃSION?">What is <span class="brand-mark">VI<sup>a</sup>SION</span>?</button>
+            <button type="button" data-faq="How do I use VIᵃSION?">How do I use <span class="brand-mark">VI<sup>a</sup>SION</span>?</button>
             <button type="button" data-faq="Where do I set up my camera?">Camera setup tips</button>
             <button type="button" data-faq="What membership plans are available?">Membership options</button>
         </div>
         <form id="faqForm" class="faq-form">
-            <textarea id="faqInput" placeholder="Ask a question about Viasion..."
-                aria-label="Ask Viasion a question"></textarea>
+            <textarea id="faqInput" placeholder="Ask a question about VIᵃSION..."
+                aria-label="Ask VIᵃSION a question"></textarea>
             <div class="faq-actions">
                 <span id="faqStatus" class="faq-status"></span>
                 <button type="submit">Ask</button>
@@ -343,7 +351,7 @@
                 const j = await post('/api/auth/register', { name, email, password });
                 if (name) rememberName(name);
                 else rememberName(j?.name);
-                sessionStorage.setItem('viasion_login_greeting', `Welcome to viasion${name ? ', ' + name.split(/\s+/)[0] : ''}!`);
+                sessionStorage.setItem('viasion_login_greeting', `Welcome to <span class="brand-mark">VI<sup>a</sup>SION</span>${name ? ', ' + name.split(/\s+/)[0] : ''}!`);
                 location.href = returnTo;
             } catch (e) {
                 setMsg('Register failed');
@@ -360,7 +368,7 @@
         const FAQ_KNOWLEDGE = [
             {
                 match: ['what is viasion', 'tell me about viasion'],
-                answer: "Viasion is an intelligent motion training platform that blends real-time pose detection, object recognition, and AI coaching. It turns human movement plus tool interaction into measurable insights so athletes, operators, and rehab teams can improve precision, efficiency, and safety across golf, baseball, industrial workflows, and more."
+                answer: "VIᵃSION is an intelligent motion training platform that blends real-time pose detection, object recognition, and AI coaching. It turns human movement plus tool interaction into measurable insights so athletes, operators, and rehab teams can improve precision, efficiency, and safety across golf, baseball, industrial workflows, and more."
             },
             {
                 match: ['how do i use viasion', 'get started', 'setup viasion', 'using viasion'],
@@ -368,7 +376,7 @@
             },
             {
                 match: ['camera setup', 'camera tips'],
-                answer: "Keep both you and the key object in frame. Angle the camera just off to the side and slightly behind so Viasion can read feet, torso, hands, and equipment without being blocked. Good lighting and a stable surface make detection more reliable."
+                answer: "Keep both you and the key object in frame. Angle the camera just off to the side and slightly behind so VIᵃSION can read feet, torso, hands, and equipment without being blocked. Good lighting and a stable surface make detection more reliable."
             },
             {
                 match: ['membership', 'subscription', 'plan options'],

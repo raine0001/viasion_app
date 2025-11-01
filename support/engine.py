@@ -570,18 +570,18 @@ def _call_openai_support(ctx: Dict[str, Any]) -> Optional[HandlerResult]:
     try:
         context_text = _compose_support_context(ctx)
         core_brief = (
-            "Viasion is an intelligent motion training platform that fuses real-time pose detection, "
+            "VIᵃSION is an intelligent motion training platform that fuses real-time pose detection, "
             "object recognition (YOLOv11), and LLM-based coaching to improve performance across sports, "
             "industrial workflows, healthcare rehab, and skill training. It runs on a mobile device camera, "
             "tracks motion phases, detects tools or workspace objects, and delivers natural-language feedback, "
             "success scores, and adaptive coaching."
         )
         how_to_use = (
-            "How to use Viasion:\n"
+            "How to use VIᵃSION:\n"
             "1. Create an account at https://www.viasion.com and log in.\n"
             "2. From My Sessions, pick a subscription or activity (e.g., golf) and tap Start Session.\n"
             "3. Position the camera slightly behind and to the side so your body and the object (club, tool, etc.) stay fully in frame.\n"
-            "4. When you hear 'Start when ready', perform the movement. Viasion counts reps, analyses pose + object interaction, and speaks feedback.\n"
+            "4. When you hear 'Start when ready', perform the movement. VIᵃSION counts reps, analyses pose + object interaction, and speaks feedback.\n"
             "5. After the set (usually 10 reps) it shows a full summary with scores and coaching tips."
         )
         camera_tips = (
@@ -592,7 +592,7 @@ def _call_openai_support(ctx: Dict[str, Any]) -> Optional[HandlerResult]:
             "once subscribed, the plan appears in My Sessions with a Start Session button."
         )
         prompt = (
-            "You are Viasion's embedded support coach. Use the knowledge below to answer accurately and concisely.\n\n"
+            "You are VIᵃSION's embedded support coach. Use the knowledge below to answer accurately and concisely.\n\n"
             f"Platform overview:\n{core_brief}\n\n"
             f"{how_to_use}\n\n"
             f"Camera tips: {camera_tips}\n\n"

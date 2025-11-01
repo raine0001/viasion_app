@@ -135,6 +135,8 @@ def _trace(*args, **kwargs):
 
 PARTIAL_CHUNK_BYTES = 512 * 1024  # 512 KB initial streaming chunk
 FFMPEG_BIN = os.getenv("FFMPEG_BIN") or shutil.which("ffmpeg") or "ffmpeg"
+FFMPEG_TRANSCODE_PRESET = os.getenv("FFMPEG_TRANSCODE_PRESET", "veryfast")
+FFMPEG_TRANSCODE_CRF = os.getenv("FFMPEG_TRANSCODE_CRF", "23")
 
 
 def _remux_to_mp4(src: Path) -> Path | None:
@@ -190,6 +192,47 @@ def _remux_to_mp4(src: Path) -> Path | None:
                 dst_path.unlink()
         except Exception:
             pass
+        transcode_cmd = [
+            FFMPEG_BIN,
+            "-y",
+            "-i",
+            str(src_path),
+            "-c:v",
+            "libx264",
+            "-preset",
+            FFMPEG_TRANSCODE_PRESET,
+            "-crf",
+            FFMPEG_TRANSCODE_CRF,
+            "-an",
+            str(dst_path),
+        ]
+        try:
+            subprocess.run(
+                transcode_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
+            _trace(
+                "[clip:ffmpeg] transcode ok",
+                {"src": str(src_path), "dst": str(dst_path), "cmd": transcode_cmd},
+            )
+            return dst_path
+        except Exception as sub_exc:
+            sub_err = ""
+            if isinstance(sub_exc, subprocess.CalledProcessError):
+                try:
+                    sub_err = sub_exc.stderr.decode("utf-8", errors="ignore") if sub_exc.stderr else ""
+                except Exception:
+                    sub_err = str(sub_exc.stderr)
+            else:
+                sub_err = str(sub_exc)
+            _trace("[clip:ffmpeg] transcode failed", {"cmd": transcode_cmd, "error": sub_err[-400:]})
+            try:
+                if dst_path.exists():
+                    dst_path.unlink()
+            except Exception:
+                pass
     except Exception as exc:
         _trace("[clip:ffmpeg] remux exception", exc)
         try:
@@ -1302,6 +1345,31 @@ def _write_community_feed(posts: list[dict]):
     os.replace(tmp_path, COMMUNITY_FEED_PATH)
 
 
+def _extract_preview_with_ffmpeg(src: Path, dest: Path) -> bool:
+    cmd = [
+        FFMPEG_BIN,
+        "-y",
+        "-i",
+        str(src),
+        "-frames:v",
+        "1",
+        "-q:v",
+        "3",
+        str(dest),
+    ]
+    try:
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        return dest.exists() and dest.stat().st_size > 0
+    except Exception as exc:  # pragma: no cover - best effort
+        _trace("[community:preview ffmpeg failed]", {"clip": str(src), "error": str(exc)})
+        try:
+            if dest.exists():
+                dest.unlink()
+        except Exception:
+            pass
+        return False
+
+
 def _ensure_preview_image(sid: str) -> str | None:
     base_dir = os.path.join(SESSIONS_DIR, sid)
     if not os.path.isdir(base_dir):
@@ -1320,9 +1388,19 @@ def _ensure_preview_image(sid: str) -> str | None:
     if not first_clip:
         return None
     try:
+        os.makedirs(base_dir, exist_ok=True)
+    except Exception:
+        pass
+
+    clip_path = Path(first_clip)
+    preview_file = Path(preview_path)
+
+    if _extract_preview_with_ffmpeg(clip_path, preview_file):
+        return preview_path
+    try:
         import cv2  # type: ignore
 
-        cap = cv2.VideoCapture(str(first_clip))
+        cap = cv2.VideoCapture(str(clip_path))
         success, frame = cap.read()
         cap.release()
         if not success or frame is None:
