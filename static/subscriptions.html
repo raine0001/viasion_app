@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Subscriptions</title>
+    <script src="/static/js/auth_guard.js" data-guard="auth"></script>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/js/ui_menu.js"></script>
+    <style>
+        :root {
+            color-scheme: dark;
+            --page-bg: #050506;
+            --surface-bg: #101217;
+            --surface-alt: #151923;
+            --surface-soft: #1b1f2c;
+            --border-color: #262a36;
+            --border-subtle: #1f232e;
+            --accent: #facc15;
+            --accent-strong: #fde047;
+            --accent-soft: rgba(250, 204, 21, 0.18);
+            --text-primary: #f9fafc;
+            --text-muted: #9ca3ba;
+            --text-soft: #6c7387;
+            --radius-lg: 18px;
+            --radius-md: 12px;
+            --gap-xs: clamp(6px, 1vw, 10px);
+            --gap-sm: clamp(10px, 1.4vw, 14px);
+            --gap-md: clamp(14px, 2vw, 20px);
+            --gap-lg: clamp(18px, 2.6vw, 28px);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            background: var(--page-bg);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: linear-gradient(180deg, #08080b 0%, #050506 100%);
+            border-bottom: 1px solid var(--border-color);
+            padding: clamp(16px, 4vw, 28px) 0;
+        }
+
+        .header-shell {
+            width: min(960px, 100%);
+            margin: 0 auto;
+            padding: 0 clamp(20px, 4vw, 36px);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: var(--gap-sm);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(28px, 3.6vw, 36px);
+            font-weight: 700;
+            letter-spacing: .02em;
+        }
+
+        main {
+            width: min(960px, 100%);
+            margin: 0 auto;
+            padding: clamp(20px, 4vw, 36px);
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap-lg);
+        }
+
+        .card {
+            background: var(--surface-bg);
+            border-radius: var(--radius-lg);
+            padding: clamp(18px, 3vw, 26px);
+            border: 1px solid var(--border-subtle);
+            box-shadow: 0 18px 36px rgba(5, 7, 14, 0.44);
+        }
+
+        .plan-list {
+            display: grid;
+            gap: var(--gap-sm);
+        }
+
+        .plan-item {
+            background: var(--surface-alt);
+            border-radius: var(--radius-md);
+            padding: clamp(14px, 2vw, 18px);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            display: grid;
+            gap: var(--gap-xs);
+        }
+
+        .plan-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: var(--gap-xs);
+        }
+
+        .plan-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .plan-price {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--accent-strong);
+        }
+
+        .plan-description {
+            color: var(--text-muted);
+            font-size: 0.92rem;
+            line-height: 1.5;
+        }
+
+        .plan-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 10px;
+            color: var(--text-soft);
+            font-size: 0.85rem;
+        }
+
+        .plan-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .btn {
+            font: 600 0.92rem 'Inter', system-ui, sans-serif;
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: none;
+            cursor: pointer;
+            transition: transform .12s ease, box-shadow .18s ease;
+        }
+
+        .btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #050506;
+            box-shadow: 0 10px 24px rgba(250, 204, 21, 0.3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+        }
+
+        .btn-tonal {
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-primary);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .status {
+            font-size: 0.92rem;
+            color: var(--text-muted);
+        }
+
+        .empty {
+            border: 1px dashed rgba(255, 255, 255, 0.12);
+            border-radius: var(--radius-md);
+            padding: clamp(14px, 2vw, 18px);
+            color: var(--text-muted);
+            font-size: 0.92rem;
+            text-align: center;
+        }
+
+        @media (max-width: 640px) {
+            .plan-item {
+                padding: 12px;
+            }
+
+            .plan-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-shell">
+            <div>
+                <h1>Manage Subscriptions</h1>
+                <p class="status" id="pageStatus">Loading plans...</p>
+            </div>
+            <button class="btn btn-tonal" id="backToSessions">Back to My Sessions</button>
+        </div>
+    </header>
+
+    <main>
+        <section class="card">
+            <h2>Your Active Plans</h2>
+            <div class="plan-list" id="activePlans"></div>
+        </section>
+
+        <section class="card">
+            <h2>Explore Plans</h2>
+            <div class="plan-list" id="availablePlans"></div>
+        </section>
+    </main>
+
+    <div id="toastBar" style="position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:5000;"></div>
+
+    <script>
+        (function () {
+            const DOM = {
+                status: document.getElementById('pageStatus'),
+                activePlans: document.getElementById('activePlans'),
+                availablePlans: document.getElementById('availablePlans'),
+                backToSessions: document.getElementById('backToSessions'),
+                toastBar: document.getElementById('toastBar'),
+            };
+
+            const state = {
+                loading: false,
+                plans: new Map(),
+                planOrder: [],
+                userPlanIds: new Set(),
+                userId: null,
+            };
+
+            function showToast(text, tone = 'info', ms = 2800) {
+                if (!DOM.toastBar) return;
+                const bar = DOM.toastBar;
+                bar.textContent = text;
+                bar.style.background = tone === 'success'
+                    ? '#16a34a'
+                    : tone === 'warn'
+                        ? '#fbbf24'
+                        : tone === 'error'
+                            ? '#ef4444'
+                            : 'rgba(15, 23, 42, 0.86)';
+                bar.style.color = tone === 'warn' ? '#111' : '#fff';
+                bar.style.padding = '12px 18px';
+                bar.style.borderRadius = '999px';
+                bar.style.boxShadow = '0 18px 36px rgba(0, 0, 0, 0.35)';
+                bar.style.opacity = '1';
+                bar.style.pointerEvents = 'none';
+                clearTimeout(bar.__hide);
+                bar.__hide = setTimeout(() => {
+                    bar.style.opacity = '0';
+                }, ms);
+            }
+
+            const fmtPrice = (plan) => {
+                const price = Number(plan?.price);
+                if (!Number.isFinite(price) || price <= 0) return 'Included';
+                const period = (plan?.period || 'monthly').toLowerCase();
+                return `$${price.toFixed(price % 1 === 0 ? 0 : 2)} / ${period}`;
+            };
+
+            const humanizeDataset = (slug) => {
+                if (!slug) return 'Default dataset';
+                return slug.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+            };
+
+            function setStatus(message) {
+                if (DOM.status) DOM.status.textContent = message || '';
+            }
+
+            function renderEmpty(target, message) {
+                if (!target) return;
+                target.innerHTML = '';
+                const div = document.createElement('div');
+                div.className = 'empty';
+                div.textContent = message;
+                target.appendChild(div);
+            }
+
+            function makePlanCard(plan, subscribed) {
+                const item = document.createElement('div');
+                item.className = 'plan-item';
+                const header = document.createElement('div');
+                header.className = 'plan-header';
+                const title = document.createElement('h3');
+                title.className = 'plan-title';
+                title.textContent = plan.name || plan.id || 'Subscription';
+                const price = document.createElement('div');
+                price.className = 'plan-price';
+                price.textContent = fmtPrice(plan);
+                header.append(title, price);
+                item.appendChild(header);
+
+                if (plan.description) {
+                    const desc = document.createElement('p');
+                    desc.className = 'plan-description';
+                    desc.textContent = plan.description;
+                    item.appendChild(desc);
+                }
+
+                const meta = document.createElement('div');
+                meta.className = 'plan-meta';
+                meta.appendChild(document.createTextNode(`Dataset: ${humanizeDataset(plan.dataset)}`));
+                if (plan.trial_days) {
+                    meta.appendChild(document.createTextNode(`${plan.trial_days}-day trial`));
+                }
+                if (plan.project) {
+                    meta.appendChild(document.createTextNode(`Project: ${plan.project}`));
+                }
+                item.appendChild(meta);
+
+                const actions = document.createElement('div');
+                actions.className = 'plan-actions';
+                if (subscribed) {
+                    const launch = document.createElement('button');
+                    launch.className = 'btn btn-primary';
+                    launch.type = 'button';
+                    launch.textContent = 'Start Session';
+                    launch.onclick = () => startSession(plan.id);
+                    actions.appendChild(launch);
+
+                    const cancel = document.createElement('button');
+                    cancel.className = 'btn btn-tonal';
+                    cancel.type = 'button';
+                    cancel.textContent = 'Cancel Plan';
+                    cancel.onclick = () => unsubscribe(plan.id);
+                    actions.appendChild(cancel);
+                } else {
+                    const activate = document.createElement('button');
+                    activate.className = 'btn btn-primary';
+                    activate.type = 'button';
+                    activate.textContent = 'Subscribe';
+                    activate.onclick = () => subscribe(plan.id);
+                    activate.disabled = plan.active === false;
+                    actions.appendChild(activate);
+                }
+                item.appendChild(actions);
+                return item;
+            }
+
+            function render() {
+                if (state.loading) {
+                    setStatus('Loading plans...');
+                } else {
+                    setStatus(state.userPlanIds.size
+                        ? 'Choose a plan to launch or explore new ones.'
+                        : 'Subscribe to an activity to unlock tailored coaching.');
+                }
+
+                if (!state.userPlanIds.size) {
+                    renderEmpty(DOM.activePlans, 'You have not subscribed to any plans yet.');
+                } else if (DOM.activePlans) {
+                    const nodes = Array.from(state.userPlanIds)
+                        .map((id) => state.plans.get(id))
+                        .filter(Boolean)
+                        .map((plan) => makePlanCard(plan, true));
+                    DOM.activePlans.replaceChildren(...nodes);
+                }
+
+                const available = state.planOrder
+                    .map((id) => state.plans.get(id))
+                    .filter((plan) => plan && plan.active !== false && !state.userPlanIds.has(plan.id));
+                if (!available.length) {
+                    renderEmpty(DOM.availablePlans, state.loading ? 'Loading plans...' : 'More plans coming soon.');
+                } else if (DOM.availablePlans) {
+                    DOM.availablePlans.replaceChildren(...available.map((plan) => makePlanCard(plan, false)));
+                }
+            }
+
+            async function ensureUserId() {
+                if (state.userId) return state.userId;
+                try {
+                    const res = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
+                    if (res.ok) {
+                        const data = await res.json();
+                        const uid = data?.user?.user_id || data?.user?.id || data?.user_id || data?.id || null;
+                        if (uid) state.userId = uid;
+                    }
+                } catch (err) {
+                    console.warn('[subscriptions] failed to resolve user id', err);
+                }
+                return state.userId;
+            }
+
+            async function subscribe(planId) {
+                if (!planId || state.loading) return;
+                state.loading = true;
+                render();
+                try {
+                    const userId = await ensureUserId();
+                    const res = await fetch('/api/subscriptions/assign', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ plan_id: planId, user_id: userId }),
+                    });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    showToast('Plan activated.', 'success');
+                } catch (err) {
+                    console.error('[subscriptions] subscribe failed', err);
+                    showToast('Unable to activate that plan right now.', 'error');
+                } finally {
+                    state.loading = false;
+                    await load();
+                }
+            }
+
+            async function unsubscribe(planId) {
+                if (!planId || state.loading) return;
+                state.loading = true;
+                render();
+                try {
+                    const userId = await ensureUserId();
+                    const res = await fetch('/api/subscriptions/unassign', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ plan_id: planId, user_id: userId }),
+                    });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    showToast('Plan cancelled.', 'warn');
+                } catch (err) {
+                    console.error('[subscriptions] unsubscribe failed', err);
+                    showToast('Unable to update that plan right now.', 'error');
+                } finally {
+                    state.loading = false;
+                    await load();
+                }
+            }
+
+            function startSession(planId) {
+                const plan = state.plans.get(planId);
+                if (!plan) {
+                    showToast('Plan details unavailable.', 'warn');
+                    return;
+                }
+                const params = new URLSearchParams();
+                if (plan.project) params.set('project', plan.project);
+                if (plan.dataset) params.set('dataset', plan.dataset);
+                try {
+                    if (typeof sessionStorage !== 'undefined') {
+                        sessionStorage.setItem('viasion.activePlanId', planId);
+                        if (plan.name) sessionStorage.setItem('viasion.activePlanName', plan.name);
+                        if (plan.project) sessionStorage.setItem('viasion.activeProject', plan.project);
+                        if (plan.dataset) sessionStorage.setItem('viasion.activeDataset', plan.dataset);
+                    }
+                } catch { }
+                const qs = params.toString();
+                window.location.href = qs ? `/start_session?${qs}` : '/start_session';
+            }
+
+            async function load() {
+                state.loading = true;
+                render();
+                try {
+                    const [allRes, mineRes] = await Promise.all([
+                        fetch('/api/subscriptions', { cache: 'no-store' }),
+                        fetch('/api/me/subscriptions', { cache: 'no-store' }),
+                    ]);
+                    if (!allRes.ok) throw new Error(`HTTP ${allRes.status}`);
+                    if (!mineRes.ok) throw new Error(`HTTP ${mineRes.status}`);
+                    const allJson = await allRes.json();
+                    const mineJson = await mineRes.json();
+                    const plans = allJson?.plans || {};
+                    state.plans = new Map();
+                    state.planOrder = Object.keys(plans);
+                    state.planOrder.forEach((id) => {
+                        const plan = plans[id];
+                        if (plan) state.plans.set(id, { id, ...plan });
+                    });
+                    const assigned = Array.isArray(mineJson?.plan_ids) ? mineJson.plan_ids : [];
+                    state.userPlanIds = new Set(assigned);
+                    state.userId = mineJson?.user_id || state.userId;
+                    render();
+                } catch (err) {
+                    console.error('[subscriptions] load failed', err);
+                    setStatus('Unable to load plans right now.');
+                    renderEmpty(DOM.activePlans, 'We could not load your subscriptions.');
+                    renderEmpty(DOM.availablePlans, 'Retry in a moment.');
+                } finally {
+                    state.loading = false;
+                }
+            }
+
+            if (DOM.backToSessions) {
+                DOM.backToSessions.addEventListener('click', () => {
+                    window.location.href = '/static/my_sessions.html';
+                });
+            }
+
+            load();
+        })();
+    </script>
+</body>
+
+</html>
+

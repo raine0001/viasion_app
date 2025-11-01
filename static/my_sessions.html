@@ -9,6 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <title>My Sessions</title>
+    <script src="/static/js/auth_guard.js" data-guard="auth"></script>
 
     <link rel="stylesheet" href="/static/style.css" />
 
@@ -2942,16 +2943,14 @@
                     });
                     actions.appendChild(cancelBtn);
                 } else {
-                    const subscribeBtn = createEl('button', {
+                    const manageBtn = createEl('button', {
                         type: 'button',
                         class: 'btn btn-inline',
-                        text: safePlan.active === false ? 'Unavailable' : 'Subscribe',
-                        disabled: safePlan.active === false || !safePlan.id,
+                        text: 'Open Subscriptions',
+                        onclick: () => { window.location.href = '/static/subscriptions.html'; },
                     });
-                    if (safePlan.active !== false && safePlan.id) {
-                        subscribeBtn.onclick = () => { if (!subscriptionState.loading) subscribeToPlan(safePlan.id); };
-                    }
-                    actions.appendChild(subscribeBtn);
+                    manageBtn.title = 'Browse and subscribe to plans from the Subscriptions page.';
+                    actions.appendChild(manageBtn);
                 }
                 item.appendChild(actions);
                 return item;
@@ -2978,20 +2977,16 @@
                 } else {
                     setSubscriptionMessage(subscribedList, 'No active subscriptions yet.');
                 }
-                const seen = new Set();
-                const availableNodes = [];
-                subscriptionState.planOrder.forEach((id) => {
-                    if (!id || seen.has(id)) return;
-                    seen.add(id);
-                    if (subscriptionState.userPlanIds.has(id)) return;
-                    const plan = subscriptionState.plans.get(id);
-                    if (!plan || plan.active === false) return;
-                    availableNodes.push(makePlanCard(plan, false));
-                });
-                if (availableNodes.length) {
-                    availableList.replaceChildren(...availableNodes);
-                } else {
-                    setSubscriptionMessage(availableList, userPlanIds.length ? 'You have all available plans.' : 'New plans coming soon.');
+                if (availableList) {
+                    availableList.replaceChildren(createEl('div', { class: 'subscription-empty' }, [
+                        createEl('p', { text: 'Want to add or explore plans?' }),
+                        createEl('button', {
+                            type: 'button',
+                            class: 'btn btn-inline',
+                            text: 'Open Subscriptions',
+                            onclick: () => { window.location.href = '/static/subscriptions.html'; },
+                        }),
+                    ]));
                 }
             }
 
@@ -4168,6 +4163,31 @@
 
                 if (supportSecondaryBtn) supportSecondaryBtn.onclick = openSupportWidget;
 
+                try {
+                    const SUPPORT_PROMPT_KEY = 'viasion.supportPrompt.v1';
+                    if (!localStorage.getItem(SUPPORT_PROMPT_KEY)) {
+                        setTimeout(() => {
+                            openSupportWidget();
+                            window.showToast?.('Need a hand? Ask Viasion anything in Help & Support.', 'success', 5200);
+                        }, 1600);
+                        localStorage.setItem(SUPPORT_PROMPT_KEY, String(Date.now()));
+                    }
+                } catch { }
+
+                let voiceReadyNotified = false;
+                window.addEventListener('coach:voice-ready', (event) => {
+                    const ready = event?.detail?.ready === true;
+                    if (ready) {
+                        if (!voiceReadyNotified) {
+                            voiceReadyNotified = true;
+                            window.showToast?.('Voice commands are ready. Say "Hey Viasion" to ask for help.', 'success', 4200);
+                        }
+                    } else if (voiceReadyNotified) {
+                        voiceReadyNotified = false;
+                        window.showToast?.('Voice commands paused. Check your microphone permissions or toggle them back on.', 'warn', 5200);
+                    }
+                }, { passive: true });
+
                 updateStartSessionAvailability();
                 if (DOM.startSessionBtn) DOM.startSessionBtn.addEventListener('click', handleStartSessionClick);
 
@@ -4342,7 +4362,6 @@
             </article>
 
         </section>
-
 
         <section class="Open-support">
 

@@ -1,4 +1,4 @@
-// video_ui.js — UI only. iOS-safe. No cap enforcement, no auto-end, no recording, no server writes.
+// video_ui.js -- UI only. iOS-safe. No cap enforcement, no auto-end, no recording, no server writes.
 // Owns: HUD, prompts, camera switcher, summary table rendering, UI updates from events.
 // Exposes: showPromptMessage, ensureHudRoot, mountSessionHUD, updateSessionHUD, renderFullShotTable,
 //          autoEndSessionAndSummarize (callable, not auto-triggered).
@@ -62,6 +62,7 @@ window.DEMO_MINIMAL_TABLE = true;
 window.getLockedHoopBox = getLockedHoopBox;
 window.handleHoopSelection = handleHoopSelection;
 window.startLandscapeRecorder = startLandscapeRecorder;
+try { window.__HUD_MANAGES_COUNTDOWN = true; } catch { }
 
 // stop the compositor when the session ends or page unloads
 window.addEventListener('hud:end-session', async () => {
@@ -982,7 +983,7 @@ export function renderFullShotTable() {
             tdScore.textContent = display;
             tdScore.dataset.value = display;
         } else {
-            tdScore.textContent = '—';
+            tdScore.textContent = '--';
         }
 
         const tdClip = tr.querySelector('.clip');
@@ -1015,7 +1016,7 @@ export function renderFullShotTable() {
             const cell = row.querySelector('.coach');
             if (cell) cell.textContent = detail.summary;
             const scoreCell = row.querySelector('.score');
-            if (scoreCell) scoreCell.textContent = '—';
+            if (scoreCell) scoreCell.textContent = '--';
             row.style.display = 'table-row';
             row.dataset.visible = 'true';
         }
@@ -1217,14 +1218,14 @@ window.recordShotSummary = function recordShotSummary(summary) {
             tbody.appendChild(tr);
         }
         const merged = (Number.isFinite(idx) && idx > 0 && list[idx - 1]) ? list[idx - 1] : summary;
-        const coach = String(merged.viasion || '—');
+        const coach = String(merged.viasion || '--');
         const tdCoach = tr.querySelector('.coach');
         if (tdCoach) { tdCoach.textContent = coach; tdCoach.title = coach; }
 
         const scoreCell = tr.querySelector('.score');
         if (scoreCell) {
             const scoreVal = deriveShotScore(merged);
-            scoreCell.textContent = scoreVal != null ? Math.round(scoreVal) : '—';
+            scoreCell.textContent = scoreVal != null ? Math.round(scoreVal) : '--';
             console.log('[score:table:update]', {
                 shotIdx: idx,
                 shotId: merged?.shotId ?? merged?.id ?? null,
@@ -1250,7 +1251,7 @@ window.recordShotSummary = function recordShotSummary(summary) {
         updateShotTableTotalsFromDOM(modal);
     }
 
-    // HUD counters — FINALIZED only
+    // HUD counters -- FINALIZED only
     try {
         const finalized = list.filter(s => s && s.pending === false).length;
         const start = (window.__sessionStart ||= Date.now());

@@ -154,6 +154,7 @@ async function startSession() {
         __communitySessionFinalized = false;
         __communityPublishing = false;
         try { window.__COMMUNITY_AUTOSHARE = null; } catch { }
+        try { window.__SESSION_EVENT_FIRED = false; } catch { }
 
         // choose cap once per session (URL > env > LS > default)
         let cap = (() => {
@@ -232,7 +233,10 @@ async function startSession() {
             try { window.__GREETING_PROMISE = null; } catch { }
         }
 
-        try { window.dispatchEvent(new CustomEvent('hud:start-session')); } catch { }
+        try {
+            window.dispatchEvent(new CustomEvent('hud:start-session'));
+            window.__SESSION_EVENT_FIRED = true;
+        } catch { }
 
         const finishGreeting = () => {
             try { resolveGreeting?.(); } catch { }
@@ -271,6 +275,17 @@ async function startSession() {
             }
         } else {
             finishGreeting();
+        }
+
+        if (window.PREF_ALLOW_MIC !== false) {
+            setTimeout(() => {
+                try {
+                    if (window.PREF_ALLOW_MIC === false) return;
+                    if (window.__VOICE_READY !== true) {
+                        window.showToast?.('Voice commands are sleeping—enable the microphone in Settings and say "Hey Viasion" to wake me.', 'warn', 5200);
+                    }
+                } catch { }
+            }, 3600);
         }
 
         return sessionId;
@@ -555,6 +570,7 @@ async function endSession(reason = 'normal') {
 
     // flip flags
     try { window.__SESSION_ACTIVE = false; } catch { }
+    try { window.__SESSION_EVENT_FIRED = false; } catch { }
 
     // optional voice cue
     try {
@@ -599,6 +615,7 @@ function resetSessionForNewStart() {
         window.__SESSION_ACTIVE = false;
         window.__SESSION_SHOT_COUNT = 0;
         window.__sessionStart = null;
+        window.__SESSION_EVENT_FIRED = false;
     } catch { }
     return true;
 }

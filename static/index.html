@@ -5,6 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VIaSION</title>
+    <script src="/static/js/auth_guard.js" data-guard="auth"></script>
     <link rel="icon" href="/static/favicon.ico">
     <script>
         // Lightweight defaults; enable extras via ?debug=1 or ?releaseTrace=1
@@ -649,6 +650,7 @@
                     try { window.__shots = new Map(); window.__SHOT_ID = 0; window.__sessionTotals = { attempts: 0, made: 0 }; } catch { }
                     try { window.__SESSION_SHOT_COUNT = 0; } catch { }
                     try { window.__SESSION_ACTIVE = false; } catch { }
+                    try { window.__SESSION_EVENT_FIRED = false; } catch { }
 
                     try { hideStart(); } catch { }
                     try { window.dispatchEvent(new CustomEvent('viasion:new-session-requested', { detail })); } catch { }
@@ -686,7 +688,12 @@
                     try {
                         if (window.startCamera) await window.startCamera();
                     } catch { }
-                    try { window.dispatchEvent(new CustomEvent('hud:start-session', { detail })); } catch { }
+                    try {
+                        if (window.__SESSION_EVENT_FIRED !== true) {
+                            window.dispatchEvent(new CustomEvent('hud:start-session', { detail }));
+                            window.__SESSION_EVENT_FIRED = true;
+                        }
+                    } catch { }
 
                     (function scheduleGreeting() {
                         // Leave session_manager.js in charge of the greeting.

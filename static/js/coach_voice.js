@@ -730,8 +730,15 @@ export function listenForEndSession(wakePhrase = 'hey viasion, end the session',
             try { window.__startCoachVoiceRecognition = () => false; } catch { }
             return () => { };
         }
+        const setVoiceReady = (ready, reason) => {
+            try { window.__VOICE_READY = !!ready; } catch { }
+            try { window.dispatchEvent(new CustomEvent('coach:voice-ready', { detail: { ready: !!ready, reason } })); } catch { }
+        };
         const SR = (window.SpeechRecognition || window.webkitSpeechRecognition);
-        if (!SR) return () => { };
+        if (!SR) {
+            setVoiceReady(false, 'unsupported');
+            return () => { };
+        }
 
         const matchesPhrase = (value, phrases) => {
             try {
@@ -820,6 +827,7 @@ export function listenForEndSession(wakePhrase = 'hey viasion, end the session',
         let stopped = false;
         let denied = false;
         let visibilityRetryDone = false;
+        setVoiceReady(false, 'initialising');
 
         const startRec = (force = false) => {
             if (stopped) return false;
@@ -834,6 +842,7 @@ export function listenForEndSession(wakePhrase = 'hey viasion, end the session',
                 const code = String(err?.error || err?.name || err?.message || '').toLowerCase();
                 if (code.includes('not-allowed') || code.includes('denied')) {
                     denied = true;
+                    setVoiceReady(false, 'permission-denied');
                 }
                 try { console.warn('[coach] speech recognition start failed', err); } catch { }
                 return false;
@@ -841,17 +850,20 @@ export function listenForEndSession(wakePhrase = 'hey viasion, end the session',
         };
         const forceStart = () => {
             visibilityRetryDone = false;
+            try { window.ensureMicPrimed?.({ audio: true }); } catch { }
             return startRec(true);
         };
         const stopRec = () => {
             stopped = true;
             try { rec.stop(); } catch { }
             started = false;
+            setVoiceReady(false, 'stopped');
         };
 
         rec.onstart = () => {
             started = true;
             denied = false;
+            setVoiceReady(true, 'active');
         };
         rec.onresult = (e) => {
             try {
@@ -889,12 +901,22 @@ export function listenForEndSession(wakePhrase = 'hey viasion, end the session',
                 }
             } catch { }
         };
+        rec.onerror = (e) => {
+            const reason = String(e?.error || e?.message || 'error');
+            setVoiceReady(false, reason);
+        };
 
         let visibilityHandler = null;
         let triggerHandler = null;
 
-        if (IS_IOS) {
+        const attachTrigger = () => {
+            if (triggerHandler) return;
             triggerHandler = () => { forceStart(); };
+            window.addEventListener('coach:voice-rec-start', triggerHandler);
+        };
+
+        if (IS_IOS) {
+            attachTrigger();
             visibilityHandler = () => {
                 if (document.hidden) return;
                 if (started || stopped) return;
@@ -902,24 +924,23 @@ export function listenForEndSession(wakePhrase = 'hey viasion, end the session',
                 visibilityRetryDone = true;
                 forceStart();
             };
-            window.addEventListener('coach:voice-rec-start', triggerHandler);
             document.addEventListener('visibilitychange', visibilityHandler, { passive: true });
-            try { window.__startCoachVoiceRecognition = forceStart; } catch { }
         } else {
+            attachTrigger();
             startRec();
         }
 
+        try { window.__startCoachVoiceRecognition = forceStart; } catch { }
+
         return () => {
             stopRec();
-            if (IS_IOS) {
-                if (triggerHandler) window.removeEventListener('coach:voice-rec-start', triggerHandler);
-                if (visibilityHandler) document.removeEventListener('visibilitychange', visibilityHandler);
-                try {
-                    if (window.__startCoachVoiceRecognition === forceStart) {
-                        delete window.__startCoachVoiceRecognition;
-                    }
-                } catch { }
-            }
+            if (triggerHandler) window.removeEventListener('coach:voice-rec-start', triggerHandler);
+            if (visibilityHandler) document.removeEventListener('visibilitychange', visibilityHandler);
+            try {
+                if (window.__startCoachVoiceRecognition === forceStart) {
+                    delete window.__startCoachVoiceRecognition;
+                }
+            } catch { }
         };
     } catch { return () => { } }
 }

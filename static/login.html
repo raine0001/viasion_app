@@ -31,11 +31,14 @@
 
         body {
             font-family: system-ui, Segoe UI, Arial, sans-serif;
-            margin: 40px;
+            margin: 0;
+            padding: 40px 20px;
             display: flex;
+            flex-direction: column;
             min-height: 100vh;
             align-items: center;
             justify-content: center;
+            gap: 32px;
             background: #f6f6f8;
         }
 
@@ -95,9 +98,126 @@
             margin-top: 8px;
         }
 
+        .faq-assistant {
+            width: 100%;
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #dce3f5;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+        }
+
+        .faq-assistant h3 {
+            margin: 0 0 6px;
+            font-size: 18px;
+            color: #0f172a;
+        }
+
+        .faq-assistant p {
+            margin: 0 0 12px;
+            color: #475569;
+            font-size: 13px;
+        }
+
+        .faq-thread {
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 12px;
+            background: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .faq-bubble {
+            padding: 10px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            line-height: 1.35;
+            max-width: 100%;
+        }
+
+        .faq-bubble.user {
+            background: #2563eb;
+            color: #fff;
+            align-self: flex-end;
+        }
+
+        .faq-bubble.ai {
+            background: #ffffff;
+            border: 1px solid #dfe3f1;
+            color: #0f172a;
+        }
+
+        .faq-suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .faq-suggestions button {
+            border: 0;
+            border-radius: 999px;
+            padding: 6px 12px;
+            background: #e2e8f0;
+            color: #334155;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .faq-suggestions button:hover {
+            background: #cbd5f5;
+        }
+
+        .faq-form {
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .faq-form textarea {
+            width: 100%;
+            resize: vertical;
+            min-height: 70px;
+            border-radius: 10px;
+            border: 1px solid #cbd5f5;
+            padding: 10px 12px;
+            font-size: 14px;
+        }
+
+        .faq-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .faq-actions button {
+            width: auto;
+            padding: 8px 18px;
+            border-radius: 999px;
+            border: 0;
+            background: #111827;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .faq-status {
+            font-size: 12px;
+            color: #64748b;
+            min-height: 16px;
+        }
+
         @media (max-width:600px) {
             body {
-                margin: 16px;
+                padding: 28px 16px;
                 background: #ffffff;
             }
 
@@ -119,6 +239,16 @@
                 flex-direction: column;
                 gap: 8px;
             }
+
+            .faq-assistant {
+                padding: 18px;
+                border-radius: 12px;
+                box-shadow: none;
+            }
+
+            .faq-thread {
+                max-height: 200px;
+            }
         }
     </style>
 </head>
@@ -126,7 +256,7 @@
 <body>
     <div class="card">
         <h2>Welcome to viasion</h2>
-        <input id="name" placeholder="First name (for the coach)" />
+        <input id="name" placeholder="First name or User Name" />
         <input id="email" placeholder="Email" />
         <input id="password" type="password" placeholder="Password" />
         <div class="row">
@@ -135,14 +265,60 @@
         </div>
         <div class="muted" id="msg"></div>
     </div>
+    <div class="faq-assistant" aria-live="polite">
+        <h3>Need a quick answer?</h3>
+        <p>Ask Vi<sup>a</sup>sion.</p>
+        <div id="faqThread" class="faq-thread"></div>
+        <div class="faq-suggestions">
+            <button type="button" data-faq="What is Viasion?">What is Vi<sup>a</sup>sion?</button>
+            <button type="button" data-faq="How do I use Viasion?">How do I use Vi<sup>a</sup>sion?</button>
+            <button type="button" data-faq="Where do I set up my camera?">Camera setup tips</button>
+            <button type="button" data-faq="What membership plans are available?">Membership options</button>
+        </div>
+        <form id="faqForm" class="faq-form">
+            <textarea id="faqInput" placeholder="Ask a question about Viasion..."
+                aria-label="Ask Viasion a question"></textarea>
+            <div class="faq-actions">
+                <span id="faqStatus" class="faq-status"></span>
+                <button type="submit">Ask</button>
+            </div>
+        </form>
+    </div>
     <script>
-        async function post(url, body) { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); if (!r.ok) throw new Error(await r.text()); return await r.json(); }
+        const params = new URLSearchParams(location.search || '');
+        const DEFAULT_RETURN = '/static/my_sessions.html';
+
+        function sanitizeReturn(target) {
+            if (!target) return DEFAULT_RETURN;
+            try {
+                const url = new URL(target, window.location.origin);
+                const path = (url.pathname || '').toLowerCase();
+                if (!path.startsWith('/')) return DEFAULT_RETURN;
+                if (path.includes('/start_session')) return DEFAULT_RETURN;
+                if (path === '/' || path === '/index.html') return DEFAULT_RETURN;
+                if (!path.startsWith('/static/')) return DEFAULT_RETURN;
+                return url.pathname + (url.search || '');
+            } catch {
+                return DEFAULT_RETURN;
+            }
+        }
+
+        const returnTo = sanitizeReturn(params.get('return'));
+
+        async function post(url, body) {
+            const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (!r.ok) throw new Error(await r.text());
+            return await r.json();
+        }
+
         function setMsg(t) { document.getElementById('msg').textContent = t; }
+
         function rememberName(source) {
             const first = (source || '').split(/\s+/)[0];
             if (!first) return;
             try { localStorage.setItem('firstname', first); } catch { }
         }
+
         async function login() {
             try {
                 const name = document.getElementById('name').value.trim();
@@ -153,11 +329,12 @@
                 else rememberName(j?.name);
                 if (j?.name) sessionStorage.setItem('viasion_login_greeting', `Welcome back, ${j.name.split(/\s+/)[0] || j.name}!`);
                 else sessionStorage.setItem('viasion_login_greeting', 'Welcome back!');
-                location.href = '/static/my_sessions.html';
+                location.href = returnTo;
             } catch (e) {
                 setMsg('Login failed');
             }
         }
+
         async function register() {
             try {
                 const name = document.getElementById('name').value.trim();
@@ -167,13 +344,96 @@
                 if (name) rememberName(name);
                 else rememberName(j?.name);
                 sessionStorage.setItem('viasion_login_greeting', `Welcome to viasion${name ? ', ' + name.split(/\s+/)[0] : ''}!`);
-                location.href = '/static/my_sessions.html';
+                location.href = returnTo;
             } catch (e) {
                 setMsg('Register failed');
             }
         }
-        document.getElementById('btnLogin').onclick = login; document.getElementById('btnRegister').onclick = register;
+
+        document.getElementById('btnLogin').onclick = login;
+        document.getElementById('btnRegister').onclick = register;
+
+        const faqThread = document.getElementById('faqThread');
+        const faqForm = document.getElementById('faqForm');
+        const faqInput = document.getElementById('faqInput');
+        const faqStatus = document.getElementById('faqStatus');
+        const FAQ_KNOWLEDGE = [
+            {
+                match: ['what is viasion', 'tell me about viasion'],
+                answer: "Viasion is an intelligent motion training platform that blends real-time pose detection, object recognition, and AI coaching. It turns human movement plus tool interaction into measurable insights so athletes, operators, and rehab teams can improve precision, efficiency, and safety across golf, baseball, industrial workflows, and more."
+            },
+            {
+                match: ['how do i use viasion', 'get started', 'setup viasion', 'using viasion'],
+                answer: "Create an account at https://www.viasion.com and sign in. You will land on My Sessions; choose a subscribed activity and tap Start Session. Position the camera slightly behind and to the side so your body and the object stay in frame, wait for the \"Start when ready\" cue, perform the motion, and review the summary once the set (about ten reps) finishes."
+            },
+            {
+                match: ['camera setup', 'camera tips'],
+                answer: "Keep both you and the key object in frame. Angle the camera just off to the side and slightly behind so Viasion can read feet, torso, hands, and equipment without being blocked. Good lighting and a stable surface make detection more reliable."
+            },
+            {
+                match: ['membership', 'subscription', 'plan options'],
+                answer: "Corporate accounts auto-load their plans in My Sessions. Individual members can open the Subscriptions menu to browse and join plans. Once you subscribe, that activity appears in My Sessions with a Start Session button so you can launch coaching immediately."
+            }
+        ];
+
+        function appendFaqMessage(role, text) {
+            if (!faqThread) return;
+            const bubble = document.createElement('div');
+            bubble.className = `faq-bubble ${role === 'user' ? 'user' : 'ai'}`;
+            bubble.textContent = text;
+            faqThread.appendChild(bubble);
+            faqThread.scrollTop = faqThread.scrollHeight;
+        }
+
+        async function sendFaqMessage(message) {
+            if (!message) return;
+            appendFaqMessage('user', message);
+            const normalized = message.trim().toLowerCase();
+            const match = FAQ_KNOWLEDGE.find(entry => entry.match.some(key => normalized.includes(key)));
+            if (match) {
+                appendFaqMessage('ai', match.answer);
+                return;
+            }
+            faqStatus.textContent = 'Thinking...';
+            try {
+                const res = await fetch('/api/support/assistant', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+                const data = await res.json().catch(() => ({}));
+                const reply = data?.reply || "I'm still thinking on that. Could you share a bit more detail?";
+                appendFaqMessage('ai', reply);
+            } catch (err) {
+                appendFaqMessage('ai', 'I hit a connection hiccup. Please try again in a moment.');
+            } finally {
+                faqStatus.textContent = '';
+            }
+        }
+
+        faqForm?.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const text = (faqInput?.value || '').trim();
+            if (!text) return;
+            faqInput.value = '';
+            sendFaqMessage(text);
+        });
+
+        document.querySelectorAll('[data-faq]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const prompt = btn.getAttribute('data-faq');
+                if (!prompt) return;
+                faqInput.value = '';
+                sendFaqMessage(prompt);
+            });
+        });
+
+        appendFaqMessage('ai', "Hi! Ask me anything about the platform, setup, or membership.");
     </script>
 </body>
 
 </html>
+
+
+
+

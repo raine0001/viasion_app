@@ -72,7 +72,7 @@ import threading
 from queue import Queue
 from PIL import Image
 from arcmm_api import arcmm_api
-from support.engine import detect_intent, run_intent_handler
+from support.engine import detect_intent, generate_general_reply, run_intent_handler
 
 
 # SQLAlchemy models are defined later inside _try_init_db()
@@ -965,7 +965,7 @@ def get_openai_client():
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("❌ OPENAI_API_KEY not set in environment or .env file.")
+        raise ValueError("OPENAI_API_KEY not set in environment or .env file.")
 
     client = OpenAI(api_key=api_key)
     return client
@@ -7642,6 +7642,31 @@ def _ensure_db_or_503():
     if not db:
         raise RuntimeError("db unavailable")
     return db
+
+
+@app.post("/api/support/assistant")
+def api_support_assistant():
+    payload = request.get_json(silent=True) or {}
+    message = (payload.get("message") or "").strip()
+    if not message:
+        return jsonify({"ok": False, "err": "message required"}), 400
+
+    context = {
+        "message": message,
+        "last_release": app.config.get("LAST_RELEASE"),
+        "app_config_last_release": app.config.get("LAST_RELEASE"),
+        "active_sessions": list(app.active_users.values()),
+    }
+    result = generate_general_reply(message, context)
+    if result and result.reply:
+        meta = result.meta or {}
+        return jsonify({"ok": True, "reply": result.reply, "meta": meta})
+    return jsonify(
+        {
+            "ok": True,
+            "reply": "I'm still thinking that through. Could you share a little more detail?",
+        }
+    )
 
 
 @app.post("/api/support/ingest")

@@ -10,11 +10,35 @@ elsewhere.
 
 from __future__ import annotations
 
+import os
 import re
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional
 from datetime import datetime, timedelta
+
+try:
+    from openai import OpenAI  # type: ignore
+except Exception:  # pragma: no cover - OpenAI is optional at runtime
+    OpenAI = None  # type: ignore
+
+_OPENAI_CLIENT: Optional["OpenAI"] = None
+
+
+def _get_openai_client() -> Optional["OpenAI"]:
+    global _OPENAI_CLIENT
+    if _OPENAI_CLIENT is not None:
+        return _OPENAI_CLIENT
+    if OpenAI is None:
+        return None
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    try:
+        _OPENAI_CLIENT = OpenAI(api_key=api_key)  # type: ignore
+    except Exception:
+        _OPENAI_CLIENT = None
+    return _OPENAI_CLIENT
 
 
 # --------------------------------------------------------------------------- #
@@ -118,7 +142,7 @@ Handler = Callable[[Dict[str, Any]], HandlerResult]
 
 def _format_number(value: Optional[float]) -> str:
     if value is None:
-        return "—"
+        return "--"
     if isinstance(value, int):
         return str(value)
     return f"{value:.1f}"
@@ -126,14 +150,26 @@ def _format_number(value: Optional[float]) -> str:
 
 def run_intent_handler(db: Dict[str, Any], intent: str, context: Dict[str, Any]) -> HandlerResult:
     handler = _HANDLERS.get(intent) or _handle_general
+    ctx = dict(context or {})
+    ctx["db"] = db
+    ctx["intent"] = intent
     try:
-        return handler({**context, "db": db, "intent": intent})
+        result = handler(ctx)
     except Exception as exc:  # pragma: no cover - defensive
         return HandlerResult(
             reply="I ran into an issue while checking that. I've flagged it for follow-up.",
             result_status="needs_ticket",
             action_taken={"error": str(exc), "intent": intent},
         )
+    if not isinstance(result, HandlerResult):
+        return HandlerResult(
+            reply="Let's keep momentum going. Can you tell me a little more about what you need?",
+            result_status="pending_user",
+            intent=intent,
+        )
+    if not result.intent:
+        result.intent = intent
+    return result
 
 
 # --------------------------------------------------------------------------- #
@@ -466,9 +502,147 @@ def _handle_false_shot(ctx: Dict[str, Any]) -> HandlerResult:
     )
 
 
+def _compose_support_context(ctx: Dict[str, Any]) -> str:
+    """Build a short, plain-english context summary for the LLM."""
+    lines = []
+    try:
+        sid = ctx.get("session_id")
+        db = ctx.get("db")
+        if db and sid:
+            ShotRow = db.get("ShotRow")
+            SessionRow = db.get("SessionRow")
+            with db["Session"]() as s:
+                totals = {"shots": 0, "makes": 0}
+                if ShotRow is not None:
+                    shots = (
+                        s.query(ShotRow)
+                        .filter(ShotRow.sid == sid)
+                        .order_by(ShotRow.idx.asc())
+                        .all()
+                    )
+                    totals["shots"] = len(shots)
+                    totals["makes"] = sum(1 for shot in shots if shot.made)
+                    if shots:
+                        last = shots[-1]
+                        lines.append(
+                            f"Latest shot {last.idx}: "
+                            f"pose_score={_format_number(getattr(last, 'pose_score', None))}, "
+                            f"weighted_score={_format_number(getattr(last, 'weighted_score', None))}."
+                        )
+                if SessionRow is not None:
+                    session_row = s.get(SessionRow, sid)
+                    if session_row and session_row.started_at:
+                        lines.append(
+                            f"Session started {session_row.started_at:%Y-%m-%d %H:%M} local."
+                        )
+                if totals["shots"]:
+                    acc = (
+                        totals["makes"] / totals["shots"] * 100.0
+                        if totals["shots"]
+                        else 0.0
+                    )
+                    lines.append(
+                        f"Current session totals: {totals['shots']} shots, "
+                        f"{totals['makes']} made, accuracy {acc:.1f}%."
+                    )
+    except Exception:
+        pass
+
+    last_release = ctx.get("last_release") or ctx.get("app_config_last_release")
+    if last_release:
+        lines.append(f"App release: {last_release}.")
+
+    active_sessions = ctx.get("active_sessions")
+    if active_sessions:
+        lines.append(f"Active session count: {len(active_sessions)}.")
+
+    return "\n".join(lines)
+
+
+def _call_openai_support(ctx: Dict[str, Any]) -> Optional[HandlerResult]:
+    client = _get_openai_client()
+    if not client:
+        return None
+    user_message = (ctx.get("message") or "").strip()
+    if not user_message:
+        return None
+
+    try:
+        context_text = _compose_support_context(ctx)
+        core_brief = (
+            "Viasion is an intelligent motion training platform that fuses real-time pose detection, "
+            "object recognition (YOLOv11), and LLM-based coaching to improve performance across sports, "
+            "industrial workflows, healthcare rehab, and skill training. It runs on a mobile device camera, "
+            "tracks motion phases, detects tools or workspace objects, and delivers natural-language feedback, "
+            "success scores, and adaptive coaching."
+        )
+        how_to_use = (
+            "How to use Viasion:\n"
+            "1. Create an account at https://www.viasion.com and log in.\n"
+            "2. From My Sessions, pick a subscription or activity (e.g., golf) and tap Start Session.\n"
+            "3. Position the camera slightly behind and to the side so your body and the object (club, tool, etc.) stay fully in frame.\n"
+            "4. When you hear 'Start when ready', perform the movement. Viasion counts reps, analyses pose + object interaction, and speaks feedback.\n"
+            "5. After the set (usually 10 reps) it shows a full summary with scores and coaching tips."
+        )
+        camera_tips = (
+            "Camera setup: keep both you and the object visible, angle the camera slightly behind/side for clear view of feet, torso, hands, and equipment."
+        )
+        membership = (
+            "Memberships: corporate users automatically see assigned plans in My Sessions. Individual users open the Subscriptions menu to join plans; "
+            "once subscribed, the plan appears in My Sessions with a Start Session button."
+        )
+        prompt = (
+            "You are Viasion's embedded support coach. Use the knowledge below to answer accurately and concisely.\n\n"
+            f"Platform overview:\n{core_brief}\n\n"
+            f"{how_to_use}\n\n"
+            f"Camera tips: {camera_tips}\n\n"
+            f"Membership guidance: {membership}\n\n"
+            "When responding, keep the tone proactive and encouraging. Suggest next actions, and invite the user to ask for help if they get stuck."
+        )
+        messages = [
+            {"role": "system", "content": prompt},
+            {
+                "role": "user",
+                "content": (
+                    f"User question: {user_message}\n\n"
+                    f"Available context:\n{context_text or 'No additional context.'}"
+                ),
+            },
+        ]
+        completion = client.chat.completions.create(
+            model=os.getenv("VIASION_SUPPORT_MODEL", "gpt-4o-mini"),
+            temperature=0.3,
+            messages=messages,
+        )
+        reply = (completion.choices[0].message.content or "").strip()
+        if not reply:
+            return None
+        return HandlerResult(
+            reply=reply,
+            result_status="in_progress",
+            intent="general",
+            meta={"model": completion.model},
+        )
+    except Exception as exc:
+        try:
+            print("[support] OpenAI assistant failed:", exc)
+        except Exception:
+            pass
+        return None
+
+
+def generate_general_reply(message: str, context: Optional[Dict[str, Any]] = None) -> Optional[HandlerResult]:
+    ctx = dict(context or {})
+    ctx["message"] = message
+    return _call_openai_support(ctx)
+
+
 def _handle_general(ctx: Dict[str, Any]) -> HandlerResult:
+    ai_reply = _call_openai_support(ctx)
+    if ai_reply:
+        return ai_reply
     return HandlerResult(
-        reply="Thanks for the update — I'll keep that noted. If you need something specific just let me know.",
+        reply="Thanks for the update. I will keep that noted. If you need something specific just let me know.",
         result_status="pending_user",
         intent="general",
     )

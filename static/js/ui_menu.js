@@ -7,6 +7,43 @@
     if (window.__viasion_MENU_INIT__) return;
     window.__viasion_MENU_INIT__ = true;
 
+    const AUTH_STATE = { authed: false, loaded: false };
+
+    function markAuthState(value) {
+        AUTH_STATE.authed = !!value;
+        AUTH_STATE.loaded = true;
+    }
+
+    async function ensureAuthStatus(force = false) {
+        if (!force && AUTH_STATE.loaded) return AUTH_STATE;
+        try {
+            const res = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
+            if (res.ok) {
+                const data = await res.json();
+                markAuthState(!!data?.user);
+            } else {
+                markAuthState(false);
+            }
+        } catch {
+            markAuthState(false);
+        }
+        return AUTH_STATE;
+    }
+
+    function requireAuth(handler, options = {}) {
+        return async () => {
+            const status = await ensureAuthStatus();
+            if (!status.authed) {
+                const message = options.message || 'Please sign in to access this feature.';
+                if (typeof window.showToast === 'function') window.showToast(message, 'warn', 4200);
+                else if (options.alert !== false) alert(message);
+                try { openAuthPanel(); } catch { window.location.href = '/static/login.html'; }
+                return;
+            }
+            handler();
+        };
+    }
+
     // Minimal global prompt fallback for early pages (top-center banner)
     if (typeof window.showPrompt !== 'function') {
         window.showPrompt = function (text, duration = 3000) {
@@ -1777,12 +1814,14 @@
                     try { sessionStorage.removeItem('viasion_login_greeting'); } catch { }
                     btnLogout.style.display = '';
                     nameRow.style.display = 'none';
+                    markAuthState(true);
                     try { faceLockMgr()?.setUser?.(u.user); } catch { }
                     await updateFaceStatus();
                 } else {
                     status.textContent = 'Not signed in';
                     btnLogout.style.display = 'none';
                     nameRow.style.display = '';
+                    markAuthState(false);
                     try { faceLockMgr()?.setUser?.(null); } catch { }
                     await updateFaceStatus();
                 }
@@ -1793,6 +1832,7 @@
                 try { delete window.__USER_NAME; } catch { window.__USER_NAME = null; }
                 try { faceLockMgr()?.setUser?.(null); } catch { }
                 await updateFaceStatus();
+                markAuthState(false);
             }
         }
 
@@ -1803,7 +1843,7 @@
                 status.textContent = message;
                 btnLogout.style.display = '';
                 nameRow.style.display = 'none';
-                window.__welcomePending = true; window.showStartSessionCTA?.();
+                markAuthState(true);
                 try { window.enableHoopPickOnce?.(); } catch { }
                 try { await window.prefetchChallengeState?.(); } catch { }
                 try { faceLockMgr()?.setUser?.(j.user || j); } catch { }
@@ -1819,7 +1859,7 @@
                 status.textContent = message;
                 btnLogout.style.display = '';
                 nameRow.style.display = 'none';
-                window.__welcomePending = true; window.showStartSessionCTA?.();
+                markAuthState(true);
                 try { window.enableHoopPickOnce?.(); } catch { }
                 try { await window.prefetchChallengeState?.(); } catch { }
                 try { faceLockMgr()?.setUser?.(j.user || j); } catch { }
@@ -1837,8 +1877,9 @@
             try { window.__challengeState = null; window.syncChallengeCTA?.(); } catch { }
             try { faceLockMgr()?.setUser?.(null); } catch { }
             try { await updateFaceStatus(); } catch { }
+            markAuthState(false);
         };
-        btnSessions.onclick = () => window.open('/static/my_sessions.html', '_blank');
+        btnSessions.onclick = requireAuth(() => window.open('/static/my_sessions.html', '_blank'));
 
         panel.setBody(body);
         panel.open();
@@ -1857,11 +1898,18 @@
             el('ul', { class: 'viasion-menu' },
                 el('li', {}, el('button', {
                     class: 'viasion-item',
-                    onclick: () => {
+                    onclick: requireAuth(() => {
                         try { window.location.href = '/static/my_sessions.html'; }
                         catch { window.open('/static/my_sessions.html', '_self'); }
-                    }
+                    })
                 }, 'My Sessions')),
+                el('li', {}, el('button', {
+                    class: 'viasion-item',
+                    onclick: requireAuth(() => {
+                        try { window.location.href = '/static/subscriptions.html'; }
+                        catch { window.open('/static/subscriptions.html', '_self'); }
+                    })
+                }, 'Subscriptions')),
                 el('li', {}, el('button', {
                     class: 'viasion-item',
                     onclick: () => {
@@ -1871,15 +1919,15 @@
                 }, 'Community')),
                 el('li', {}, el('button', {
                     class: 'viasion-item',
-                    onclick: () => {
+                    onclick: requireAuth(() => {
                         try { window.location.href = '/static/challenges.html'; }
                         catch { window.open('/static/challenges.html', '_self'); }
-                    }
+                    })
                 }, 'Challenges')),
-                el('li', {}, el('button', { class: 'viasion-item', onclick: openMyviasionPanel }, 'My Trainer')),
+                el('li', {}, el('button', { class: 'viasion-item', onclick: requireAuth(() => openMyviasionPanel()) }, 'My Trainer')),
                 el('li', {}, el('button', {
                     class: 'viasion-item',
-                    onclick: () => window.openPreferencesPanel?.()
+                    onclick: requireAuth(() => window.openPreferencesPanel?.())
                 }, 'Preferences')),
                 el('li', {}, el('button', { class: 'viasion-item', onclick: openAuthPanel }, 'Login / Account'))
             )
@@ -1892,7 +1940,7 @@
         window.addEventListener('keydown', (e) => { if ((e.key || '').toLowerCase() === 'm') toggle(); });
         function toggle() { drawer.classList.toggle('open'); }
 
-        const floater = el('button', { class: 'viasion-floating-myviasion', onclick: openMyviasionPanel }, 'My Trainer');
+        const floater = el('button', { class: 'viasion-floating-myviasion', onclick: requireAuth(() => openMyviasionPanel()) }, 'My Trainer');
         document.body.appendChild(floater);
 
         wireVideoAutoClose();
@@ -1903,10 +1951,11 @@
     try { if (typeof module !== 'undefined') module.exports = { mountHamburgerMenu }; } catch { }
     // Auto-mount after DOM ready
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => { mountHamburgerMenu(); prefetchChallengeState(); });
+        document.addEventListener('DOMContentLoaded', () => { mountHamburgerMenu(); prefetchChallengeState(); ensureAuthStatus().catch(() => { }); });
     } else {
         mountHamburgerMenu();
         prefetchChallengeState();
+        ensureAuthStatus().catch(() => { });
     }
 })();
 
