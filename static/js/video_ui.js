@@ -2276,7 +2276,7 @@ function kickoffCountdownArmFromHoop() {
 
 /* ------------------------- Hoop lock listeners ------------------------- */
 window.addEventListener('hoop:locked', () => {
-    if (!projectRequiresTargetSelection()) return;
+    if (!requiresTargetSelection()) return;
     window.__hoopConfirmed = true;
     try { window.__SESSION_ACTIVE = true; } catch { }
     hidePromptMessage();
