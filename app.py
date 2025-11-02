@@ -945,6 +945,41 @@ def api_subscriptions_unassign():
     return jsonify({"user": user_key, "plans": users.get(user_key, [])})
 
 
+@app.get("/api/me/profile")
+def api_my_profile():
+    uid = session.get("user_id")
+    if not uid:
+        return jsonify({"ok": False, "error": "auth"}), 401
+    profile = _load_user_profile(uid)
+    return jsonify(
+        {
+            "ok": True,
+            "profile": profile,
+            "profile_complete": _profile_is_complete(profile),
+        }
+    )
+
+
+@app.post("/api/me/profile")
+def api_update_profile():
+    uid = session.get("user_id")
+    if not uid:
+        return jsonify({"ok": False, "error": "auth"}), 401
+    payload = request.get_json(force=True, silent=True) or {}
+    profile = _normalize_profile_payload(payload)
+    try:
+        saved = _save_user_profile(uid, profile)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify(
+        {
+            "ok": True,
+            "profile": saved,
+            "profile_complete": _profile_is_complete(saved),
+        }
+    )
+
+
 @app.get("/api/me/subscriptions")
 def api_my_subscriptions():
     uid = session.get("user_id")
@@ -1819,6 +1854,8 @@ def api_session_start():
         "shots": [],
         "totals": {"attempts": 0, "made": 0, "accuracy": 0},
     }
+    if user_id:
+        sess["userId"] = user_id
     extra_fields = {
         "project": (b.get("project") or "").strip() or None,
         "projectName": (b.get("projectName") or "").strip() or None,
@@ -1880,6 +1917,7 @@ def api_session_start():
 def api_session_add_shot(sid):
     data = request.get_json(force=True) or {}
     sess = _read_session(sid)
+    user_id = session.get("user_id")
     if not sess:
         try:
             sess = {
@@ -1891,10 +1929,18 @@ def api_session_add_shot(sid):
                 "shots": [],
                 "totals": {"attempts": 0, "made": 0, "accuracy": 0},
             }
+            if user_id:
+                sess["userId"] = user_id
             _write_session(sid, sess)
         except Exception as exc:
             _trace("api:sid/shot:create-missing-session", exc)
             return jsonify({"error": "session not ready"}), 404
+    elif user_id and not sess.get("userId"):
+        sess["userId"] = user_id
+        try:
+            _write_session(sid, sess)
+        except Exception:
+            pass
     shots = list(sess.get("shots", []))
     client_idx = data.get("idx") if isinstance(data.get("idx"), int) else None
     replace = bool(data.get("replace"))
@@ -2073,6 +2119,7 @@ def api_session_end(sid):
 
 @app.get("/api/sessions")
 def api_sessions_list():
+    current_uid = session.get("user_id")
     items = []
     for sid in sorted(os.listdir(SESSIONS_DIR)):
         p = os.path.join(SESSIONS_DIR, sid, "session.json")
@@ -2080,6 +2127,9 @@ def api_sessions_list():
             try:
                 with open(p, "r", encoding="utf-8") as f:
                     s = json.load(f)
+                owner_id = s.get("userId")
+                if current_uid and owner_id != current_uid:
+                    continue
                 items.append(
                     {
                         "id": s.get("id", sid),
@@ -3300,6 +3350,152 @@ def _set_stub_user(user, password=None):
         pass
 
 
+def _get_stub_profile():
+    try:
+        data = session.get("_stub_profile")
+        return dict(data) if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _set_stub_profile(profile):
+    try:
+        session["_stub_profile"] = profile or {}
+    except Exception:
+        pass
+
+
+def _normalize_profile_payload(data: dict | None) -> dict:
+    payload = data or {}
+    profile = {}
+    profile["name"] = (payload.get("name") or "").strip()
+    profile["handle"] = (payload.get("handle") or "").strip()
+    profile["primary_sport"] = (payload.get("primary_sport") or "").strip()
+    profile["dominant_hand"] = (payload.get("dominant_hand") or "").strip()
+    profile["skill_level"] = (payload.get("skill_level") or "").strip()
+    try:
+        profile["height_cm"] = int(payload.get("height_cm")) if payload.get("height_cm") else None
+    except Exception:
+        profile["height_cm"] = None
+    try:
+        profile["weight_kg"] = int(payload.get("weight_kg")) if payload.get("weight_kg") else None
+    except Exception:
+        profile["weight_kg"] = None
+    goals_val = payload.get("goals")
+    goals: list[str] = []
+    if isinstance(goals_val, str):
+        goals = [line.strip() for line in goals_val.replace("\r", "\n").split("\n") if line.strip()]
+    elif isinstance(goals_val, list):
+        goals = [str(item).strip() for item in goals_val if str(item).strip()]
+    profile["goals"] = goals
+    return profile
+
+
+def _profile_is_complete(profile: dict | None) -> bool:
+    if not profile:
+        return False
+    return bool(profile.get("name") and profile.get("primary_sport"))
+
+
+def _serialize_profile_row(row) -> dict:
+    if row is None:
+        return {}
+    sports_raw = getattr(row, "sports", None)
+    primary_sport = ""
+    dominant_hand = ""
+    skill_level = ""
+    if isinstance(sports_raw, dict):
+        primary_sport = sports_raw.get("primary") or sports_raw.get("sport") or ""
+        dominant_hand = sports_raw.get("hand") or ""
+        skill_level = sports_raw.get("skill") or ""
+    elif isinstance(sports_raw, list) and sports_raw:
+        first = sports_raw[0]
+        if isinstance(first, dict):
+            primary_sport = first.get("primary") or first.get("sport") or ""
+            dominant_hand = first.get("hand") or ""
+            skill_level = first.get("skill") or ""
+        elif isinstance(first, str):
+            primary_sport = first
+    goals_raw = getattr(row, "goals", None)
+    if isinstance(goals_raw, list):
+        goals = [str(item) for item in goals_raw if item is not None]
+    elif isinstance(goals_raw, str):
+        goals = [goals_raw]
+    else:
+        goals = []
+    return {
+        "user_id": getattr(row, "user_id", None),
+        "email": getattr(row, "email", None),
+        "name": getattr(row, "name", "") or "",
+        "handle": getattr(row, "handle", "") or "",
+        "primary_sport": primary_sport,
+        "dominant_hand": dominant_hand,
+        "skill_level": skill_level,
+        "height_cm": getattr(row, "height_cm", None),
+        "weight_kg": getattr(row, "weight_kg", None),
+        "goals": goals,
+    }
+
+
+def _load_user_profile(user_id: int | None) -> dict:
+    if not user_id:
+        return {}
+    db = _db_get()
+    if db:
+        with db["Session"]() as s:
+            row = s.get(db["User"], user_id)
+            if not row:
+                return {}
+            return _serialize_profile_row(row)
+    profile = _get_stub_profile()
+    user = _get_stub_user() or {}
+    if not profile:
+        profile = {"name": user.get("name", ""), "email": user.get("email", "")}
+    else:
+        profile.setdefault("email", user.get("email"))
+    return profile
+
+
+def _save_user_profile(user_id: int | None, profile: dict) -> dict:
+    if not user_id:
+        raise ValueError("unauthenticated")
+    db = _db_get()
+    if db:
+        with db["Session"]() as s:
+            row = s.get(db["User"], user_id)
+            if not row:
+                raise ValueError("user not found")
+            if profile.get("name"):
+                row.name = profile["name"]
+            if profile.get("handle") or row.handle:
+                row.handle = profile.get("handle") or None
+            row.height_cm = profile.get("height_cm")
+            row.weight_kg = profile.get("weight_kg")
+            sports_blob = {
+                k: v
+                for k, v in {
+                    "primary": profile.get("primary_sport") or None,
+                    "hand": profile.get("dominant_hand") or None,
+                    "skill": profile.get("skill_level") or None,
+                }.items()
+                if v
+            }
+            row.sports = sports_blob or None
+            goals = profile.get("goals") or None
+            row.goals = goals if goals else None
+            s.add(row)
+            s.commit()
+            s.refresh(row)
+            return _serialize_profile_row(row)
+    _set_stub_profile(profile)
+    user = _get_stub_user() or {}
+    if profile.get("name"):
+        user["name"] = profile["name"]
+        _set_stub_user(user)
+    profile.setdefault("email", user.get("email"))
+    return profile
+
+
 def _check_stub_credentials(email, password):
     user = _get_stub_user()
     if not user:
@@ -3497,6 +3693,11 @@ def api_register():
         session["user_id"] = user_id
         _set_stub_user(user, password=pw)
         _session_face_lock_set({})
+        profile = _get_stub_profile()
+        if name:
+            profile["name"] = name
+        profile.setdefault("email", email)
+        _set_stub_profile(profile)
         return jsonify(
             {
                 "user_id": user_id,
@@ -3505,6 +3706,8 @@ def api_register():
                 "face_lock": _serialize_session_face_lock(
                     _session_face_lock_get(), include_embedding=False
                 ),
+                "profile": profile,
+                "profile_complete": _profile_is_complete(profile),
             }
         )
     with db["Session"]() as s:
@@ -3523,12 +3726,15 @@ def api_register():
         s.add(row)
         s.commit()
         session["user_id"] = row.user_id
+        profile = _serialize_profile_row(row)
         return jsonify(
             {
                 "user_id": row.user_id,
                 "name": row.name,
                 "email": row.email,
                 "face_lock": _serialize_face_lock(getattr(row, "face_lock", None)),
+                "profile": profile,
+                "profile_complete": _profile_is_complete(profile),
             }
         )
 
@@ -3546,6 +3752,9 @@ def api_login():
         if not user:
             return jsonify({"error": "invalid credentials"}), 401
         session["user_id"] = user["user_id"]
+        profile = _get_stub_profile()
+        profile.setdefault("email", user.get("email"))
+        profile.setdefault("name", user.get("name"))
         return jsonify(
             {
                 "user_id": user["user_id"],
@@ -3554,6 +3763,8 @@ def api_login():
                 "face_lock": _serialize_session_face_lock(
                     _session_face_lock_get(), include_embedding=False
                 ),
+                "profile": profile,
+                "profile_complete": _profile_is_complete(profile),
             }
         )
     from sqlalchemy import select
@@ -3565,12 +3776,15 @@ def api_login():
         if not row or not check_password_hash(row.password_hash or "", pw):
             return jsonify({"error": "invalid credentials"}), 401
         session["user_id"] = row.user_id
+        profile = _serialize_profile_row(row)
         return jsonify(
             {
                 "user_id": row.user_id,
                 "name": row.name,
                 "email": row.email,
                 "face_lock": _serialize_face_lock(getattr(row, "face_lock", None)),
+                "profile": profile,
+                "profile_complete": _profile_is_complete(profile),
             }
         )
 
@@ -3593,6 +3807,9 @@ def api_me():
         user = _get_stub_user()
         if not user:
             return jsonify({"user": None})
+        profile = _get_stub_profile()
+        profile.setdefault("email", user.get("email"))
+        profile.setdefault("name", user.get("name"))
         return jsonify(
             {
                 "user": {
@@ -3602,13 +3819,16 @@ def api_me():
                     "face_lock": _serialize_session_face_lock(
                         _session_face_lock_get(), include_embedding=False
                     ),
-                }
+                },
+                "profile": profile,
+                "profile_complete": _profile_is_complete(profile),
             }
         )
     with db["Session"]() as s:
         row = s.get(db["User"], uid)
         if not row:
             return jsonify({"user": None})
+        profile = _serialize_profile_row(row)
         return jsonify(
             {
                 "user": {
@@ -3616,7 +3836,9 @@ def api_me():
                     "name": row.name,
                     "email": row.email,
                     "face_lock": _serialize_face_lock(getattr(row, "face_lock", None)),
-                }
+                },
+                "profile": profile,
+                "profile_complete": _profile_is_complete(profile),
             }
         )
 
@@ -3770,6 +3992,11 @@ def api_face_clear():
 @app.route("/my_viasion")
 def my_viasion():
     return send_from_directory("static", "my_viasion.html")
+
+
+@app.route("/user_setup")
+def user_setup_page():
+    return send_from_directory("static", "user_setup.html")
 
 
 @app.route("/my_sessions")

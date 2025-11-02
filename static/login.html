@@ -58,7 +58,7 @@
             text-align: center;
             font-size: 26px;
             font-weight: 700;
-            color: #0f172a;
+            color: #1d4ed8;
         }
 
         input,
@@ -264,7 +264,7 @@
 <body>
     <div class="card">
         <h2>Welcome to <span class="brand-mark">VI<sup>a</sup>SION</span></h2>
-        <input id="name" placeholder="First name or User Name" />
+        <input id="name" placeholder="First name or User Name (optional)" />
         <input id="email" placeholder="Email" />
         <input id="password" type="password" placeholder="Password" />
         <div class="row">
@@ -334,10 +334,15 @@
                 const password = document.getElementById('password').value;
                 const j = await post('/api/auth/login', { email, password });
                 if (name) rememberName(name);
-                else rememberName(j?.name);
+                else rememberName(j?.name || j?.profile?.name);
                 if (j?.name) sessionStorage.setItem('viasion_login_greeting', `Welcome back, ${j.name.split(/\s+/)[0] || j.name}!`);
                 else sessionStorage.setItem('viasion_login_greeting', 'Welcome back!');
-                location.href = returnTo;
+                if (j?.profile_complete) {
+                    location.href = returnTo;
+                } else {
+                    sessionStorage.setItem('viasion_setup_return', returnTo);
+                    location.href = '/static/user_setup.html';
+                }
             } catch (e) {
                 setMsg('Login failed');
             }
@@ -350,9 +355,14 @@
                 const password = document.getElementById('password').value;
                 const j = await post('/api/auth/register', { name, email, password });
                 if (name) rememberName(name);
-                else rememberName(j?.name);
+                else rememberName(j?.name || j?.profile?.name);
                 sessionStorage.setItem('viasion_login_greeting', `Welcome to <span class="brand-mark">VI<sup>a</sup>SION</span>${name ? ', ' + name.split(/\s+/)[0] : ''}!`);
-                location.href = returnTo;
+                if (j?.profile_complete) {
+                    location.href = returnTo;
+                } else {
+                    sessionStorage.setItem('viasion_setup_return', returnTo);
+                    location.href = '/static/user_setup.html';
+                }
             } catch (e) {
                 setMsg('Register failed');
             }

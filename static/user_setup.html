@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VIᵃSION | Profile Setup</title>
+    <script src="/static/js/auth_guard.js" data-guard="auth"></script>
+    <link rel="stylesheet" href="/static/style.css" />
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #06070d 0%, #10121c 100%);
+            font-family: 'Inter', system-ui, -apple-system, Segoe UI, sans-serif;
+            color: #f8fafc;
+            padding: clamp(16px, 4vw, 36px);
+        }
+
+        .setup-shell {
+            width: min(760px, 100%);
+        }
+
+        .card {
+            background: rgba(11, 13, 23, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 18px;
+            box-shadow: 0 28px 68px rgba(6, 8, 18, 0.55);
+            padding: clamp(26px, 6vw, 42px);
+        }
+
+        .card h1 {
+            margin: 0 0 6px;
+            font-size: clamp(32px, 6vw, 42px);
+            letter-spacing: .02em;
+            text-align: center;
+        }
+
+        .card p.lead {
+            margin: 0 0 28px;
+            text-align: center;
+            font-size: 16px;
+            color: rgba(226, 232, 255, 0.76);
+        }
+
+        form {
+            display: grid;
+            gap: 18px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .field label {
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(226, 232, 255, 0.86);
+            letter-spacing: .02em;
+        }
+
+        .field input,
+        .field select,
+        .field textarea {
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(15, 18, 30, 0.78);
+            color: #f8fafc;
+            font-size: 15px;
+            padding: 12px 14px;
+            transition: border-color .15s ease, box-shadow .15s ease;
+        }
+
+        .field textarea {
+            min-height: 96px;
+            resize: vertical;
+        }
+
+        .field input:focus,
+        .field select:focus,
+        .field textarea:focus {
+            outline: none;
+            border-color: rgba(107, 114, 255, 0.65);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 12px;
+            padding: 12px 20px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+
+        .btn.primary {
+            background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+            color: #fff;
+            box-shadow: 0 12px 32px rgba(37, 99, 235, 0.35);
+        }
+
+        .btn.primary:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn.ghost {
+            background: rgba(15, 18, 30, 0.65);
+            color: rgba(226, 232, 255, 0.86);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .status {
+            font-size: 13px;
+            color: #f87171;
+            min-height: 18px;
+        }
+
+        @media (max-width: 560px) {
+            .actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .actions .btn {
+                width: 100%;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="setup-shell">
+        <section class="card">
+            <h1><span class="brand-mark">VI<sup>a</sup>SION</span></h1>
+            <p class="lead">Tell us a little about you so we can tailor your coaching.</p>
+            <form id="profileForm" autocomplete="on">
+                <div class="field">
+                    <label for="name">Full name</label>
+                    <input id="name" name="name" type="text" placeholder="Jordan Rivers" required />
+                </div>
+                <div class="field">
+                    <label for="handle">Preferred name</label>
+                    <input id="handle" name="handle" type="text" placeholder="Coach calls me..." />
+                </div>
+                <div class="field">
+                    <label for="primary_sport">Primary focus</label>
+                    <select id="primary_sport" name="primary_sport" required>
+                        <option value="">Select a focus</option>
+                        <option value="basketball">Basketball</option>
+                        <option value="golf">Golf</option>
+                        <option value="baseball">Baseball</option>
+                        <option value="tennis">Tennis</option>
+                        <option value="industrial">Industrial / workplace</option>
+                        <option value="rehab">Rehab / PT</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="dominant_hand">Dominant hand</label>
+                    <select id="dominant_hand" name="dominant_hand">
+                        <option value="">Select</option>
+                        <option value="right">Right</option>
+                        <option value="left">Left</option>
+                        <option value="ambidextrous">Ambidextrous</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="skill_level">Skill level</label>
+                    <select id="skill_level" name="skill_level">
+                        <option value="">Select</option>
+                        <option value="beginner">Just getting started</option>
+                        <option value="intermediate">Developing / intermediate</option>
+                        <option value="advanced">Advanced / elite</option>
+                        <option value="coach">Coach / trainer</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="goals">Goals (optional)</label>
+                    <textarea id="goals" name="goals" placeholder="Outline goals, upcoming events, or focus areas..."></textarea>
+                </div>
+                <div class="field">
+                    <label for="height_cm">Height (cm)</label>
+                    <input id="height_cm" name="height_cm" type="number" min="0" max="300" placeholder="183" />
+                </div>
+                <div class="field">
+                    <label for="weight_kg">Weight (kg)</label>
+                    <input id="weight_kg" name="weight_kg" type="number" min="0" max="250" placeholder="79" />
+                </div>
+                <div class="status" id="status"></div>
+                <div class="actions">
+                    <button type="submit" class="btn primary">Save and Continue</button>
+                    <button type="button" class="btn ghost" id="skipBtn">Skip for now</button>
+                </div>
+            </form>
+        </section>
+    </main>
+    <script>
+        const returnTo = sessionStorage.getItem('viasion_setup_return') || '/static/my_sessions.html';
+        const statusEl = document.getElementById('status');
+        const form = document.getElementById('profileForm');
+
+        function setStatus(msg, tone = 'error') {
+            if (!statusEl) return;
+            statusEl.textContent = msg || '';
+            statusEl.style.color = tone === 'success' ? '#34d399' : '#f87171';
+        }
+
+        function populateForm(profile) {
+            if (!profile) return;
+            const map = {
+                name: 'name',
+                handle: 'handle',
+                primary_sport: 'primary_sport',
+                dominant_hand: 'dominant_hand',
+                skill_level: 'skill_level',
+                height_cm: 'height_cm',
+                weight_kg: 'weight_kg',
+            };
+            Object.entries(map).forEach(([key, field]) => {
+                const el = form.elements[field];
+                if (el && profile[key] != null && profile[key] !== '') {
+                    el.value = profile[key];
+                }
+            });
+            if (Array.isArray(profile.goals) && profile.goals.length) {
+                form.elements.goals.value = profile.goals.join('\n');
+            }
+        }
+
+        async function loadProfile() {
+            try {
+                const res = await fetch('/api/me/profile', { credentials: 'include', cache: 'no-store' });
+                if (!res.ok) return;
+                const data = await res.json();
+                populateForm(data.profile || {});
+                if (data.profile_complete) {
+                    document.getElementById('skipBtn').textContent = 'Skip';
+                }
+            } catch (err) {
+                console.warn('[profile] load failed', err);
+            }
+        }
+
+        async function saveProfile(payload) {
+            const res = await fetch('/api/me/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) {
+                const text = await res.text().catch(() => '');
+                throw new Error(text || `HTTP ${res.status}`);
+            }
+            const data = await res.json().catch(() => ({}));
+            return data;
+        }
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            setStatus('');
+            const formData = new FormData(form);
+            const payload = Object.fromEntries(formData.entries());
+            payload.goals = payload.goals ? payload.goals.split(/\r?\n/) : [];
+            try {
+                await saveProfile(payload);
+                sessionStorage.removeItem('viasion_setup_return');
+                window.location.href = returnTo;
+            } catch (err) {
+                setStatus(err?.message || 'Unable to save profile right now.');
+            }
+        });
+
+        document.getElementById('skipBtn')?.addEventListener('click', () => {
+            window.location.href = returnTo;
+        });
+
+        loadProfile();
+    </script>
+</body>
+
+</html>
+

@@ -1477,8 +1477,9 @@
         const btnLogin = document.createElement('button'); btnLogin.className = 'viasion-btn'; btnLogin.textContent = 'Login';
         const btnCreate = document.createElement('button'); btnCreate.className = 'viasion-btn ghost'; btnCreate.textContent = 'Create Account';
         const btnLogout = document.createElement('button'); btnLogout.className = 'viasion-btn ghost'; btnLogout.textContent = 'Logout'; btnLogout.style.display = 'none';
+        const btnProfile = document.createElement('button'); btnProfile.className = 'viasion-btn ghost'; btnProfile.textContent = 'Edit Profile';
         const btnSessions = document.createElement('button'); btnSessions.className = 'viasion-btn'; btnSessions.textContent = 'My Sessions';
-        actions.append(btnLogin, btnCreate, btnLogout, btnSessions);
+        actions.append(btnLogin, btnCreate, btnLogout, btnProfile, btnSessions);
 
         const faceSection = document.createElement('div'); faceSection.className = 'viasion-face-lock'; faceSection.style.marginTop = '18px'; faceSection.style.borderTop = '1px solid rgba(255,255,255,0.06)'; faceSection.style.paddingTop = '12px';
         const faceHeader = document.createElement('div'); faceHeader.textContent = 'Face Lock'; faceHeader.style.cssText = 'font:600 13px system-ui; letter-spacing:.02em; opacity:.88; margin-bottom:6px;';
@@ -1849,7 +1850,13 @@
                 try { faceLockMgr()?.setUser?.(j.user || j); } catch { }
                 try { await updateFaceStatus(); } catch { }
                 try { await maybeOfferFaceLock('login'); } catch { }
-                setTimeout(goToSessions, 200);
+                if (j?.profile_complete) {
+                    setTimeout(goToSessions, 200);
+                } else {
+                    try { sessionStorage.setItem('viasion_setup_return', '/static/my_sessions.html'); } catch { }
+                    window.location.href = '/static/user_setup.html';
+                    return;
+                }
             } catch (e) { alert('Login failed: ' + e.message); }
         };
         btnCreate.onclick = async () => {
@@ -1865,7 +1872,13 @@
                 try { faceLockMgr()?.setUser?.(j.user || j); } catch { }
                 try { await updateFaceStatus(); } catch { }
                 try { await maybeOfferFaceLock('register'); } catch { }
-                setTimeout(goToSessions, 200);
+                if (j?.profile_complete) {
+                    setTimeout(goToSessions, 200);
+                } else {
+                    try { sessionStorage.setItem('viasion_setup_return', '/static/my_sessions.html'); } catch { }
+                    window.location.href = '/static/user_setup.html';
+                    return;
+                }
             } catch (e) { alert('Create failed: ' + e.message); }
         };
         btnLogout.onclick = async () => {
@@ -1879,6 +1892,10 @@
             try { await updateFaceStatus(); } catch { }
             markAuthState(false);
         };
+        btnProfile.onclick = requireAuth(() => {
+            try { sessionStorage.setItem('viasion_setup_return', '/static/my_sessions.html'); } catch { }
+            window.location.href = '/static/user_setup.html';
+        });
         btnSessions.onclick = requireAuth(() => window.open('/static/my_sessions.html', '_blank'));
 
         panel.setBody(body);
