@@ -1458,19 +1458,19 @@
         const nameRow = document.createElement('div');
         nameRow.className = 'viasion-field';
         const nameLab = document.createElement('label'); nameLab.textContent = 'Name (for account creation)';
-        const nameInp = document.createElement('input'); nameInp.type = 'text'; nameInp.placeholder = 'Jane Doe';
+        const nameInp = document.createElement('input'); nameInp.type = 'text'; nameInp.placeholder = 'Jane Doe'; nameInp.autocomplete = 'name';
         nameRow.append(nameLab, nameInp);
 
         const emailRow = document.createElement('div');
         emailRow.className = 'viasion-field';
         const emailLab = document.createElement('label'); emailLab.textContent = 'Email';
-        const emailInp = document.createElement('input'); emailInp.type = 'text'; emailInp.placeholder = 'you@example.com';
+        const emailInp = document.createElement('input'); emailInp.type = 'text'; emailInp.placeholder = 'you@example.com'; emailInp.autocomplete = 'email';
         emailRow.append(emailLab, emailInp);
 
         const pwRow = document.createElement('div');
         pwRow.className = 'viasion-field';
         const pwLab = document.createElement('label'); pwLab.textContent = 'Password';
-        const pwInp = document.createElement('input'); pwInp.type = 'password'; pwInp.placeholder = '••••••••';
+        const pwInp = document.createElement('input'); pwInp.type = 'password'; pwInp.placeholder = '••••••••'; pwInp.autocomplete = 'current-password';
         pwRow.append(pwLab, pwInp);
 
         const actions = document.createElement('div'); actions.className = 'viasion-actions';
