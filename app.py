@@ -3802,6 +3802,35 @@ def api_me():
     uid = session.get("user_id")
     if not uid:
         return jsonify({"user": None})
+    # If we previously used stub auth the session id might be a non-numeric token
+    if isinstance(uid, str) and not uid.isdigit():
+        if ALLOW_STUB_AUTH:
+            user = _get_stub_user()
+            if not user:
+                return jsonify({"user": None})
+            profile = _get_stub_profile()
+            profile.setdefault("email", user.get("email"))
+            profile.setdefault("name", user.get("name"))
+            return jsonify(
+                {
+                    "user": {
+                        "user_id": user.get("user_id"),
+                        "name": user.get("name"),
+                        "email": user.get("email"),
+                        "face_lock": _serialize_session_face_lock(
+                            _session_face_lock_get(), include_embedding=False
+                        ),
+                    },
+                    "profile": profile,
+                    "profile_complete": _profile_is_complete(profile),
+                }
+            )
+        else:
+            # Invalid cookie; clear it so the client can re-auth cleanly
+            session.pop("user_id", None)
+            return jsonify({"user": None})
+    if isinstance(uid, str) and uid.isdigit():
+        uid = int(uid)
     db = _db_get()
     if not db:
         if not ALLOW_STUB_AUTH:
