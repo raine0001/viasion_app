@@ -22,6 +22,11 @@ try:
 except Exception:  # pragma: no cover - OpenAI is optional at runtime
     OpenAI = None  # type: ignore
 
+try:
+    import httpx  # type: ignore
+except Exception:  # pragma: no cover - httpx is an optional dependency during tests
+    httpx = None  # type: ignore
+
 _OPENAI_CLIENT: Optional["OpenAI"] = None
 
 
@@ -34,11 +39,68 @@ def _get_openai_client() -> Optional["OpenAI"]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return None
+    http_client = _build_httpx_client()
     try:
-        _OPENAI_CLIENT = OpenAI(api_key=api_key)  # type: ignore
+        if http_client is not None:
+            _OPENAI_CLIENT = OpenAI(api_key=api_key, http_client=http_client)  # type: ignore[call-arg]
+        else:
+            _OPENAI_CLIENT = OpenAI(api_key=api_key)  # type: ignore
+    except TypeError as exc:
+        if "proxies" in str(exc).lower() and http_client is None:
+            fallback_client = _build_httpx_client(force_proxy_kw=True)
+            if fallback_client is not None:
+                try:
+                    _OPENAI_CLIENT = OpenAI(  # type: ignore[call-arg]
+                        api_key=api_key,
+                        http_client=fallback_client,
+                    )
+                except Exception:
+                    _OPENAI_CLIENT = None
+                else:
+                    return _OPENAI_CLIENT
+        _OPENAI_CLIENT = None
     except Exception:
         _OPENAI_CLIENT = None
     return _OPENAI_CLIENT
+
+
+def _build_httpx_client(force_proxy_kw: bool = False) -> Optional["httpx.Client"]:
+    """Create an httpx client that works across httpx <0.28 (proxies) and >=0.28 (proxy)."""
+    if httpx is None:
+        return None
+    timeout: Any
+    try:
+        timeout = httpx.Timeout(30.0, connect=10.0, read=120.0)
+    except Exception:
+        timeout = 30.0
+    proxy_setting = (
+        os.getenv("OPENAI_PROXY")
+        or os.getenv("HTTPS_PROXY")
+        or os.getenv("https_proxy")
+        or os.getenv("HTTP_PROXY")
+        or os.getenv("http_proxy")
+    )
+    client_kwargs: Dict[str, Any] = {
+        "timeout": timeout,
+        "follow_redirects": True,
+    }
+    proxy_param_order = ["proxy", "proxies"]
+    if force_proxy_kw:
+        proxy_param_order = list(reversed(proxy_param_order))
+    if proxy_setting:
+        for param in proxy_param_order:
+            try:
+                test_kwargs = dict(client_kwargs)
+                test_kwargs[param] = proxy_setting  # type: ignore[assignment]
+                return httpx.Client(**test_kwargs)
+            except TypeError:
+                continue
+            except Exception:
+                break
+    try:
+        return httpx.Client(**client_kwargs)
+    except Exception:
+        return None
 
 
 # --------------------------------------------------------------------------- #
