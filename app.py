@@ -2580,6 +2580,8 @@ def _try_init_db():
             return None
         # On Windows, mysql-connector C extension can crash the interpreter.
         # Force pure-Python mode when using mysql+mysqlconnector to avoid access violations.
+        if uri.startswith(("postgres://", "postgresql://")) and "sslmode=" not in uri:
+            uri = f"{uri}&sslmode=require" if "?" in uri else f"{uri}?sslmode=require"
         if uri.startswith("mysql+mysqlconnector://"):
             engine = create_engine(
                 uri, pool_pre_ping=True, future=True, connect_args={"use_pure": True}
