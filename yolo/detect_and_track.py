@@ -131,7 +131,7 @@ while cap.isOpened():
         cv2.line(frame, trajectory[i - 1], trajectory[i], (0, 255, 0), 2)
 
     out.write(frame)
-    cv2.imshow("viasion Shot Tracker", frame)
+    cv2.imshow("visaion Shot Tracker", frame)
 
     if cv2.waitKey(50) & 0xFF == ord("q"):  # slow playback
         break

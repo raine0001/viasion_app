@@ -4,7 +4,7 @@ void hoopTracker;
 export * from '/static/arc_mm/hoop_tracker.js';
 
 try {
-    const mgr = window?.viasionProjectManager;
+    const mgr = window?.visaionProjectManager;
     if (mgr?.registerModule) {
         mgr.registerModule('basketball/hoop-tracker', {
             project: 'basketball',

@@ -4,8 +4,8 @@
 
 (function () {
     // Prevent double init if the script is included twice (or with different query strings)
-    if (window.__viasion_MENU_INIT__) return;
-    window.__viasion_MENU_INIT__ = true;
+    if (window.__visaion_MENU_INIT__) return;
+    window.__visaion_MENU_INIT__ = true;
 
     const AUTH_STATE = { authed: false, loaded: false };
 
@@ -71,23 +71,23 @@
     if (typeof window.coachSpeak !== 'function') {
         window.coachSpeak = function (text) {
             if (!text) return;
-            if (typeof window.viasionSpeak === 'function') { try { return window.viasionSpeak(text); } catch { } }
-            if (typeof window.viasionSpeak === 'function') {
-                try { window.viasionSpeak(String(text)); } catch { }
+            if (typeof window.visaionSpeak === 'function') { try { return window.visaionSpeak(text); } catch { } }
+            if (typeof window.visaionSpeak === 'function') {
+                try { window.visaionSpeak(String(text)); } catch { }
             }
         };
     }
 
-    // Center CTA: Start viasion Session button
+    // Center CTA: Start visaion Session button
     function showStartSessionCTA() {
         try {
-            if (document.getElementById('startviasionCTA')) return;
+            if (document.getElementById('startvisaionCTA')) return;
             // Do not show if camera already active
             const v = document.getElementById('videoPlayer');
             if (v?.srcObject) return;
             const cta = document.createElement('button');
-            cta.id = 'startviasionCTA';
-            cta.textContent = 'Start viasion Session';
+            cta.id = 'startvisaionCTA';
+            cta.textContent = 'Start visaion Session';
             Object.assign(cta.style, {
                 position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
                 zIndex: 10070, padding: '16px 22px', borderRadius: '12px', border: '1px solid rgba(255,255,255,.25)',
@@ -111,62 +111,62 @@
         const css = document.createElement('style');
         css.id = 'ui-menu-css';
         css.textContent = `
-      .viasion-hamburger {
+      .visaion-hamburger {
         position: fixed; top: 12px; left: 12px; z-index: 15000;
         width: 38px; height: 38px; border-radius: 8px;
         display:flex; align-items:center; justify-content:center;
         background: rgba(0,0,0,.75); color:#fff; border:1px solid rgba(255,255,255,.15);
         cursor:pointer; user-select:none;
       }
-      .viasion-hamburger:hover { background: rgba(0,0,0,.88); }
-      .viasion-drawer {
+      .visaion-hamburger:hover { background: rgba(0,0,0,.88); }
+      .visaion-drawer {
         position: fixed; top:0; bottom:0; left:0; width: 300px; z-index:14990;
         background: rgba(12,12,14,.98); color:#fff; border-right:1px solid rgba(255,255,255,.12);
         transform: translateX(-110%); transition: transform .22s ease-out; padding: 12px;
         box-shadow: 0 10px 30px rgba(0,0,0,.35);
       }
-      .viasion-drawer.open { transform: translateX(0); }
-      .viasion-drawer h3 { margin: 4px 10px 10px; font: 600 14px/1.2 system-ui; opacity:.9; letter-spacing:.04em; }
-      .viasion-menu { list-style:none; margin:0; padding:0; }
-      .viasion-menu > li { margin: 4px 0; }
-      .viasion-item {
+      .visaion-drawer.open { transform: translateX(0); }
+      .visaion-drawer h3 { margin: 4px 10px 10px; font: 600 14px/1.2 system-ui; opacity:.9; letter-spacing:.04em; }
+      .visaion-menu { list-style:none; margin:0; padding:0; }
+      .visaion-menu > li { margin: 4px 0; }
+      .visaion-item {
         width:100%; text-align:left; background:transparent; border:0; color:#fff;
         padding:10px 12px; border-radius:8px; cursor:pointer; font:600 14px system-ui;
       }
-      .viasion-submenu { list-style:none; margin:4px 0 0 16px; padding:0; display:flex; flex-direction:column; gap:4px; }
-      .viasion-subitem { background:transparent; border:0; color:#cfd8e3; padding:6px 12px; border-radius:8px; font:500 12px system-ui; text-align:left; cursor:pointer; }
-      .viasion-subitem:hover { background:rgba(255,255,255,.08); }
-      .viasion-item:hover { background:rgba(255,255,255,.08); }
-      .viasion-sidepanel {
+      .visaion-submenu { list-style:none; margin:4px 0 0 16px; padding:0; display:flex; flex-direction:column; gap:4px; }
+      .visaion-subitem { background:transparent; border:0; color:#cfd8e3; padding:6px 12px; border-radius:8px; font:500 12px system-ui; text-align:left; cursor:pointer; }
+      .visaion-subitem:hover { background:rgba(255,255,255,.08); }
+      .visaion-item:hover { background:rgba(255,255,255,.08); }
+      .visaion-sidepanel {
         position: fixed; top:0; right:0; bottom:0; width:420px; z-index:10045;
         background: rgba(14,14,18,.98); color:#fff; transform: translateX(110%);
         transition: transform .22s ease-out; border-left:1px solid rgba(255,255,255,.12);
         box-shadow: -8px 0 28px rgba(0,0,0,.35);
       }
-      .viasion-sidepanel.open { transform: translateX(0); }
-      .viasion-panel-head { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); font: 600 14px system-ui; }
-      .viasion-panel-body { padding:12px; overflow:auto; height: calc(100% - 48px); }
-      .viasion-field { margin:10px 0; }
-      .viasion-field label { display:block; font:600 12px system-ui; opacity:.8; margin-bottom:4px; }
-      .viasion-field input[type="text"], .viasion-field input[type="number"], .viasion-field select {
+      .visaion-sidepanel.open { transform: translateX(0); }
+      .visaion-panel-head { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.12); font: 600 14px system-ui; }
+      .visaion-panel-body { padding:12px; overflow:auto; height: calc(100% - 48px); }
+      .visaion-field { margin:10px 0; }
+      .visaion-field label { display:block; font:600 12px system-ui; opacity:.8; margin-bottom:4px; }
+      .visaion-field input[type="text"], .visaion-field input[type="number"], .visaion-field select {
         width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.15);
         background:#101015; color:#fff;
       }
-      .viasion-range { width:100%; }
-      .viasion-row { display:flex; gap:10px; }
-      .viasion-row .col { flex:1; }
-      .viasion-btn { background:#2d6cff; color:#fff; border:0; padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600; }
-      .viasion-btn.ghost { background:transparent; border:1px solid rgba(255,255,255,.22); }
-      .viasion-actions { display:flex; gap:8px; flex-wrap:wrap; }
-      .viasion-list { border:1px solid rgba(255,255,255,.12); border-radius:8px; overflow:hidden; }
-      .viasion-list-item { padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between;}
-      .viasion-list-item:last-child { border-bottom:none; }
-      .viasion-floating-myviasion {
+      .visaion-range { width:100%; }
+      .visaion-row { display:flex; gap:10px; }
+      .visaion-row .col { flex:1; }
+      .visaion-btn { background:#2d6cff; color:#fff; border:0; padding:8px 10px; border-radius:8px; cursor:pointer; font-weight:600; }
+      .visaion-btn.ghost { background:transparent; border:1px solid rgba(255,255,255,.22); }
+      .visaion-actions { display:flex; gap:8px; flex-wrap:wrap; }
+      .visaion-list { border:1px solid rgba(255,255,255,.12); border-radius:8px; overflow:hidden; }
+      .visaion-list-item { padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-between;}
+      .visaion-list-item:last-child { border-bottom:none; }
+      .visaion-floating-myvisaion {
         position: fixed; right: 16px; bottom: 88px; z-index: 14990;
         background: rgba(0,0,0,.78); color:#fff; border:1px solid rgba(255,255,255,.15);
         padding:10px 12px; border-radius: 999px; cursor:pointer; font:600 13px system-ui;
       }
-      .viasion-floating-myviasion:hover { background: rgba(0,0,0,.9); }
+      .visaion-floating-myvisaion:hover { background: rgba(0,0,0,.9); }
       .challenge-overlay {
         position:fixed; inset:0; z-index:10100; background:rgba(6,8,12,.82);
         display:none; align-items:center; justify-content:center; padding:24px;
@@ -236,14 +236,14 @@
     }
 
     // ——— Auto-close menu when the video becomes ready ———
-    let __viasionAutoCloseWired = false;
+    let __visaionAutoCloseWired = false;
     function wireVideoAutoClose() {
         const video = getVideoEl();
         if (!video) return;
 
         // don't double-wire
-        if (__viasionAutoCloseWired) return;
-        __viasionAutoCloseWired = true;
+        if (__visaionAutoCloseWired) return;
+        __visaionAutoCloseWired = true;
 
         const READY = HTMLMediaElement.HAVE_CURRENT_DATA;
 
@@ -257,7 +257,7 @@
         const closeNow = (reason) => {
             closeAllMenus(reason);
             cleanup();
-            __viasionAutoCloseWired = false; // allow future re-wire after src change
+            __visaionAutoCloseWired = false; // allow future re-wire after src change
         };
 
         const onReady = () => closeNow('video-ready');
@@ -275,7 +275,7 @@
         // Re-arm on src/srcObject change (file picker, programmatic loads)
         const obs = new MutationObserver(() => {
             cleanup();
-            __viasionAutoCloseWired = false;
+            __visaionAutoCloseWired = false;
             setTimeout(wireVideoAutoClose, 0); // attach to the next load cycle
         });
         obs.observe(video, { attributes: true, attributeFilter: ['src', 'srcObject'] });
@@ -302,12 +302,12 @@
         node.__unesc = () => window.removeEventListener('keydown', onKey);
     }
     function makeSidePanel(title) {
-        const panel = el('div', { class: 'viasion-sidepanel', role: 'dialog', 'aria-label': title });
-        const head = el('div', { class: 'viasion-panel-head' },
+        const panel = el('div', { class: 'visaion-sidepanel', role: 'dialog', 'aria-label': title });
+        const head = el('div', { class: 'visaion-panel-head' },
             el('div', {}, title),
-            el('button', { class: 'viasion-btn ghost', onclick: () => { panel.classList.remove('open'); panel.__unesc?.(); } }, 'Close')
+            el('button', { class: 'visaion-btn ghost', onclick: () => { panel.classList.remove('open'); panel.__unesc?.(); } }, 'Close')
         );
-        const body = el('div', { class: 'viasion-panel-body' });
+        const body = el('div', { class: 'visaion-panel-body' });
         panel.append(head, body);
         document.body.appendChild(panel);
         panel.open = () => { panel.classList.add('open'); closeOnEsc(panel, panel.openClose); };
@@ -520,7 +520,7 @@
             const r = document.createElement('div'); btns.forEach(b => r.appendChild(b));
             d.append(l, r); return d;
         }
-        function mk(label, onclick) { const b = document.createElement('button'); b.className = 'viasion-btn'; b.textContent = label; b.onclick = onclick; return b; }
+        function mk(label, onclick) { const b = document.createElement('button'); b.className = 'visaion-btn'; b.textContent = label; b.onclick = onclick; return b; }
         function log(text) { const p = document.createElement('pre'); p.textContent = text; p.style.maxHeight = '200px'; p.style.overflow = 'auto'; p.style.background = '#0b0f14'; p.style.border = '1px solid #1f2a36'; p.style.borderRadius = '8px'; p.style.padding = '6px'; return p; }
 
         const out = document.createElement('div');
@@ -534,12 +534,12 @@
                 let snap = (typeof window.__getPoseSnapshot === 'function') ? window.__getPoseSnapshot() : null;
                 if (!snap && typeof window.__samplePoseSnapshotNow === 'function') snap = await window.__samplePoseSnapshotNow();
                 if (!snap) { out.appendChild(log('No snapshot available')); return; }
-                const body = { prompt: 'You are a concise basketball shooting coach. Using only these metrics, give 1-3 specific release cues (no fluff). Metrics: ' + JSON.stringify(snap), model: (window.viasion && window.viasion.model) || 'gpt-4o-mini', lang: 'en-US', shot: snap, profile: (localStorage.getItem('viasionProfile') || '') };
+                const body = { prompt: 'You are a concise basketball shooting coach. Using only these metrics, give 1-3 specific release cues (no fluff). Metrics: ' + JSON.stringify(snap), model: (window.visaion && window.visaion.model) || 'gpt-4o-mini', lang: 'en-US', shot: snap, profile: (localStorage.getItem('visaionProfile') || '') };
                 const r = await fetch('/api/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                const j = await r.json(); out.appendChild(log(JSON.stringify(j, null, 2))); if (j?.text) (window.viasionSpeak || window.coachSpeak || console.log)(j.text);
+                const j = await r.json(); out.appendChild(log(JSON.stringify(j, null, 2))); if (j?.text) (window.visaionSpeak || window.coachSpeak || console.log)(j.text);
             } catch (e) { out.appendChild(log('AI test error: ' + (e.message || e))); }
         });
-        const traceBtn = mk('Toggle Trace', () => { window.viasion_RELEASE_TRACE = !window.viasion_RELEASE_TRACE; out.appendChild(log('Trace: ' + window.viasion_RELEASE_TRACE)); });
+        const traceBtn = mk('Toggle Trace', () => { window.visaion_RELEASE_TRACE = !window.visaion_RELEASE_TRACE; out.appendChild(log('Trace: ' + window.visaion_RELEASE_TRACE)); });
         const startObs = mk('Start Observe', () => { try { window.startObserverStreaming?.(2); out.appendChild(log('Observe start')); } catch (e) { out.appendChild(log('Observe start error: ' + (e.message || e))); } });
         const stopObs = mk('Stop Observe', () => { try { window.stopObserverStreaming?.(); out.appendChild(log('Observe stop')); } catch (e) { out.appendChild(log('Observe stop error: ' + (e.message || e))); } });
 
@@ -567,7 +567,7 @@
         } catch { }
         if (!vidList.length) {
             try {
-                const loc = JSON.parse(localStorage.getItem('viasionVideos') || '[]');
+                const loc = JSON.parse(localStorage.getItem('visaionVideos') || '[]');
                 if (Array.isArray(loc)) vidList = loc;
             } catch { }
         }
@@ -586,22 +586,22 @@
         }
 
         // render recent list
-        const list = el('div', { class: 'viasion-list' },
+        const list = el('div', { class: 'visaion-list' },
             ...(vidList.length ? vidList.map(v =>
-                el('div', { class: 'viasion-list-item' },
+                el('div', { class: 'visaion-list-item' },
                     el('div', {}, v.name || v.filename || 'Untitled'),
                     el('div', {},
-                        el('button', { class: 'viasion-btn ghost', onclick: () => loadViaURL(v.url || v.path) }, 'Use URL')
+                        el('button', { class: 'visaion-btn ghost', onclick: () => loadViaURL(v.url || v.path) }, 'Use URL')
                     )
                 )
-            ) : [el('div', { class: 'viasion-list-item' }, 'No saved videos yet')])
+            ) : [el('div', { class: 'visaion-list-item' }, 'No saved videos yet')])
         );
 
         body.append(
-            el('div', { class: 'viasion-field' }, el('label', {}, 'Recent'), list),
+            el('div', { class: 'visaion-field' }, el('label', {}, 'Recent'), list),
             el('div', { style: { height: '10px' } }),
-            el('div', { class: 'viasion-actions' },
-                el('button', { class: 'viasion-btn', onclick: triggerFilePicker }, 'Upload / Load New')
+            el('div', { class: 'visaion-actions' },
+                el('button', { class: 'visaion-btn', onclick: triggerFilePicker }, 'Upload / Load New')
             )
         );
 
@@ -609,8 +609,8 @@
         const sourceRow = document.createElement('div');
         sourceRow.style.cssText = 'display:flex; gap:8px; align-items:center; margin:10px 0;';
         sourceRow.innerHTML = `
-    <button id="contentUseCamBtn" class="viasion-btn">Use camera</button>
-    <button id="contentStopCamBtn" class="viasion-btn">Stop camera</button>
+    <button id="contentUseCamBtn" class="visaion-btn">Use camera</button>
+    <button id="contentStopCamBtn" class="visaion-btn">Stop camera</button>
     <span id="contentCamHint" style="margin-left:8px; opacity:.8;"></span>
   `;
         body.append(sourceRow); // ✅ append to body (setBody won't wipe it)
@@ -665,7 +665,7 @@
 
 
 
-    function field(label, input) { return el('div', { class: 'viasion-field' }, el('label', {}, label), input); }
+    function field(label, input) { return el('div', { class: 'visaion-field' }, el('label', {}, label), input); }
 
 
 
@@ -912,7 +912,7 @@
                     target.append(el('div', { style: { font: '500 12px system-ui' } }, 'Enter your birthdate to be ranked in the right age group.'));
                     const dobInput = el('input', { type: 'date', value: selectedStatus.dob || '', style: inputStyle });
                     const actions = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } });
-                    const registerBtn = el('button', { class: 'viasion-btn' }, 'Sign Up');
+                    const registerBtn = el('button', { class: 'visaion-btn' }, 'Sign Up');
                     registerBtn.addEventListener('click', async () => {
                         registerBtn.disabled = true;
                         try {
@@ -942,7 +942,7 @@
                     if (selectedStatus.registered_at) target.append(el('div', { style: { font: '500 12px system-ui', opacity: '.65' } }, 'Joined: ' + fmtDate(selectedStatus.registered_at)));
                     const row = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' } });
                     const dobInput = el('input', { type: 'date', value: selectedStatus.dob || '', style: inputStyle });
-                    const updateBtn = el('button', { class: 'viasion-btn ghost' }, 'Update DOB');
+                    const updateBtn = el('button', { class: 'visaion-btn ghost' }, 'Update DOB');
                     updateBtn.addEventListener('click', async () => {
                         updateBtn.disabled = true;
                         try {
@@ -968,7 +968,7 @@
                     target.append(row);
                     const quickCtx = { slug: state.selectedSlug, event, status: selectedStatus };
                     const quickWrap = el('div', { style: { marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' } });
-                    const quickBtn = el('button', { class: 'viasion-btn' }, '');
+                    const quickBtn = el('button', { class: 'visaion-btn' }, '');
                     const quickAction = configureChallengeButton(quickBtn, quickCtx, () => {
                         setTimeout(() => refreshStatus(true), 300);
                     });
@@ -1035,7 +1035,7 @@
 
                 const dailyCtx = { slug: state.selectedSlug, event, status: selectedStatus };
                 const dailyWrap = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } });
-                const dailyBtn = el('button', { class: 'viasion-btn' }, '');
+                const dailyBtn = el('button', { class: 'visaion-btn' }, '');
                 const dailyAction = configureChallengeButton(dailyBtn, dailyCtx, () => { setTimeout(() => refreshStatus(true), 300); });
                 if (dailyAction.visible) {
                     dailyWrap.append(dailyBtn);
@@ -1071,9 +1071,9 @@
             cardsWrap.append(registrationCard, dailyCard, myRankCard);
 
             content.append(
-                el('div', { class: 'viasion-field' }, el('label', {}, 'Event'), eventSel),
-                el('div', { class: 'viasion-field' }, el('label', {}, 'Category'), catSel),
-                el('div', { class: 'viasion-field' }, el('label', {}, 'Age Group'), ageSel),
+                el('div', { class: 'visaion-field' }, el('label', {}, 'Event'), eventSel),
+                el('div', { class: 'visaion-field' }, el('label', {}, 'Category'), catSel),
+                el('div', { class: 'visaion-field' }, el('label', {}, 'Age Group'), ageSel),
                 el('div', { style: { font: '500 12px system-ui', opacity: '.75' } }, infoLines.join(' · ')),
                 descEl,
                 cardsWrap,
@@ -1227,9 +1227,9 @@
         }
     }
 
-    async function openMyviasionPanel() {
-        const panel = (openMyviasionPanel.panel ||= makeSidePanel('My Trainer'));
-        const prefs = (window.viasionGetPrefs?.() || { voice: 'alloy', tts: 'openai', speed: 1, pitch: 1, volume: 1, bassDb: 0, trebleDb: 0, lang: 'en-US' });
+    async function openMyvisaionPanel() {
+        const panel = (openMyvisaionPanel.panel ||= makeSidePanel('My Trainer'));
+        const prefs = (window.visaionGetPrefs?.() || { voice: 'alloy', tts: 'openai', speed: 1, pitch: 1, volume: 1, bassDb: 0, trebleDb: 0, lang: 'en-US' });
         const body = el('div');
         const normalizeEngine = (value) => {
             if (!value) return 'openai';
@@ -1254,9 +1254,9 @@
             ...ttsOptions.map(opt => el('option', { value: opt.value, selected: storedEngine === opt.value }, opt.label))
         );
         const voiceInp = el('input', { type: 'text', value: (prefs.voice || 'alloy') });
-        const speed = el('input', { type: 'range', class: 'viasion-range', min: '0.5', max: '1.5', step: '0.05', value: prefs.speed ?? 1 });
-        const pitch = el('input', { type: 'range', class: 'viasion-range', min: '0.5', max: '2.0', step: '0.05', value: prefs.pitch ?? 1 });
-        const volume = el('input', { type: 'range', class: 'viasion-range', min: '0', max: '1.0', step: '0.05', value: prefs.volume ?? 1 });
+        const speed = el('input', { type: 'range', class: 'visaion-range', min: '0.5', max: '1.5', step: '0.05', value: prefs.speed ?? 1 });
+        const pitch = el('input', { type: 'range', class: 'visaion-range', min: '0.5', max: '2.0', step: '0.05', value: prefs.pitch ?? 1 });
+        const volume = el('input', { type: 'range', class: 'visaion-range', min: '0', max: '1.0', step: '0.05', value: prefs.volume ?? 1 });
         const bassDb = el('input', { type: 'number', value: prefs.bassDb ?? 0, step: '1' });
         const trebDb = el('input', { type: 'number', value: prefs.trebleDb ?? 0, step: '1' });
         const langSel = el('input', { type: 'text', value: prefs.lang || 'en-US' });
@@ -1265,14 +1265,14 @@
         const nameInp = el('input', { type: 'text', placeholder: 'Preset name' });
         async function refreshPresets() {
             presetSel.innerHTML = '';
-            const presets = (await window.viasionLoadPresets?.()) || [];
+            const presets = (await window.visaionLoadPresets?.()) || [];
             presetSel.append(...[el('option', { value: '' }, '— Select preset —'), ...presets.map(p => el('option', { value: p.name }, p.name))]);
         }
         await refreshPresets();
 
         presetSel.addEventListener('change', async () => {
             if (!presetSel.value) return;
-            const presets = (await window.viasionLoadPresets?.()) || [];
+            const presets = (await window.visaionLoadPresets?.()) || [];
             const p = presets.find(x => x.name === presetSel.value);
             if (!p) return;
             const engineFromPreset = normalizeEngine(p.tts || prefs.tts);
@@ -1290,16 +1290,16 @@
             langSel.value = p.lang || 'en-US';
         });
 
-        const rowEq = el('div', { class: 'viasion-row' },
+        const rowEq = el('div', { class: 'visaion-row' },
             el('div', { class: 'col' }, field('Bass dB', bassDb)),
             el('div', { class: 'col' }, field('Treble dB', trebDb))
         );
 
-        const actions = el('div', { class: 'viasion-actions' },
-            el('button', { class: 'viasion-btn', onclick: applyNow }, 'Apply to Session'),
-            el('button', { class: 'viasion-btn ghost', onclick: testVoice }, 'Test Voice'),
-            el('button', { class: 'viasion-btn', onclick: savePreset }, 'Save as Preset'),
-            el('button', { class: 'viasion-btn ghost', onclick: refreshPresets }, 'Reload Presets')
+        const actions = el('div', { class: 'visaion-actions' },
+            el('button', { class: 'visaion-btn', onclick: applyNow }, 'Apply to Session'),
+            el('button', { class: 'visaion-btn ghost', onclick: testVoice }, 'Test Voice'),
+            el('button', { class: 'visaion-btn', onclick: savePreset }, 'Save as Preset'),
+            el('button', { class: 'visaion-btn ghost', onclick: refreshPresets }, 'Reload Presets')
         );
 
         body.append(
@@ -1310,7 +1310,7 @@
             field('Pitch (Web TTS only)', pitch),
             field('Volume', volume),
             rowEq,
-            el('div', { class: 'viasion-field' }, el('label', {}, 'Presets'), el('div', { class: 'viasion-row' },
+            el('div', { class: 'visaion-field' }, el('label', {}, 'Presets'), el('div', { class: 'visaion-row' },
                 el('div', { class: 'col' }, presetSel),
                 el('div', { class: 'col' }, nameInp)
             )),
@@ -1342,7 +1342,7 @@
             try {
                 if (window.__coachMuted) {
                     window.__coachMuted = false;
-                    try { localStorage.setItem('viasion_muted', 'false'); } catch { }
+                    try { localStorage.setItem('visaion_muted', 'false'); } catch { }
                 }
             } catch { }
 
@@ -1358,18 +1358,18 @@
             try { await window.CoachAudio?.unlock?.(); } catch { }
 
             try {
-                if (typeof window.viasionSpeak === 'function') {
-                    await window.viasionSpeak(line);
+                if (typeof window.visaionSpeak === 'function') {
+                    await window.visaionSpeak(line);
                 }
             } catch { }
         }
 
         async function applyNow() {
             const p = readUI();
-            window.viasionSetPrefs?.({ ...p, audioOn: true });
+            window.visaionSetPrefs?.({ ...p, audioOn: true });
             try {
                 const engine = normalizeEngine(p.tts);
-                localStorage.setItem('viasion_muted', 'false');
+                localStorage.setItem('visaion_muted', 'false');
                 window.__coachMuted = false;
                 p.tts = engine;
                 localStorage.setItem('tts_engine', engine);
@@ -1385,14 +1385,14 @@
                     tts: p.tts,
                     lang: p.lang
                 };
-                localStorage.setItem('viasion_tts', JSON.stringify(prefs));
-                localStorage.setItem('viasion_voice_provider', prefs.provider);
-                localStorage.setItem('viasion_voice', prefs.voice);
+                localStorage.setItem('visaion_tts', JSON.stringify(prefs));
+                localStorage.setItem('visaion_voice_provider', prefs.provider);
+                localStorage.setItem('visaion_voice', prefs.voice);
             } catch { }
             if (window.PREF_ALLOW_MIC === true) {
                 const ua = (navigator.userAgent || '').toLowerCase();
-                if (/android/.test(ua) && window.viasion_ENABLE_ANDROID_SR !== true) {
-                    console.warn('[viasion Voice] Voice enable skipped on Android');
+                if (/android/.test(ua) && window.visaion_ENABLE_ANDROID_SR !== true) {
+                    console.warn('[visaion Voice] Voice enable skipped on Android');
                 } else {
                     try { await window.ensureMicPrimed?.(); } catch { }
                     try { window.__startCoachVoiceRecognition?.(); } catch { }
@@ -1403,10 +1403,10 @@
         }
         async function testVoice() {
             const p = readUI();
-            window.viasionSetPrefs?.({ ...p, audioOn: true });
+            window.visaionSetPrefs?.({ ...p, audioOn: true });
             try {
                 const engine = normalizeEngine(p.tts);
-                localStorage.setItem('viasion_muted', 'false');
+                localStorage.setItem('visaion_muted', 'false');
                 window.__coachMuted = false;
                 p.tts = engine;
                 localStorage.setItem('tts_engine', engine);
@@ -1422,26 +1422,26 @@
                     tts: p.tts,
                     lang: p.lang
                 };
-                localStorage.setItem('viasion_tts', JSON.stringify(prefs));
-                localStorage.setItem('viasion_voice_provider', prefs.provider);
-                localStorage.setItem('viasion_voice', prefs.voice);
+                localStorage.setItem('visaion_tts', JSON.stringify(prefs));
+                localStorage.setItem('visaion_voice_provider', prefs.provider);
+                localStorage.setItem('visaion_voice', prefs.voice);
             } catch { }
             if (window.PREF_ALLOW_MIC === true) {
                 const ua = (navigator.userAgent || '').toLowerCase();
-                if (/android/.test(ua) && window.viasion_ENABLE_ANDROID_SR !== true) {
-                    console.warn('[viasion Voice] Voice test skipped on Android');
+                if (/android/.test(ua) && window.visaion_ENABLE_ANDROID_SR !== true) {
+                    console.warn('[visaion Voice] Voice test skipped on Android');
                 } else {
                     try { await window.ensureMicPrimed?.(); } catch { }
                     try { window.__startCoachVoiceRecognition?.(); } catch { }
                     try { window.dispatchEvent(new CustomEvent('coach:voice-rec-start', { detail: { via: 'prefs-test' } })); } catch { }
                 }
             }
-            await speakWithUnlock("This is your viasion voice.");
+            await speakWithUnlock("This is your visaion voice.");
         }
         async function savePreset() {
             const name = (nameInp.value || '').trim();
             if (!name) { alert('Enter a preset name'); return; }
-            const ok = await window.viasionSavePreset?.({ name, ...readUI() });
+            const ok = await window.visaionSavePreset?.({ name, ...readUI() });
             if (ok) { nameInp.value = ''; await refreshPresets(); alert('Preset saved.'); }
         }
     }
@@ -1456,41 +1456,41 @@
         status.style.opacity = '0.9';
 
         const nameRow = document.createElement('div');
-        nameRow.className = 'viasion-field';
+        nameRow.className = 'visaion-field';
         const nameLab = document.createElement('label'); nameLab.textContent = 'Name (for account creation)';
         const nameInp = document.createElement('input'); nameInp.type = 'text'; nameInp.placeholder = 'Jane Doe'; nameInp.autocomplete = 'name';
         nameRow.append(nameLab, nameInp);
 
         const emailRow = document.createElement('div');
-        emailRow.className = 'viasion-field';
+        emailRow.className = 'visaion-field';
         const emailLab = document.createElement('label'); emailLab.textContent = 'Email';
         const emailInp = document.createElement('input'); emailInp.type = 'text'; emailInp.placeholder = 'you@example.com'; emailInp.autocomplete = 'email';
         emailRow.append(emailLab, emailInp);
 
         const pwRow = document.createElement('div');
-        pwRow.className = 'viasion-field';
+        pwRow.className = 'visaion-field';
         const pwLab = document.createElement('label'); pwLab.textContent = 'Password';
         const pwInp = document.createElement('input'); pwInp.type = 'password'; pwInp.placeholder = '••••••••'; pwInp.autocomplete = 'current-password';
         pwRow.append(pwLab, pwInp);
 
-        const actions = document.createElement('div'); actions.className = 'viasion-actions';
-        const btnLogin = document.createElement('button'); btnLogin.className = 'viasion-btn'; btnLogin.textContent = 'Login';
-        const btnCreate = document.createElement('button'); btnCreate.className = 'viasion-btn ghost'; btnCreate.textContent = 'Create Account';
-        const btnLogout = document.createElement('button'); btnLogout.className = 'viasion-btn ghost'; btnLogout.textContent = 'Logout'; btnLogout.style.display = 'none';
-        const btnProfile = document.createElement('button'); btnProfile.className = 'viasion-btn ghost'; btnProfile.textContent = 'Edit Profile';
-        const btnSessions = document.createElement('button'); btnSessions.className = 'viasion-btn'; btnSessions.textContent = 'My Sessions';
+        const actions = document.createElement('div'); actions.className = 'visaion-actions';
+        const btnLogin = document.createElement('button'); btnLogin.className = 'visaion-btn'; btnLogin.textContent = 'Login';
+        const btnCreate = document.createElement('button'); btnCreate.className = 'visaion-btn ghost'; btnCreate.textContent = 'Create Account';
+        const btnLogout = document.createElement('button'); btnLogout.className = 'visaion-btn ghost'; btnLogout.textContent = 'Logout'; btnLogout.style.display = 'none';
+        const btnProfile = document.createElement('button'); btnProfile.className = 'visaion-btn ghost'; btnProfile.textContent = 'Edit Profile';
+        const btnSessions = document.createElement('button'); btnSessions.className = 'visaion-btn'; btnSessions.textContent = 'My Sessions';
         actions.append(btnLogin, btnCreate, btnLogout, btnProfile, btnSessions);
 
-        const faceSection = document.createElement('div'); faceSection.className = 'viasion-face-lock'; faceSection.style.marginTop = '18px'; faceSection.style.borderTop = '1px solid rgba(255,255,255,0.06)'; faceSection.style.paddingTop = '12px';
+        const faceSection = document.createElement('div'); faceSection.className = 'visaion-face-lock'; faceSection.style.marginTop = '18px'; faceSection.style.borderTop = '1px solid rgba(255,255,255,0.06)'; faceSection.style.paddingTop = '12px';
         const faceHeader = document.createElement('div'); faceHeader.textContent = 'Face Lock'; faceHeader.style.cssText = 'font:600 13px system-ui; letter-spacing:.02em; opacity:.88; margin-bottom:6px;';
-        const faceStatus = document.createElement('div'); faceStatus.className = 'viasion-face-status'; faceStatus.style.cssText = 'font:500 12px system-ui; opacity:.8; margin-bottom:10px;'; faceStatus.textContent = 'Checking device support...';
+        const faceStatus = document.createElement('div'); faceStatus.className = 'visaion-face-status'; faceStatus.style.cssText = 'font:500 12px system-ui; opacity:.8; margin-bottom:10px;'; faceStatus.textContent = 'Checking device support...';
 
-        const consentRow = document.createElement('div'); consentRow.className = 'viasion-field';
+        const consentRow = document.createElement('div'); consentRow.className = 'visaion-field';
         const consentLab = document.createElement('label'); consentLab.textContent = 'Enable face lock';
         const consentToggle = document.createElement('input'); consentToggle.type = 'checkbox'; consentToggle.disabled = true;
         consentRow.append(consentLab, consentToggle);
 
-        const strategyRow = document.createElement('div'); strategyRow.className = 'viasion-field';
+        const strategyRow = document.createElement('div'); strategyRow.className = 'visaion-field';
         const strategyLab = document.createElement('label'); strategyLab.textContent = 'Enrollment mode';
         const strategySel = document.createElement('select');
         [['server', 'Server (recommended)'], ['client', 'Client only']].forEach(([v, t]) => {
@@ -1498,9 +1498,9 @@
         });
         strategyRow.append(strategyLab, strategySel);
 
-        const faceActions = document.createElement('div'); faceActions.className = 'viasion-actions';
-        const btnEnrollFace = document.createElement('button'); btnEnrollFace.className = 'viasion-btn'; btnEnrollFace.textContent = 'Enroll / Refresh';
-        const btnClearFace = document.createElement('button'); btnClearFace.className = 'viasion-btn ghost'; btnClearFace.textContent = 'Clear';
+        const faceActions = document.createElement('div'); faceActions.className = 'visaion-actions';
+        const btnEnrollFace = document.createElement('button'); btnEnrollFace.className = 'visaion-btn'; btnEnrollFace.textContent = 'Enroll / Refresh';
+        const btnClearFace = document.createElement('button'); btnClearFace.className = 'visaion-btn ghost'; btnClearFace.textContent = 'Clear';
         faceActions.append(btnEnrollFace, btnClearFace);
 
         const faceHelp = document.createElement('div'); faceHelp.style.cssText = 'font:500 11px system-ui; opacity:.65; margin-top:6px;'; faceHelp.textContent = 'Keeps pose + ball tracking focused on you. Needs 5-10 clear face crops.';
@@ -1657,7 +1657,7 @@
                 const mkBtn = (label, tone) => {
                     const b = document.createElement('button');
                     b.textContent = label;
-                    b.className = 'viasion-btn';
+                    b.className = 'visaion-btn';
                     if (tone === 'ghost') b.className += ' ghost';
                     if (tone === 'danger') {
                         b.style.background = 'rgba(220,60,60,0.9)';
@@ -1798,7 +1798,7 @@
             const label = applyUserProfile(profile) || '';
             const first = extractFirstName(label);
             const message = first ? `${prefix}, ${first}!` : `${prefix}!`;
-            try { sessionStorage.setItem('viasion_login_greeting', message); } catch { }
+            try { sessionStorage.setItem('visaion_login_greeting', message); } catch { }
             return message;
         }
         function goToSessions() {
@@ -1812,7 +1812,7 @@
                     stageLoginGreeting('Welcome back', u.user);
                     status.textContent = `Signed in as ${u.user.name || u.user.email}`;
                     // Remove staged greeting so we only greet when explicitly logging in
-                    try { sessionStorage.removeItem('viasion_login_greeting'); } catch { }
+                    try { sessionStorage.removeItem('visaion_login_greeting'); } catch { }
                     btnLogout.style.display = '';
                     nameRow.style.display = 'none';
                     markAuthState(true);
@@ -1853,7 +1853,7 @@
                 if (j?.profile_complete) {
                     setTimeout(goToSessions, 200);
                 } else {
-                    try { sessionStorage.setItem('viasion_setup_return', '/static/my_sessions.html'); } catch { }
+                    try { sessionStorage.setItem('visaion_setup_return', '/static/my_sessions.html'); } catch { }
                     window.location.href = '/static/user_setup.html';
                     return;
                 }
@@ -1862,7 +1862,7 @@
         btnCreate.onclick = async () => {
             try {
                 const j = await fetchJSON('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nameInp.value.trim(), email: emailInp.value.trim(), password: pwInp.value }) });
-                const message = stageLoginGreeting('Welcome to viasion', j.user || j);
+                const message = stageLoginGreeting('Welcome to visaion', j.user || j);
                 status.textContent = message;
                 btnLogout.style.display = '';
                 nameRow.style.display = 'none';
@@ -1875,7 +1875,7 @@
                 if (j?.profile_complete) {
                     setTimeout(goToSessions, 200);
                 } else {
-                    try { sessionStorage.setItem('viasion_setup_return', '/static/my_sessions.html'); } catch { }
+                    try { sessionStorage.setItem('visaion_setup_return', '/static/my_sessions.html'); } catch { }
                     window.location.href = '/static/user_setup.html';
                     return;
                 }
@@ -1893,7 +1893,7 @@
             markAuthState(false);
         };
         btnProfile.onclick = requireAuth(() => {
-            try { sessionStorage.setItem('viasion_setup_return', '/static/my_sessions.html'); } catch { }
+            try { sessionStorage.setItem('visaion_setup_return', '/static/my_sessions.html'); } catch { }
             window.location.href = '/static/user_setup.html';
         });
         btnSessions.onclick = requireAuth(() => window.open('/static/my_sessions.html', '_blank'));
@@ -1905,59 +1905,59 @@
 
     // ---------- Mount Menu ----------
     function mountHamburgerMenu() {
-        if (document.getElementById('viasion-menu-mounted')) return;
+        if (document.getElementById('visaion-menu-mounted')) return;
         const marker = document.createElement('meta');
-        marker.id = 'viasion-menu-mounted';
+        marker.id = 'visaion-menu-mounted';
         document.head.appendChild(marker);
 
-        const drawer = el('div', { class: 'viasion-drawer' },
+        const drawer = el('div', { class: 'visaion-drawer' },
             el('h3', {}, 'Menu'),
-            el('ul', { class: 'viasion-menu' },
+            el('ul', { class: 'visaion-menu' },
                 el('li', {}, el('button', {
-                    class: 'viasion-item',
+                    class: 'visaion-item',
                     onclick: requireAuth(() => {
                         try { window.location.href = '/static/my_sessions.html'; }
                         catch { window.open('/static/my_sessions.html', '_self'); }
                     })
                 }, 'My Sessions')),
                 el('li', {}, el('button', {
-                    class: 'viasion-item',
+                    class: 'visaion-item',
                     onclick: requireAuth(() => {
                         try { window.location.href = '/static/subscriptions.html'; }
                         catch { window.open('/static/subscriptions.html', '_self'); }
                     })
                 }, 'Subscriptions')),
                 el('li', {}, el('button', {
-                    class: 'viasion-item',
+                    class: 'visaion-item',
                     onclick: () => {
                         try { window.location.href = '/static/community.html'; }
                         catch { window.open('/static/community.html', '_self'); }
                     }
                 }, 'Community')),
                 el('li', {}, el('button', {
-                    class: 'viasion-item',
+                    class: 'visaion-item',
                     onclick: requireAuth(() => {
                         try { window.location.href = '/static/challenges.html'; }
                         catch { window.open('/static/challenges.html', '_self'); }
                     })
                 }, 'Challenges')),
-                el('li', {}, el('button', { class: 'viasion-item', onclick: requireAuth(() => openMyviasionPanel()) }, 'My Trainer')),
+                el('li', {}, el('button', { class: 'visaion-item', onclick: requireAuth(() => openMyvisaionPanel()) }, 'My Trainer')),
                 el('li', {}, el('button', {
-                    class: 'viasion-item',
+                    class: 'visaion-item',
                     onclick: requireAuth(() => window.openPreferencesPanel?.())
                 }, 'Preferences')),
-                el('li', {}, el('button', { class: 'viasion-item', onclick: openAuthPanel }, 'Login / Account'))
+                el('li', {}, el('button', { class: 'visaion-item', onclick: openAuthPanel }, 'Login / Account'))
             )
         );
         document.body.appendChild(drawer);
         __drawer = drawer;
 
-        const btn = el('div', { class: 'viasion-hamburger', title: 'Menu (M)', onclick: toggle }, '☰');
+        const btn = el('div', { class: 'visaion-hamburger', title: 'Menu (M)', onclick: toggle }, '☰');
         document.body.appendChild(btn);
         window.addEventListener('keydown', (e) => { if ((e.key || '').toLowerCase() === 'm') toggle(); });
         function toggle() { drawer.classList.toggle('open'); }
 
-        const floater = el('button', { class: 'viasion-floating-myviasion', onclick: requireAuth(() => openMyviasionPanel()) }, 'My Trainer');
+        const floater = el('button', { class: 'visaion-floating-myvisaion', onclick: requireAuth(() => openMyvisaionPanel()) }, 'My Trainer');
         document.body.appendChild(floater);
 
         wireVideoAutoClose();
@@ -1978,11 +1978,11 @@
 
 
 // ---------- Preferences (pop-out) ----------
-function loadviasionPrefs() {
-    try { return JSON.parse(localStorage.getItem('viasion_prefs')) || {}; } catch { return {}; }
+function loadvisaionPrefs() {
+    try { return JSON.parse(localStorage.getItem('visaion_prefs')) || {}; } catch { return {}; }
 }
-function saveviasionPrefs(p) {
-    localStorage.setItem('viasion_prefs', JSON.stringify(p || {}));
+function savevisaionPrefs(p) {
+    localStorage.setItem('visaion_prefs', JSON.stringify(p || {}));
 }
 
 // ---------- Preferences (pop-out) :: DEMO-LEAN ----------
@@ -2016,11 +2016,11 @@ function getDefaults() {
     };
 }
 
-function loadviasionPrefs() {
-    try { return JSON.parse(localStorage.getItem('viasion_prefs')) || {}; } catch { return {}; }
+function loadvisaionPrefs() {
+    try { return JSON.parse(localStorage.getItem('visaion_prefs')) || {}; } catch { return {}; }
 }
-function saveviasionPrefs(p) {
-    localStorage.setItem('viasion_prefs', JSON.stringify(p || {}));
+function savevisaionPrefs(p) {
+    localStorage.setItem('visaion_prefs', JSON.stringify(p || {}));
 }
 
 // 2) Apply prefs to globals (ties SHOW_POSE_LINES + SHOW_RELEASE_GATE)
@@ -2045,7 +2045,7 @@ function applyPrefs(p) {
     window.PREF_FACE_LOCK = p.faceLock !== false;
     p.allowMic = !!window.PREF_ALLOW_MIC;
 
-    saveviasionPrefs(p);
+    savevisaionPrefs(p);
 
     // let overlays react immediately
     try { window.dispatchEvent(new CustomEvent('prefs:changed', { detail: { prefs: p } })); } catch { }
@@ -2061,19 +2061,19 @@ async function openPreferencesPanel() {
     const factory = window.__makeSidePanel || (title => {
         // tiny fallback panel if someone forgets to export makeSidePanel
         const wrap = document.createElement('div');
-        wrap.className = 'viasion-sidepanel open';
+        wrap.className = 'visaion-sidepanel open';
         wrap.style.cssText = 'position:fixed;top:0;right:0;bottom:0;width:420px;z-index:10045;background:rgba(14,14,18,.98);color:#fff;border-left:1px solid rgba(255,255,255,.12);';
         const head = document.createElement('div');
-        head.className = 'viasion-panel-head';
+        head.className = 'visaion-panel-head';
         head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.12);font:600 14px system-ui;';
         head.innerHTML = `<div>${title || 'Preferences'}</div>`;
         const close = document.createElement('button');
-        close.className = 'viasion-btn ghost';
+        close.className = 'visaion-btn ghost';
         close.textContent = 'Close';
         close.onclick = () => document.body.removeChild(wrap);
         head.appendChild(close);
         const body = document.createElement('div');
-        body.className = 'viasion-panel-body';
+        body.className = 'visaion-panel-body';
         body.style.cssText = 'padding:12px;overflow:auto;height:calc(100% - 48px);';
         wrap.append(head, body);
         document.body.appendChild(wrap);
@@ -2088,7 +2088,7 @@ async function openPreferencesPanel() {
     const body = document.createElement('div');
 
     const defs = getDefaults();
-    const saved = loadviasionPrefs();
+    const saved = loadvisaionPrefs();
     const prefs = {
         ...defs,
         ...saved,
@@ -2097,7 +2097,7 @@ async function openPreferencesPanel() {
 
     // simple helpers
     const field = (label, input) => {
-        const row = document.createElement('div'); row.className = 'viasion-field';
+        const row = document.createElement('div'); row.className = 'visaion-field';
         const lab = document.createElement('label'); lab.textContent = label;
         row.append(lab, input); return row;
     };
@@ -2111,9 +2111,9 @@ async function openPreferencesPanel() {
         return field(label, s);
     };
     const rng = (id, label, min, max, step, val, hint = '') => {
-        const wrap = document.createElement('div'); wrap.className = 'viasion-field';
+        const wrap = document.createElement('div'); wrap.className = 'visaion-field';
         const lab = document.createElement('label'); lab.textContent = label; if (hint) lab.title = hint;
-        const r = document.createElement('input'); r.type = 'range'; r.className = 'viasion-range';
+        const r = document.createElement('input'); r.type = 'range'; r.className = 'visaion-range';
         r.min = min; r.max = max; r.step = step; r.value = val;
         const out = document.createElement('output'); out.value = val; r.oninput = () => out.value = r.value;
         r.id = id; wrap.append(lab, r, out); return wrap;
@@ -2149,9 +2149,9 @@ async function openPreferencesPanel() {
     body.append(chk('pf_face_lock', 'Enable face lock', prefs.faceLock !== false));
 
     // Actions
-    const actions = document.createElement('div'); actions.className = 'viasion-actions';
-    const applyBtn = document.createElement('button'); applyBtn.className = 'viasion-btn'; applyBtn.textContent = 'Apply';
-    const resetBtn = document.createElement('button'); resetBtn.className = 'viasion-btn ghost'; resetBtn.textContent = 'Reset defaults';
+    const actions = document.createElement('div'); actions.className = 'visaion-actions';
+    const applyBtn = document.createElement('button'); applyBtn.className = 'visaion-btn'; applyBtn.textContent = 'Apply';
+    const resetBtn = document.createElement('button'); resetBtn.className = 'visaion-btn ghost'; resetBtn.textContent = 'Reset defaults';
     actions.append(applyBtn, resetBtn);
     body.append(actions);
 
@@ -2185,7 +2185,7 @@ async function openPreferencesPanel() {
     }
 
     applyBtn.onclick = () => { applyPrefs(readPrefsFromUI()); panel.openClose?.(); };
-    resetBtn.onclick = () => { const d = getDefaults(); saveviasionPrefs(d); applyPrefs(d); panel.openClose?.(); };
+    resetBtn.onclick = () => { const d = getDefaults(); savevisaionPrefs(d); applyPrefs(d); panel.openClose?.(); };
 
     panel.setBody(body);
     panel.open();

@@ -1782,15 +1782,15 @@
             function consumeLoginGreeting() {
                 let message = null;
                 try {
-                    message = sessionStorage.getItem('viasion_login_greeting');
-                    if (message) sessionStorage.removeItem('viasion_login_greeting');
+                    message = sessionStorage.getItem('visaion_login_greeting');
+                    if (message) sessionStorage.removeItem('visaion_login_greeting');
                 } catch (err) {
                     message = null;
                 }
                 if (!message) return;
                 showToast(message, 'success', 3600);
-                if (typeof window.viasionSpeak === 'function') {
-                    try { window.viasionSpeak(message); } catch { }
+                if (typeof window.visaionSpeak === 'function') {
+                    try { window.visaionSpeak(message); } catch { }
                 }
             }
 
@@ -1972,7 +1972,7 @@
 
                     shot?.notes,
 
-                    shot?.viasion,
+                    shot?.visaion,
 
                     shot?.summary?.coach,
 
@@ -3141,10 +3141,10 @@
                 }
                 try {
                     if (typeof sessionStorage !== 'undefined') {
-                        sessionStorage.setItem('viasion.activePlanId', planId);
-                        if (plan.name) sessionStorage.setItem('viasion.activePlanName', plan.name);
-                        if (projectSlug) sessionStorage.setItem('viasion.activeProject', projectSlug);
-                        if (datasetSlug) sessionStorage.setItem('viasion.activeDataset', datasetSlug);
+                        sessionStorage.setItem('visaion.activePlanId', planId);
+                        if (plan.name) sessionStorage.setItem('visaion.activePlanName', plan.name);
+                        if (projectSlug) sessionStorage.setItem('visaion.activeProject', projectSlug);
+                        if (datasetSlug) sessionStorage.setItem('visaion.activeDataset', datasetSlug);
                     }
                 } catch { /* ignore storage errors */ }
                 const params = new URLSearchParams();
@@ -3887,7 +3887,7 @@
 
                 });
 
-                downloadCSV('viasion_sessions.csv', rows);
+                downloadCSV('visaion_sessions.csv', rows);
 
             }
 
@@ -4141,7 +4141,7 @@
 
                 const openSupportWidget = () => {
 
-                    if (window.__viasion_SUPPORT_WIDGET_READY) {
+                    if (window.__visaion_SUPPORT_WIDGET_READY) {
 
                         window.openSupportPanel?.();
 
@@ -4164,11 +4164,11 @@
                 if (supportSecondaryBtn) supportSecondaryBtn.onclick = openSupportWidget;
 
                 try {
-                    const SUPPORT_PROMPT_KEY = 'viasion.supportPrompt.v1';
+                    const SUPPORT_PROMPT_KEY = 'visaion.supportPrompt.v1';
                     if (!localStorage.getItem(SUPPORT_PROMPT_KEY)) {
                         setTimeout(() => {
                             openSupportWidget();
-                            window.showToast?.('Need a hand? Ask VIᵃSION anything in Help & Support.', 'success', 5200);
+                            window.showToast?.('Need a hand? Ask VISᵃION anything in Help & Support.', 'success', 5200);
                         }, 1600);
                         localStorage.setItem(SUPPORT_PROMPT_KEY, String(Date.now()));
                     }
@@ -4180,7 +4180,7 @@
                     if (ready) {
                         if (!voiceReadyNotified) {
                             voiceReadyNotified = true;
-                            window.showToast?.('Voice commands are ready. Say "Hey VIᵃSION" to ask for help.', 'success', 4200);
+                            window.showToast?.('Voice commands are ready. Say "Hey VISᵃION" to ask for help.', 'success', 4200);
                         }
                     } else if (voiceReadyNotified) {
                         voiceReadyNotified = false;
@@ -4263,7 +4263,7 @@
 
 
                 <p></p>
-                <h3>viasion Assessment</h3>
+                <h3>visaion Assessment</h3>
 
                 <strong id="assessmentMetric">-</strong>
 
@@ -4324,7 +4324,7 @@
 
             <article class="card assessment-card">
 
-                <h2 class="card-title">viasion Assessment</h2>
+                <h2 class="card-title">visaion Assessment</h2>
 
                 <p id="assessmentText">Record more shots to unlock your assessment.</p>
 
@@ -4332,7 +4332,7 @@
 
             <article class="recommend-card">
 
-                <strong>viasion Recommends</strong>
+                <strong>visaion Recommends</strong>
 
                 <p class="card-subtext" id="recommendationText">Your next drill recommendation will appear here.</p>
 
@@ -4369,7 +4369,7 @@
 
                 <h2 class="card-title">Open Support</h2>
 
-                <p class="card-subtext">Reach out to viasion support for coaching tips or troubleshooting.</p>
+                <p class="card-subtext">Reach out to visaion support for coaching tips or troubleshooting.</p>
 
                 <button class="btn" id="supportSecondaryBtn">Contact Support</button>
 

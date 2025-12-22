@@ -57,7 +57,7 @@ function niceTime(ts) {
 
 function getActiveSessionId() {
     try { if (window.__SESSION_ID) return window.__SESSION_ID; } catch { }
-    try { return sessionStorage.getItem('viasion_active_session') || null; } catch { }
+    try { return sessionStorage.getItem('visaion_active_session') || null; } catch { }
     return null;
 }
 
@@ -98,12 +98,12 @@ const feedbackStore = {
 };
 
 function saveLogs() {
-    try { localStorage.setItem('viasionFeedbackLogs', JSON.stringify(feedbackStore.logs)); } catch { }
+    try { localStorage.setItem('visaionFeedbackLogs', JSON.stringify(feedbackStore.logs)); } catch { }
 }
 
 function loadLogs() {
     try {
-        const raw = JSON.parse(localStorage.getItem('viasionFeedbackLogs') || '[]');
+        const raw = JSON.parse(localStorage.getItem('visaionFeedbackLogs') || '[]');
         if (Array.isArray(raw)) feedbackStore.logs = raw;
     } catch { feedbackStore.logs = []; }
 }
@@ -178,18 +178,18 @@ let panel,
     fabButton;
 
 function ensureSupportCSS() {
-    if (document.getElementById('viasion-support-css')) return;
+    if (document.getElementById('visaion-support-css')) return;
     const css = document.createElement('style');
-    css.id = 'viasion-support-css';
+    css.id = 'visaion-support-css';
     css.textContent = `
-  .viasion-fb-fab {
+  .visaion-fb-fab {
     position: fixed; right: 16px; bottom: 16px; z-index: 10060;
     width: 48px; height: 48px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     background: #2d6cff; color: #fff; font-size: 20px;
     border: 0; cursor: pointer; box-shadow: 0 12px 28px rgba(0,0,0,.35);
   }
-  .viasion-fb-panel {
+  .visaion-fb-panel {
     position: fixed; right: 0; top: 0; bottom: 0; width: 460px;
     background: rgba(15,16,22,.96); color: #fff; z-index: 10055;
     transform: translateX(110%); transition: transform .22s ease;
@@ -197,79 +197,79 @@ function ensureSupportCSS() {
     box-shadow: -10px 0 24px rgba(0,0,0,.45);
     display: flex; flex-direction: column;
   }
-  .viasion-fb-panel.open { transform: translateX(0); }
-  .viasion-fb-fab.hidden { opacity: 0; pointer-events: none; transform: scale(0.92); }
-  .viasion-fb-head {
+  .visaion-fb-panel.open { transform: translateX(0); }
+  .visaion-fb-fab.hidden { opacity: 0; pointer-events: none; transform: scale(0.92); }
+  .visaion-fb-head {
     padding: 12px 16px; display: flex; align-items: center; justify-content: space-between;
     border-bottom: 1px solid rgba(255,255,255,.08);
   }
-  .viasion-fb-title { font: 600 16px/1 system-ui, -apple-system, Segoe UI, sans-serif; }
-  .viasion-fb-tabs {
+  .visaion-fb-title { font: 600 16px/1 system-ui, -apple-system, Segoe UI, sans-serif; }
+  .visaion-fb-tabs {
     display: flex; padding: 6px 14px; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.08);
   }
-  .viasion-fb-tab {
+  .visaion-fb-tab {
     border: 0; background: rgba(255,255,255,.08); color: #fff;
     padding: 6px 12px; border-radius: 999px; font: 600 13px system-ui;
     cursor: pointer; transition: background .15s;
   }
-  .viasion-fb-tab.active { background: #2d6cff; }
-  .viasion-fb-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-  .viasion-support-view, .viasion-logs-view { flex: 1; display: none; overflow: hidden; }
-  .viasion-support-view.active, .viasion-logs-view.active { display: flex; flex-direction: column; }
-  .viasion-support-thread {
+  .visaion-fb-tab.active { background: #2d6cff; }
+  .visaion-fb-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  .visaion-support-view, .visaion-logs-view { flex: 1; display: none; overflow: hidden; }
+  .visaion-support-view.active, .visaion-logs-view.active { display: flex; flex-direction: column; }
+  .visaion-support-thread {
     flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px;
   }
-  .viasion-support-msg {
+  .visaion-support-msg {
     max-width: 92%; padding: 10px 14px; border-radius: 14px; font: 14px/1.5 system-ui;
     background: rgba(255,255,255,.08); position: relative; word-break: break-word;
   }
-  .viasion-support-msg.user { margin-left: auto; background: #2d6cff; color: #fff; }
-  .viasion-support-msg.viasion { background: rgba(26,28,34,.95); border: 1px solid rgba(255,255,255,.08); }
-  .viasion-support-msg .meta {
+  .visaion-support-msg.user { margin-left: auto; background: #2d6cff; color: #fff; }
+  .visaion-support-msg.visaion { background: rgba(26,28,34,.95); border: 1px solid rgba(255,255,255,.08); }
+  .visaion-support-msg .meta {
     display: block; margin-top: 6px; font: 11px/1 system-ui; opacity: .65;
   }
-  .viasion-support-quick {
+  .visaion-support-quick {
     padding: 10px 16px 0; display: flex; gap: 8px; flex-wrap: wrap;
   }
-  .viasion-support-chip {
+  .visaion-support-chip {
     background: rgba(255,255,255,.08); border: 0; color:#fff;
     border-radius: 999px; padding: 6px 12px; font: 600 12px system-ui;
     cursor: pointer; transition: background .15s;
   }
-  .viasion-support-chip:hover { background: rgba(255,255,255,.18); }
-  .viasion-support-input {
+  .visaion-support-chip:hover { background: rgba(255,255,255,.18); }
+  .visaion-support-input {
     padding: 12px 16px; border-top: 1px solid rgba(255,255,255,.08);
     display: flex; flex-direction: column; gap: 8px;
   }
-  .viasion-support-input textarea {
+  .visaion-support-input textarea {
     width: 100%; min-height: 72px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12);
     background: rgba(12,13,18,.92); color: #fff; padding: 10px 12px; resize: vertical;
     font: 14px/1.4 system-ui;
   }
-  .viasion-support-actions {
+  .visaion-support-actions {
     display: flex; gap: 8px; justify-content: space-between; align-items: center;
   }
-  .viasion-support-actions .left {
+  .visaion-support-actions .left {
     display: flex; align-items: center; gap: 10px; font: 12px system-ui;
     color: rgba(255,255,255,.65);
   }
-  .viasion-support-send {
+  .visaion-support-send {
     background: #2d6cff; color: #fff; border: 0; padding: 8px 18px; border-radius: 999px;
     font: 600 14px system-ui; cursor: pointer; transition: opacity .15s;
   }
-  .viasion-support-send[disabled] { opacity: .6; cursor: progress; }
-  .viasion-support-status { font: 12px system-ui; color: rgba(255,255,255,.65); min-height: 16px; }
-  .viasion-logs-view { padding: 16px; gap: 12px; overflow: hidden; }
-  .viasion-logs-controls { display: flex; gap: 8px; align-items: center; }
-  .viasion-logs-box {
+  .visaion-support-send[disabled] { opacity: .6; cursor: progress; }
+  .visaion-support-status { font: 12px system-ui; color: rgba(255,255,255,.65); min-height: 16px; }
+  .visaion-logs-view { padding: 16px; gap: 12px; overflow: hidden; }
+  .visaion-logs-controls { display: flex; gap: 8px; align-items: center; }
+  .visaion-logs-box {
     flex: 1; overflow-y: auto; border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
     padding: 10px;
     background: rgba(12,13,18,.92); font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace;
   }
-  .viasion-log-row { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); white-space: pre-wrap; }
-  .viasion-log-row:last-child { border-bottom: 0; }
-  .viasion-checkbox { display:flex; align-items:center; gap:6px; cursor:pointer; }
-  .viasion-close-btn {
+  .visaion-log-row { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); white-space: pre-wrap; }
+  .visaion-log-row:last-child { border-bottom: 0; }
+  .visaion-checkbox { display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .visaion-close-btn {
     border: 0; background: rgba(255,255,255,.1); color: #fff; padding: 6px 10px; border-radius: 8px; cursor: pointer;
   }
   `;
@@ -282,33 +282,33 @@ function createPanel() {
     loadLogs();
     installGlobalLogCatcher();
 
-    panel = mk('div', { class: 'viasion-fb-panel', id: 'viasionSupportPanel' });
+    panel = mk('div', { class: 'visaion-fb-panel', id: 'visaionSupportPanel' });
 
-    const head = mk('div', { class: 'viasion-fb-head' },
-        mk('div', { class: 'viasion-fb-title' }, 'Help & Support'),
-        mk('button', { class: 'viasion-close-btn', onclick: closeSupportPanel }, 'Close')
+    const head = mk('div', { class: 'visaion-fb-head' },
+        mk('div', { class: 'visaion-fb-title' }, 'Help & Support'),
+        mk('button', { class: 'visaion-close-btn', onclick: closeSupportPanel }, 'Close')
     );
 
     tabs = {
-        support: mk('button', { class: 'viasion-fb-tab active', dataset: { tab: 'support' } }, 'Support'),
-        logs: mk('button', { class: 'viasion-fb-tab', dataset: { tab: 'logs' } }, 'Diagnostics'),
+        support: mk('button', { class: 'visaion-fb-tab active', dataset: { tab: 'support' } }, 'Support'),
+        logs: mk('button', { class: 'visaion-fb-tab', dataset: { tab: 'logs' } }, 'Diagnostics'),
     };
-    const tabRow = mk('div', { class: 'viasion-fb-tabs' }, tabs.support, tabs.logs);
+    const tabRow = mk('div', { class: 'visaion-fb-tabs' }, tabs.support, tabs.logs);
     tabs.support.addEventListener('click', () => showTab('support'));
     tabs.logs.addEventListener('click', () => showTab('logs'));
 
-    const body = mk('div', { class: 'viasion-fb-body' });
+    const body = mk('div', { class: 'visaion-fb-body' });
 
     // Support view
-    const supportView = mk('div', { class: 'viasion-support-view active' });
-    threadBox = mk('div', { class: 'viasion-support-thread', id: 'viasionSupportThread' });
-    quickRow = mk('div', { class: 'viasion-support-quick' });
+    const supportView = mk('div', { class: 'visaion-support-view active' });
+    threadBox = mk('div', { class: 'visaion-support-thread', id: 'visaionSupportThread' });
+    quickRow = mk('div', { class: 'visaion-support-quick' });
     renderQuickActions();
 
-    supportStatus = mk('div', { class: 'viasion-support-status' });
+    supportStatus = mk('div', { class: 'visaion-support-status' });
 
-    supportInput = mk('textarea', { placeholder: "Tell viasion what's going on…" });
-    supportSendButton = mk('button', { class: 'viasion-support-send' }, 'Send');
+    supportInput = mk('textarea', { placeholder: "Tell visaion what's going on…" });
+    supportSendButton = mk('button', { class: 'visaion-support-send' }, 'Send');
     supportSendButton.addEventListener('click', handleSupportSend);
     supportInput.addEventListener('keydown', (ev) => {
         if (ev.key === 'Enter' && !ev.shiftKey) {
@@ -320,15 +320,15 @@ function createPanel() {
     includeLogsCheckbox = mk('input', { type: 'checkbox', checked: true });
     includeStateCheckbox = mk('input', { type: 'checkbox', checked: true });
 
-    const actionsRow = mk('div', { class: 'viasion-support-actions' },
+    const actionsRow = mk('div', { class: 'visaion-support-actions' },
         mk('div', { class: 'left' },
-            mk('label', { class: 'viasion-checkbox' }, includeLogsCheckbox, 'Attach recent diagnostics'),
-            mk('label', { class: 'viasion-checkbox' }, includeStateCheckbox, 'Attach session snapshot')
+            mk('label', { class: 'visaion-checkbox' }, includeLogsCheckbox, 'Attach recent diagnostics'),
+            mk('label', { class: 'visaion-checkbox' }, includeStateCheckbox, 'Attach session snapshot')
         ),
         supportSendButton
     );
 
-    const inputWrap = mk('div', { class: 'viasion-support-input' },
+    const inputWrap = mk('div', { class: 'visaion-support-input' },
         supportInput,
         actionsRow,
         supportStatus
@@ -337,12 +337,12 @@ function createPanel() {
     supportView.append(threadBox, quickRow, inputWrap);
 
     // Logs view
-    const logsView = mk('div', { class: 'viasion-logs-view' });
-    logsBox = mk('div', { class: 'viasion-logs-box' });
-    const logsControls = mk('div', { class: 'viasion-logs-controls' },
-        mk('button', { class: 'viasion-support-send', onclick: () => feedbackStore.clear() }, 'Clear log'),
+    const logsView = mk('div', { class: 'visaion-logs-view' });
+    logsBox = mk('div', { class: 'visaion-logs-box' });
+    const logsControls = mk('div', { class: 'visaion-logs-controls' },
+        mk('button', { class: 'visaion-support-send', onclick: () => feedbackStore.clear() }, 'Clear log'),
         mk('button', {
-            class: 'viasion-close-btn',
+            class: 'visaion-close-btn',
             onclick: () => navigator.clipboard?.writeText(logsBox.innerText || '').catch(() => { }),
         }, 'Copy')
     );
@@ -363,7 +363,7 @@ function renderQuickActions() {
     if (!quickRow) return;
     quickRow.innerHTML = '';
     SUPPORT_QUICK_ACTIONS.forEach((action) => {
-        const btn = mk('button', { class: 'viasion-support-chip' }, action.label);
+        const btn = mk('button', { class: 'visaion-support-chip' }, action.label);
         btn.addEventListener('click', () => {
             const text = typeof action.message === 'function' ? action.message() : action.message;
             if (action.autosend) {
@@ -379,8 +379,8 @@ function renderQuickActions() {
 }
 
 function showTab(tabName) {
-    const supportView = q('.viasion-support-view', panel);
-    const logsView = q('.viasion-logs-view', panel);
+    const supportView = q('.visaion-support-view', panel);
+    const logsView = q('.visaion-logs-view', panel);
     if (!supportView || !logsView) return;
 
     if (tabName === 'logs') {
@@ -403,13 +403,13 @@ function renderLogs() {
     logsBox.innerHTML = '';
     const rows = feedbackStore.logs.slice(-LOG_HISTORY_LIMIT);
     if (!rows.length) {
-        logsBox.append(mk('div', { class: 'viasion-log-row' }, 'No diagnostics captured yet.'));
+        logsBox.append(mk('div', { class: 'visaion-log-row' }, 'No diagnostics captured yet.'));
         return;
     }
     rows.forEach((row) => {
         const t = new Date(row.time).toLocaleTimeString();
         const body = `[${t}] ${row.type}: ${row.message || ''}${row.stack ? '\n' + row.stack : ''}`;
-        logsBox.append(mk('div', { class: 'viasion-log-row' }, body));
+        logsBox.append(mk('div', { class: 'visaion-log-row' }, body));
     });
 }
 
@@ -417,11 +417,11 @@ function renderSupportThread() {
     if (!threadBox) return;
     threadBox.innerHTML = '';
     if (supportState.loading) {
-        threadBox.append(mk('div', { class: 'viasion-support-msg viasion' }, 'Loading conversation…'));
+        threadBox.append(mk('div', { class: 'visaion-support-msg visaion' }, 'Loading conversation…'));
         return;
     }
     if (supportState.thread.length === 0) {
-        threadBox.append(mk('div', { class: 'viasion-support-msg viasion' }, 'Need a hand? Ask me anything about your session, setup, or account.'));
+        threadBox.append(mk('div', { class: 'visaion-support-msg visaion' }, 'Need a hand? Ask me anything about your session, setup, or account.'));
         return;
     }
     supportState.thread.sort((a, b) => {
@@ -431,7 +431,7 @@ function renderSupportThread() {
     });
     supportState.thread.forEach((msg) => {
         const role = (msg.role || '').toLowerCase();
-        const bubble = mk('div', { class: `viasion-support-msg ${role === 'user' ? 'user' : 'viasion'}` },
+        const bubble = mk('div', { class: `visaion-support-msg ${role === 'user' ? 'user' : 'visaion'}` },
             msg.message || '(no message)'
         );
         const metaParts = [];
@@ -520,7 +520,7 @@ async function handleSupportSend() {
                     snapshot: {
                         shots: (window.__shotList || []).slice(-12),
                         totals: (window.__shotList || []).length,
-                        prefs: window.viasionGetPrefs?.(),
+                        prefs: window.visaionGetPrefs?.(),
                     },
                 };
             } catch { }
@@ -558,12 +558,12 @@ async function handleSupportSend() {
 // --------------------------------------------------------------------------- //
 
 export function installFeedbackWidget() {
-    if (window.__viasion_SUPPORT_WIDGET_READY) return;
+    if (window.__visaion_SUPPORT_WIDGET_READY) return;
     const root = createPanel();
-    fabButton = mk('button', { class: 'viasion-fb-fab', title: 'Help & Support' }, '💬');
+    fabButton = mk('button', { class: 'visaion-fb-fab', title: 'Help & Support' }, '💬');
     fabButton.addEventListener('click', () => openSupportPanel());
     document.body.appendChild(fabButton);
-    window.__viasion_SUPPORT_WIDGET_READY = true;
+    window.__visaion_SUPPORT_WIDGET_READY = true;
 
     // attempt to hydrate history quietly in the background
     setTimeout(() => loadSupportHistory(), 1200);

@@ -346,7 +346,7 @@ function updateRelease(frame, pose, ballPt, hoopBox) {
 
     const gate = (_state.relPoseStreak >= CFG.REL_POSE_STREAK() && upward && nearH && inLane) || likely;
     if (gate) {
-        if (window.viasion_SHOT_DEBUG) {
+        if (window.visaion_SHOT_DEBUG) {
             console.log('[shot_arc] gate OK', {
                 frame, streak: _state.relPoseStreak, upward, nearH, inLane,
                 delay: _state.relDelay, wantDelay: CFG.RELEASE_DELAY_FRAMES()
@@ -356,7 +356,7 @@ function updateRelease(frame, pose, ballPt, hoopBox) {
         if (_state.relDelay >= CFG.RELEASE_DELAY_FRAMES()) {
             // Canonical latch via central helper
             try { if (typeof window.safeEmitRelease === 'function') window.safeEmitRelease(frame, 'shot_arc'); } catch { }
-            if (window.viasion_SHOT_DEBUG) {
+            if (window.visaion_SHOT_DEBUG) {
                 console.log('[shot_arc] RELEASE LATCHED', { frame, via: 'shot_arc' });
             }
             _state.relLatched = true;
@@ -371,7 +371,7 @@ function updateRelease(frame, pose, ballPt, hoopBox) {
             const enter = (window.ballState?.proxEnterFrame ?? null);
             if (!poseOK && inProx && Number.isFinite(enter) && (frame - enter) <= 2) {
                 try { if (typeof window.safeEmitRelease === 'function') window.safeEmitRelease(frame, 'prox-fallback'); } catch { }
-                if (window.viasion_SHOT_DEBUG) console.log('[shot_arc] RELEASE LATCHED (prox-fallback)', { frame });
+                if (window.visaion_SHOT_DEBUG) console.log('[shot_arc] RELEASE LATCHED (prox-fallback)', { frame });
                 _state.relLatched = true;
                 return true;
             }
@@ -388,7 +388,7 @@ function updateRelease(frame, pose, ballPt, hoopBox) {
                 const nearRimBand = c.y <= (H.rimTop + Math.max(36, H.h * 0.6));
                 if (!poseOK && up && laneX && nearRimBand) {
                     try { if (typeof window.safeEmitRelease === 'function') window.safeEmitRelease(frame, 'slope-fallback'); } catch { }
-                    if (window.viasion_SHOT_DEBUG) console.log('[shot_arc] RELEASE LATCHED (slope-fallback)', { frame });
+                    if (window.visaion_SHOT_DEBUG) console.log('[shot_arc] RELEASE LATCHED (slope-fallback)', { frame });
                     _state.relLatched = true;
                     return true;
                 }

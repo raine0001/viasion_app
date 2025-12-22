@@ -1,5 +1,5 @@
 // static/js/community_page.js
-// Dynamic community feed + session replay logic for viasion
+// Dynamic community feed + session replay logic for visaion
 // Renders posts from /api/community/feed and plays shot clips sequentially.
 
 (() => {

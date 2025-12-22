@@ -10,8 +10,8 @@
     function once(el, ev, fn) { const h = (e) => { try { fn(e) } finally { el.removeEventListener(ev, h) } }; el.addEventListener(ev, h); }
 
     window.addEventListener('DOMContentLoaded', () => {
-        try { window.viasion_SHOT_DEBUG = true; } catch { }
-        try { window.viasion_RELEASE_TRACE = true; } catch { }
+        try { window.visaion_SHOT_DEBUG = true; } catch { }
+        try { window.visaion_RELEASE_TRACE = true; } catch { }
         try { window.__forceServerDetect = false; window.__LOCAL_DETECTOR = true; } catch { }
         try { window.enableLocalDetector?.(); } catch { }
         try { document.getElementById('overlayPrompt')?.style?.setProperty('display', 'block'); } catch { }
@@ -147,7 +147,7 @@
                 window.addEventListener('shot:release', () => {
                     try {
                         const snap = window.capturePoseSnapshot?.(window.playerState, window.getLockedHoopBox?.());
-                        const golden = window.viasion_MEM?.get?.()?.golden;
+                        const golden = window.visaion_MEM?.get?.()?.golden;
                         const issues = (window.summarizePoseIssues?.({ poseSnapshot: snap }, golden) || []).slice(0, 3);
                         const line = issues.length ? issues.join(' • ') : 'Solid form. Hold your follow-through.';
                         const box = document.createElement('div');

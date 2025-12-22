@@ -23,11 +23,11 @@
                         slug: 'basketball_pose',
                         label: 'Basketball Pose / Shot Dataset',
                         type: 'pose',
-                        root: 'datasets/viasion_seg',
+                        root: 'datasets/visaion_seg',
                         frameCacheRoot: 'frame_cache',
                         framesRoot: 'frames',
-                        labelTrainRoot: 'datasets/viasion_seg/labels/train',
-                        imagesTrainRoot: 'datasets/viasion_seg/images/train',
+                        labelTrainRoot: 'datasets/visaion_seg/labels/train',
+                        imagesTrainRoot: 'datasets/visaion_seg/images/train',
                         labels: ['basketball', 'hoop', 'net', 'player']
                     }
                 ],
@@ -67,7 +67,7 @@
         const project = getActiveProject();
         applyProjectGlobals(project);
         try {
-            window.__viasion_ACTIVE_PROJECT = project || null;
+            window.__visaion_ACTIVE_PROJECT = project || null;
         } catch {
             // ignore assignment failures
         }
@@ -211,7 +211,7 @@
         }
     };
 
-    Object.defineProperty(window, 'viasionProjectManager', {
+    Object.defineProperty(window, 'visaionProjectManager', {
         value: manager,
         enumerable: false
     });

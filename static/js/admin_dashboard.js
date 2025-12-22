@@ -1576,7 +1576,7 @@
 
 
 
-                if (interaction.role !== 'viasion' && interaction.role !== 'admin' && status && PENDING_INTERACTION_STATUSES.has(status)) {
+                if (interaction.role !== 'visaion' && interaction.role !== 'admin' && status && PENDING_INTERACTION_STATUSES.has(status)) {
 
 
 
@@ -2656,7 +2656,7 @@
 
 
 
-                noteSummary(entry, shot?.viasion, 'AI');
+                noteSummary(entry, shot?.visaion, 'AI');
 
 
 

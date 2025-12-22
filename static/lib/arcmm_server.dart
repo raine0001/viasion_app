@@ -9,7 +9,7 @@ import 'package:shelf/shelf_io.dart';
 import 'package:shelf_router/shelf_router.dart';
 
 class ArcMmServer {
-  final Directory sessionRoot; // e.g., Directory('/storage/emulated/0/viasion/session') or app docs/session
+  final Directory sessionRoot; // e.g., Directory('/storage/emulated/0/visaion/session') or app docs/session
   HttpServer? _server;
   int? port;
 

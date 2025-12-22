@@ -1,11 +1,11 @@
-<!-- my_viasion.html -->
+<!-- my_visaion.html -->
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My VIᵃSION</title>
+    <title>My VISᵃION</title>
     <script src="/static/js/auth_guard.js" data-guard="auth"></script>
     <link rel="stylesheet" href="static/style.css" />
 
@@ -123,7 +123,7 @@
     <nav class="sidebar locked" style="right: 0; left: auto;">
         <div class="logo_items flex">
             <span class="nav_image"><img src="static/assets/dot5.png" alt="logo_img" /></span>
-            <span class="logo_name brand-mark">VI<sup>a</sup>SION</span>
+            <span class="logo_name brand-mark">VIS<sup>ai</sup>ON</span>
             <i class="bx bx-lock-alt" id="lock-icon" title="Unlock Sidebar"></i>
             <i class="bx bx-x" id="sidebar-close"></i>
         </div>
@@ -139,7 +139,7 @@
                     </li>
                     <li class="item"><a href="shot_summary" class="link flex"><i
                                 class="bx bx-grid-alt"></i><span>Sessions</span></a></li>
-                    <li class="item"><a href="my_viasion" class="link flex"><i
+                    <li class="item"><a href="my_visaion" class="link flex"><i
                                 class="bx bxs-magic-wand"></i><span>Coach</span></a></li>
                     <li class="item">
                         <label for="videoInput" class="link flex" style="cursor: pointer;">
@@ -160,7 +160,7 @@
                 <span class="nav_image"><img src="static/assets/dot5.png" alt="logo_img" /></span>
                 <div class="data_text">
                     <span class="name">'username'</span>
-                    <span class="email">dave@viasion.com</span>
+                    <span class="email">dave@visaion.com</span>
                 </div>
             </div>
         </div>
@@ -168,7 +168,7 @@
 
 
     <section class="card">
-        <h2 style="margin:0 0 12px">🎙️ <span class="brand-mark">VI<sup>a</sup>SION</span> Voice &amp; Style</h2>
+        <h2 style="margin:0 0 12px">🎙️ <span class="brand-mark">VIS<sup>ai</sup>ON</span> Voice &amp; Style</h2>
 
         <div class="grid g2">
             <div>
@@ -283,7 +283,7 @@
     </section>
 
     <section class="card">
-        <h3>Ask <span class="brand-mark">VI<sup>a</sup>SION</span></h3>
+        <h3>Ask <span class="brand-mark">VIS<sup>ai</sup>ON</span></h3>
         <textarea id="q" rows="3" placeholder="e.g., how was my release of the ball?"></textarea>
         <div class="row" style="margin-top:8px">
             <label class="row" style="gap:8px"><input type="checkbox" id="speakAns" checked> Speak answer</label>
@@ -295,12 +295,12 @@
 
 
     <script>
-        /* viasion preset API shim — works even if coachAssistant.js didn’t set these yet */
+        /* visaion preset API shim — works even if coachAssistant.js didn’t set these yet */
         (function () {
-            const LS = 'viasionPresetsLocal';
+            const LS = 'visaionPresetsLocal';
 
-            if (!window.viasionLoadPresets) {
-                window.viasionLoadPresets = async function () {
+            if (!window.visaionLoadPresets) {
+                window.visaionLoadPresets = async function () {
                     try {
                         const r = await fetch('/api/voice_presets');
                         if (r.ok) {
@@ -313,8 +313,8 @@
                 };
             }
 
-            if (!window.viasionSavePreset) {
-                window.viasionSavePreset = async function (preset) {
+            if (!window.visaionSavePreset) {
+                window.visaionSavePreset = async function (preset) {
                     try {
                         const r = await fetch('/api/voice_presets', {
                             method: 'POST',
@@ -324,7 +324,7 @@
                         if (r.ok) return true;
                     } catch (_) { }
                     // local fallback
-                    const items = await window.viasionLoadPresets();
+                    const items = await window.visaionLoadPresets();
                     const i = items.findIndex(x => x.name === preset.name);
                     if (i >= 0) items[i] = preset; else items.push(preset);
                     localStorage.setItem(LS, JSON.stringify(items));
@@ -332,13 +332,13 @@
                 };
             }
 
-            if (!window.viasionDeletePreset) {
-                window.viasionDeletePreset = async function (name) {
+            if (!window.visaionDeletePreset) {
+                window.visaionDeletePreset = async function (name) {
                     try {
                         await fetch('/api/voice_presets/' + encodeURIComponent(name), { method: 'DELETE' });
                     } catch (_) { }
                     // local fallback
-                    const items = await window.viasionLoadPresets();
+                    const items = await window.visaionLoadPresets();
                     localStorage.setItem(LS, JSON.stringify(items.filter(x => x.name !== name)));
                     return true;
                 };
@@ -348,14 +348,14 @@
 
     <script>
         // Safe shims so the page never crashes even if coachAssistant.js loads later
-        window.viasionGetPrefs = window.viasionGetPrefs || function () {
-            try { return JSON.parse(localStorage.getItem('viasionPrefs') || '{}'); }
+        window.visaionGetPrefs = window.visaionGetPrefs || function () {
+            try { return JSON.parse(localStorage.getItem('visaionPrefs') || '{}'); }
             catch { return {}; }
         };
-        window.viasionSetPrefs = window.viasionSetPrefs || function (p) {
+        window.visaionSetPrefs = window.visaionSetPrefs || function (p) {
             const v = p || {};
-            localStorage.setItem('viasionPrefs', JSON.stringify(v));
-            window.__viasionPrefs = v;
+            localStorage.setItem('visaionPrefs', JSON.stringify(v));
+            window.__visaionPrefs = v;
             return v;
         };
     </script>
@@ -368,20 +368,20 @@
     <script defer>
         window.addEventListener('DOMContentLoaded', () => {
             // Safety guard so the page doesn’t crash if the script fails to load
-            if (typeof window.viasionGetPrefs !== 'function') {
+            if (typeof window.visaionGetPrefs !== 'function') {
                 console.warn('coachAssistant not loaded; using localStorage fallback');
-                window.viasionGetPrefs = () => {
-                    try { return JSON.parse(localStorage.getItem('viasionPrefs') || '{}'); } catch { return {}; }
+                window.visaionGetPrefs = () => {
+                    try { return JSON.parse(localStorage.getItem('visaionPrefs') || '{}'); } catch { return {}; }
                 };
-                window.viasionSetPrefs = (p) => {
+                window.visaionSetPrefs = (p) => {
                     const v = p || {};
-                    localStorage.setItem('viasionPrefs', JSON.stringify(v));
-                    window.__viasionPrefs = v;
+                    localStorage.setItem('visaionPrefs', JSON.stringify(v));
+                    window.__visaionPrefs = v;
                     return v;
                 };
             }
 
-            const prefs = window.viasionGetPrefs();
+            const prefs = window.visaionGetPrefs();
         });
     </script>
     <script>
@@ -392,7 +392,7 @@
             function fillWebVoices(lang = '') {
                 const sel = $('webVoice');
                 sel.innerHTML = '';
-                const list = (window.viasionListWebVoices ? window.viasionListWebVoices(lang) : []);
+                const list = (window.visaionListWebVoices ? window.visaionListWebVoices(lang) : []);
                 list.forEach(v => {
                     const opt = document.createElement('option');
                     opt.value = v.name; opt.textContent = `${v.name}  (${v.lang})`;
@@ -458,7 +458,7 @@
             // presets list
             async function refreshPresetList() {
                 const box = $('presetList'); box.innerHTML = '';
-                const items = await window.viasionLoadPresets();
+                const items = await window.visaionLoadPresets();
                 items.forEach(p => {
                     const pill = document.createElement('button');
                     pill.className = 'pill';
@@ -466,11 +466,11 @@
                     pill.title = 'Click to load • Alt+Click to delete';
                     pill.addEventListener('click', async (e) => {
                         if (e.altKey) {
-                            await window.viasionDeletePreset(p.name);
+                            await window.visaionDeletePreset(p.name);
                             refreshPresetList();
                             return;
                         }
-                        window.viasionSetPrefs(p);
+                        window.visaionSetPrefs(p);
                         prefsToUI(p);
                     });
                     box.appendChild(pill);
@@ -481,23 +481,23 @@
             $('save').addEventListener('click', async () => {
                 const name = $('presetName').value.trim() || 'My Coach Voice';
                 const p = uiToPrefs(); p.name = name;
-                window.viasionSetPrefs(p);
-                await window.viasionSavePreset(p);
+                window.visaionSetPrefs(p);
+                await window.visaionSavePreset(p);
                 await refreshPresetList();
                 alert('✅ Preset saved.');
             });
 
             // test voice
             $('test').addEventListener('click', async () => {
-                const p = uiToPrefs(); window.viasionSetPrefs(p);
+                const p = uiToPrefs(); window.visaionSetPrefs(p);
                 const text = $('sample').value.trim() || 'Testing the coach voice.';
-                try { await window.viasionSpeak(text); } catch (e) { alert(e.message || e); }
+                try { await window.visaionSpeak(text); } catch (e) { alert(e.message || e); }
             });
 
-            // Ask VIᵃSION demo
+            // Ask VISᵃION demo
             $('ask').addEventListener('click', async () => {
                 const q = $('q').value.trim(); if (!q) return;
-                const p = uiToPrefs(); window.viasionSetPrefs(p);
+                const p = uiToPrefs(); window.visaionSetPrefs(p);
                 $('ans').textContent = '…';
                 try {
                     const r = await fetch('/api/coach', {
@@ -507,7 +507,7 @@
                     const j = await r.json();
                     const text = j.text || '(no reply)';
                     $('ans').textContent = text;
-                    if ($('speakAns').checked) await window.viasionSpeak(text);
+                    if ($('speakAns').checked) await window.visaionSpeak(text);
                 } catch (e) {
                     $('ans').textContent = 'Error: ' + (e.message || e);
                 }
@@ -515,7 +515,7 @@
 
             // init
             fillWebVoices();
-            const p = window.viasionGetPrefs() || {};
+            const p = window.visaionGetPrefs() || {};
             if (!p.webVoiceName && $('webVoice').options.length) {
                 $('webVoice').value = $('webVoice').options[0].value;
             }

@@ -37,7 +37,7 @@ export function arcHeightLabel(shot) {
         const norm = Number(shot?.arcHeightNorm);
         if (!Number.isFinite(norm)) return 'good';
         // Prefer per-player target if available
-        const golden = (typeof window !== 'undefined' && window.viasion_MEM?.golden) ? window.viasion_MEM.golden() : null;
+        const golden = (typeof window !== 'undefined' && window.visaion_MEM?.golden) ? window.visaion_MEM.golden() : null;
         const fallbackTarget = (typeof window !== 'undefined' && Number.isFinite(window.ARC_LABEL_TARGET_NORM)) ? Number(window.ARC_LABEL_TARGET_NORM) : 0.90;
         const target = Number.isFinite(golden?.arcHeightNorm) ? golden.arcHeightNorm : fallbackTarget; // sensible default
         const d = norm - target;

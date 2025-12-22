@@ -1,5 +1,5 @@
 {
-    "name": "viasion-app",
+    "name": "visaion-app",
     "version": "0.1.0",
     "scripts": {
         "start": "echo 'Start script placeholder'",
@@ -7,8 +7,8 @@
         "test:live": "npx playwright test -c tests/playwright.config.ts tests/e2e/live_cam.spec.ts --headed",
         "test:e2e": "npx playwright test -c tests/playwright.config.ts",
         "test:e2e:preroll": "npx playwright test -c tests/playwright.config.ts tests/e2e/preroll_backend.spec.ts",
-        "test:3shots": "node -e \"process.env.VIASION_TEST_CLIP = process.env.VIASION_TEST_CLIP || process.env.DOACH_TEST_CLIP || 'C:/Users/dave/Desktop/Viasion/content/3shot_trim.mp4'; process.env.VIASION_CYCLES = process.env.VIASION_CYCLES || process.env.DOACH_CYCLES || '3'; require('child_process').spawn('npx',['playwright','test','-c','tests/playwright.config.ts','tests/e2e/shot_flow.spec.ts'],{stdio:'inherit',shell:true}).on('exit',c=>process.exit(c));\"",
-        "inspect:3shots": "node -e \"process.env.INSPECT='1'; process.env.VIASION_TEST_CLIP = process.env.VIASION_TEST_CLIP || process.env.DOACH_TEST_CLIP || 'C:/Users/dave/Desktop/Viasion/content/3shot_trim.webm'; require('child_process').spawn('npx',['playwright','test','-c','tests/playwright.config.ts','tests/e2e/three_shots.spec.ts','--headed'],{stdio:'inherit',shell:true}).on('exit',c=>process.exit(c));\""
+        "test:3shots": "node -e \"process.env.visaion_TEST_CLIP = process.env.visaion_TEST_CLIP || process.env.DOACH_TEST_CLIP || 'C:/Users/dave/Desktop/visaion/content/3shot_trim.mp4'; process.env.visaion_CYCLES = process.env.visaion_CYCLES || process.env.DOACH_CYCLES || '3'; require('child_process').spawn('npx',['playwright','test','-c','tests/playwright.config.ts','tests/e2e/shot_flow.spec.ts'],{stdio:'inherit',shell:true}).on('exit',c=>process.exit(c));\"",
+        "inspect:3shots": "node -e \"process.env.INSPECT='1'; process.env.visaion_TEST_CLIP = process.env.visaion_TEST_CLIP || process.env.DOACH_TEST_CLIP || 'C:/Users/dave/Desktop/visaion/content/3shot_trim.webm'; require('child_process').spawn('npx',['playwright','test','-c','tests/playwright.config.ts','tests/e2e/three_shots.spec.ts','--headed'],{stdio:'inherit',shell:true}).on('exit',c=>process.exit(c));\""
     },
     "dependencies": {
         "onnxruntime-web": "^1.20.0"

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VIᵃSION | Profile Setup</title>
+    <title>VISᵃION | Profile Setup</title>
     <script src="/static/js/auth_guard.js" data-guard="auth"></script>
     <link rel="stylesheet" href="/static/style.css" />
     <style>
@@ -151,7 +151,7 @@
 <body>
     <main class="setup-shell">
         <section class="card">
-            <h1><span class="brand-mark">VI<sup>a</sup>SION</span></h1>
+            <h1><span class="brand-mark">VIS<sup>ai</sup>ON</span></h1>
             <p class="lead">Tell us a little about you so we can tailor your coaching.</p>
             <form id="profileForm" autocomplete="on">
                 <div class="field">
@@ -196,7 +196,8 @@
                 </div>
                 <div class="field">
                     <label for="goals">Goals (optional)</label>
-                    <textarea id="goals" name="goals" placeholder="Outline goals, upcoming events, or focus areas..."></textarea>
+                    <textarea id="goals" name="goals"
+                        placeholder="Outline goals, upcoming events, or focus areas..."></textarea>
                 </div>
                 <div class="field">
                     <label for="height_cm">Height (cm)</label>
@@ -215,7 +216,7 @@
         </section>
     </main>
     <script>
-        const returnTo = sessionStorage.getItem('viasion_setup_return') || '/static/my_sessions.html';
+        const returnTo = sessionStorage.getItem('visaion_setup_return') || '/static/my_sessions.html';
         const statusEl = document.getElementById('status');
         const form = document.getElementById('profileForm');
 
@@ -284,7 +285,7 @@
             payload.goals = payload.goals ? payload.goals.split(/\r?\n/) : [];
             try {
                 await saveProfile(payload);
-                sessionStorage.removeItem('viasion_setup_return');
+                sessionStorage.removeItem('visaion_setup_return');
                 window.location.href = returnTo;
             } catch (err) {
                 setStatus(err?.message || 'Unable to save profile right now.');
@@ -300,4 +301,3 @@
 </body>
 
 </html>
-

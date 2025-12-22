@@ -13,7 +13,7 @@ cache: false
 device: cpu
 workers: 8
 project: training_output
-name: viasion_gpt_v12
+name: visaion_gpt_v12
 exist_ok: false
 pretrained: true
 optimizer: auto
@@ -102,4 +102,4 @@ auto_augment: randaugment
 erasing: 0.4
 cfg: null
 tracker: botsort.yaml
-save_dir: training_output\viasion_gpt_v12
+save_dir: training_output\visaion_gpt_v12

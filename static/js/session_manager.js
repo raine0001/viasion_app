@@ -4,18 +4,18 @@
 // Emits:  hud:start-session (on explicit start), hud:end-session (on end)
 // Does NOT: generate releases, record clips, enforce UI, open tables automatically.
 
-import { viasionSpeak, primeCoachAudio, listenForEndSession } from '/static/js/coach_voice.js';
+import { visaionSpeak, primeCoachAudio, listenForEndSession } from '/static/js/coach_voice.js';
 
 /* ------------------------ project helpers ------------------------ */
 function getActiveProjectMeta() {
     try {
-        const mgr = window.viasionProjectManager;
+        const mgr = window.visaionProjectManager;
         if (mgr && typeof mgr.getActiveProject === 'function') {
             const project = mgr.getActiveProject();
             if (project) return project;
         }
     } catch { /* ignore */ }
-    const fallback = window.__viasion_ACTIVE_PROJECT;
+    const fallback = window.__visaion_ACTIVE_PROJECT;
     if (!fallback) return null;
     if (typeof fallback === 'object' && fallback) return fallback;
     if (typeof fallback === 'string') return { slug: fallback };
@@ -74,11 +74,11 @@ function setSessionCap(n) {
         if (v) {
             window.__SESSION_CAP = v;
             window.SESSION_SIZE = v;               // UI reads this to show N/Cap
-            localStorage.setItem('viasion.sessionCap', String(v));
+            localStorage.setItem('visaion.sessionCap', String(v));
         } else {
             window.__SESSION_CAP = undefined;
             window.SESSION_SIZE = undefined;
-            localStorage.removeItem('viasion.sessionCap');
+            localStorage.removeItem('visaion.sessionCap');
         }
     } catch { }
 }
@@ -86,7 +86,7 @@ function getSessionCap() {
     try {
         if (Number.isFinite(window.__SESSION_CAP)) return Number(window.__SESSION_CAP);
         if (Number.isFinite(window.SESSION_SIZE)) return Number(window.SESSION_SIZE);
-        const ls = Number(localStorage.getItem('viasion.sessionCap'));
+        const ls = Number(localStorage.getItem('visaion.sessionCap'));
         if (Number.isFinite(ls) && ls > 0) return ls;
     } catch { }
     return 10;
@@ -206,8 +206,8 @@ async function startSession() {
         let muted = false;
         try { window.__coachMuted = false; } catch { }
         try {
-            localStorage.setItem('viasion_muted', 'false');
-            muted = localStorage.getItem('viasion_muted') === 'true';
+            localStorage.setItem('visaion_muted', 'false');
+            muted = localStorage.getItem('visaion_muted') === 'true';
         } catch {
             muted = false;
         }
@@ -252,9 +252,9 @@ async function startSession() {
                 : `${name}, let's get started. ${fallbackPrompt}`;
             try { await primeCoachAudio?.(); } catch { }
             try {
-                if (typeof viasionSpeak === 'function') {
+                if (typeof visaionSpeak === 'function') {
                     try {
-                        const job = viasionSpeak(greeting);
+                        const job = visaionSpeak(greeting);
                         if (job && typeof job.then === 'function') {
                             try { window.__GREETING_PROMISE = greetingPromise || job; } catch { }
                             const ok = await job;
@@ -267,7 +267,7 @@ async function startSession() {
                         throw err;
                     }
                 } else {
-                    console.warn('[coach:greeting] viasionSpeak not available');
+                    console.warn('[coach:greeting] visaionSpeak not available');
                 }
             } catch { }
             finally {
@@ -282,7 +282,7 @@ async function startSession() {
                 try {
                     if (window.PREF_ALLOW_MIC === false) return;
                     if (window.__VOICE_READY !== true) {
-                        window.showToast?.('Voice commands are sleeping—enable the microphone in Settings and say "Hey VIᵃSION" to wake me.', 'warn', 5200);
+                        window.showToast?.('Voice commands are sleeping—enable the microphone in Settings and say "Hey VISᵃION" to wake me.', 'warn', 5200);
                     }
                 } catch { }
             }, 3600);
@@ -508,8 +508,8 @@ async function persistShotFromSummary(detail) {
         releaseAngle: Number.isFinite(detail?.releaseAngle) ? Number(detail.releaseAngle) : null,
         pose: poseSnapshot || null   // optional, server can ignore
     };
-    const coachLine = typeof detail?.viasion === 'string'
-        ? detail.viasion.trim()
+    const coachLine = typeof detail?.visaion === 'string'
+        ? detail.visaion.trim()
         : (typeof detail?.coachLine === 'string'
             ? detail.coachLine.trim()
             : (typeof detail?.text === 'string' ? detail.text.trim() : ''));
@@ -574,15 +574,15 @@ async function endSession(reason = 'normal') {
 
     // optional voice cue
     try {
-        try { localStorage.setItem('viasion_muted', 'false'); window.__coachMuted = false; } catch { }
-        if (localStorage.getItem('viasion_muted') !== 'true') {
+        try { localStorage.setItem('visaion_muted', 'false'); window.__coachMuted = false; } catch { }
+        if (localStorage.getItem('visaion_muted') !== 'true') {
             const line = 'Session ended.';
             try { await primeCoachAudio?.(); } catch { }
             try {
-                if (typeof viasionSpeak === 'function') {
-                    await viasionSpeak(line);
+                if (typeof visaionSpeak === 'function') {
+                    await visaionSpeak(line);
                 } else {
-                    console.warn('[coach:end-session] viasionSpeak not available');
+                    console.warn('[coach:end-session] visaionSpeak not available');
                 }
             } catch {
                 console.warn('[coach:end-session] TTS failed');
@@ -645,13 +645,13 @@ function resetSessionForNewStart() {
 
     // Voice exit (optional; ignores if voice isn’t available)
     try {
-        const stopListen = listenForEndSession?.('hey viasion, end the session', async () => { await endSession('voice'); });
+        const stopListen = listenForEndSession?.('hey visaion, end the session', async () => { await endSession('voice'); });
         window.__voiceEndHandle = stopListen;
     } catch { }
 })();
 
 /* ------------------------ exports (optional) ------------------------ */
-window.viasionSession = {
+window.visaionSession = {
     start: startSession,
     end: endSession,
     reset: resetSessionForNewStart,
@@ -673,8 +673,8 @@ async function publishCommunityRecap(detail) {
             : `/sessions/${sid}/clips/shot-${idx1}.mp4`;
         const poseScore = Number.isFinite(shot?.poseScore) ? Math.round(shot.poseScore) : null;
         const weightedScore = Number.isFinite(shot?.weightedScore) ? shot.weightedScore : null;
-        const coachNote = typeof shot?.viasion === 'string' && shot.viasion.trim()
-            ? shot.viasion.trim()
+        const coachNote = typeof shot?.visaion === 'string' && shot.visaion.trim()
+            ? shot.visaion.trim()
             : (typeof shot?.coachLine === 'string' && shot.coachLine.trim() ? shot.coachLine.trim() : null);
         return {
             idx: idx1,
@@ -739,7 +739,7 @@ function publishCommunityRecapIfReady() {
     });
 }
 
-window.addEventListener('viasion:session-review', (e) => {
+window.addEventListener('visaion:session-review', (e) => {
     __communityPendingSummary = e?.detail || null;
     publishCommunityRecapIfReady();
 });

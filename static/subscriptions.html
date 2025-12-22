@@ -456,10 +456,10 @@
                 if (plan.dataset) params.set('dataset', plan.dataset);
                 try {
                     if (typeof sessionStorage !== 'undefined') {
-                        sessionStorage.setItem('viasion.activePlanId', planId);
-                        if (plan.name) sessionStorage.setItem('viasion.activePlanName', plan.name);
-                        if (plan.project) sessionStorage.setItem('viasion.activeProject', plan.project);
-                        if (plan.dataset) sessionStorage.setItem('viasion.activeDataset', plan.dataset);
+                        sessionStorage.setItem('visaion.activePlanId', planId);
+                        if (plan.name) sessionStorage.setItem('visaion.activePlanName', plan.name);
+                        if (plan.project) sessionStorage.setItem('visaion.activeProject', plan.project);
+                        if (plan.dataset) sessionStorage.setItem('visaion.activeDataset', plan.dataset);
                     }
                 } catch { }
                 const qs = params.toString();
@@ -511,4 +511,3 @@
 </body>
 
 </html>
-

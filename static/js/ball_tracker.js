@@ -24,9 +24,9 @@ const ACTIVE_PROJECT_SLUG = 'basketball';
 function isBasketballProjectActive() {
     try {
         const project =
-            window.__viasion_ACTIVE_PROJECT ||
-            (typeof window.viasionProjectManager?.getActiveProject === 'function'
-                ? window.viasionProjectManager.getActiveProject()
+            window.__visaion_ACTIVE_PROJECT ||
+            (typeof window.visaionProjectManager?.getActiveProject === 'function'
+                ? window.visaionProjectManager.getActiveProject()
                 : null);
         const slug = project?.slug;
         return !slug || slug === ACTIVE_PROJECT_SLUG;
@@ -351,7 +351,7 @@ export function drawBallArc(ctx, opts = {}) {
     let full = [];
     if (window.ballArc && Array.isArray(window.ballArc.refinedTrail) && window.ballArc.refinedTrail.length >= 3) {
         full = window.ballArc.refinedTrail;
-        if (window.viasion_SHOT_DEBUG) console.log('[drawBallArc] using refined trail', full.length, 'points');
+        if (window.visaion_SHOT_DEBUG) console.log('[drawBallArc] using refined trail', full.length, 'points');
     } else if (window.ballArc && Array.isArray(window.ballArc.trail)) {
         full = window.ballArc.trail;
     }
@@ -622,7 +622,7 @@ export function freezeShot(tag = null) {
 }
 
 try {
-    const mgr = window?.viasionProjectManager;
+    const mgr = window?.visaionProjectManager;
     if (mgr?.registerModule) {
         mgr.registerModule('basketball/ball-tracker', {
             project: ACTIVE_PROJECT_SLUG,

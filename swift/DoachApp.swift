@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct viasionApp: App {
+struct visaionApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     @State private var isRegistered = false

@@ -179,6 +179,7 @@ def detect_intent(message: str) -> str:
 #  Handler plumbing
 # --------------------------------------------------------------------------- #
 
+
 @dataclass
 class HandlerResult:
     reply: Optional[str] = None
@@ -210,7 +211,9 @@ def _format_number(value: Optional[float]) -> str:
     return f"{value:.1f}"
 
 
-def run_intent_handler(db: Dict[str, Any], intent: str, context: Dict[str, Any]) -> HandlerResult:
+def run_intent_handler(
+    db: Dict[str, Any], intent: str, context: Dict[str, Any]
+) -> HandlerResult:
     handler = _HANDLERS.get(intent) or _handle_general
     ctx = dict(context or {})
     ctx["db"] = db
@@ -238,9 +241,16 @@ def run_intent_handler(db: Dict[str, Any], intent: str, context: Dict[str, Any])
 #  Autofix helpers
 # --------------------------------------------------------------------------- #
 
-def _ensure_ticket(db: Dict[str, Any], user_id: Optional[int], title: str, description: str,
-                   category: str = "technical", priority: str = "normal",
-                   session_id: Optional[str] = None) -> int:
+
+def _ensure_ticket(
+    db: Dict[str, Any],
+    user_id: Optional[int],
+    title: str,
+    description: str,
+    category: str = "technical",
+    priority: str = "normal",
+    session_id: Optional[str] = None,
+) -> int:
     SupportTicket = db["SupportTicket"]
     with db["Session"]() as s:
         ticket = SupportTicket(
@@ -290,19 +300,30 @@ def _handle_missed_shot(ctx: Dict[str, Any]) -> HandlerResult:
     if total_logged is not None:
         reply_parts.append(f"I can see {total_logged} shot(s) logged for this session.")
         if total_logged < 10:
-            reply_parts.append("I'll round the session off so the summary lands on 10 shots.")
+            reply_parts.append(
+                "I'll round the session off so the summary lands on 10 shots."
+            )
     else:
-        reply_parts.append("I couldn't see this session in the database just yet, but I'll keep looking.")
+        reply_parts.append(
+            "I couldn't see this session in the database just yet, but I'll keep looking."
+        )
     if latest_idx is not None:
         reply_parts.append(f"The last confirmed shot was number {latest_idx}.")
 
-    reply = " ".join(reply_parts) or "I'll keep an eye on that session and make sure the count stays accurate."
+    reply = (
+        " ".join(reply_parts)
+        or "I'll keep an eye on that session and make sure the count stays accurate."
+    )
     return HandlerResult(
         reply=reply,
         result_status="in_progress",
         action_taken=action,
         intent="missed_shot",
-        meta={"session_id": session_id, "shot_id": shot_id, "total_logged": total_logged},
+        meta={
+            "session_id": session_id,
+            "shot_id": shot_id,
+            "total_logged": total_logged,
+        },
     )
 
 
@@ -372,8 +393,16 @@ def _handle_progress_check(ctx: Dict[str, Any]) -> HandlerResult:
             if sessions:
                 attempts = [sess.shots_count or 0 for sess in sessions]
                 makes = [sess.makes or 0 for sess in sessions]
-                arc = [sess.entry_angle_avg for sess in sessions if sess.entry_angle_avg is not None]
-                avg_acc = round((sum(makes) / sum(attempts) * 100), 1) if sum(attempts) else None
+                arc = [
+                    sess.entry_angle_avg
+                    for sess in sessions
+                    if sess.entry_angle_avg is not None
+                ]
+                avg_acc = (
+                    round((sum(makes) / sum(attempts) * 100), 1)
+                    if sum(attempts)
+                    else None
+                )
                 meta["session_samples"] = len(sessions)
                 meta["attempts"] = attempts
                 meta["makes"] = makes
@@ -383,10 +412,12 @@ def _handle_progress_check(ctx: Dict[str, Any]) -> HandlerResult:
                     f"Your most recent session logged {latest.makes or 0}/{latest.shots_count or 0} made shots."
                 )
                 if avg_acc is not None:
-                    reply.append(f"Across your last {len(sessions)} sessions you're averaging {avg_acc}% makes.")
+                    reply.append(
+                        f"Across your last {len(sessions)} sessions you're averaging {avg_acc}% makes."
+                    )
                 if arc:
                     reply.append(
-                        f"Entry angle is hovering around {_format_number(sum(arc)/len(arc))}°, which is close to target."
+                        f"Entry angle is hovering around {_format_number(sum(arc) / len(arc))}°, which is close to target."
                     )
                 improvement = None
                 if len(makes) >= 4:
@@ -396,12 +427,18 @@ def _handle_progress_check(ctx: Dict[str, Any]) -> HandlerResult:
                     meta["accuracy_delta_pct"] = improvement
                 if improvement is not None:
                     if improvement > 0:
-                        reply.append(f"You're up roughly {improvement} percentage points versus earlier sessions — nice!")
+                        reply.append(
+                            f"You're up roughly {improvement} percentage points versus earlier sessions — nice!"
+                        )
                     elif improvement < 0:
-                        reply.append(f"Accuracy dipped about {abs(improvement)} points; focus on a strong base next time.")
+                        reply.append(
+                            f"Accuracy dipped about {abs(improvement)} points; focus on a strong base next time."
+                        )
                 summary.append(" ".join(reply))
     if not summary:
-        summary.append("Once we have a few full sessions logged I'll put together a progress report for you.")
+        summary.append(
+            "Once we have a few full sessions logged I'll put together a progress report for you."
+        )
     return HandlerResult(
         reply=" ".join(summary),
         result_status="resolved",
@@ -487,7 +524,9 @@ def _handle_challenge_help(ctx: Dict[str, Any]) -> HandlerResult:
                     f"You're registered for {latest.event_id}; check Menu ▸ Challenges for live standings."
                 )
     if not details:
-        details.append("Open Menu ▸ Challenges to browse current events. Pick one and tap Join to get started.")
+        details.append(
+            "Open Menu ▸ Challenges to browse current events. Pick one and tap Join to get started."
+        )
     return HandlerResult(
         reply=" ".join(details),
         result_status="resolved",
@@ -529,10 +568,12 @@ def _handle_false_shot(ctx: Dict[str, Any]) -> HandlerResult:
                     flags = data.get("flags")
                     if not isinstance(flags, list):
                         flags = [] if flags is None else [flags]
-                    flags.append({
-                        "type": "false_trigger",
-                        "flagged_at": datetime.utcnow().isoformat(),
-                    })
+                    flags.append(
+                        {
+                            "type": "false_trigger",
+                            "flagged_at": datetime.utcnow().isoformat(),
+                        }
+                    )
                     data["flags"] = flags
                     last_shot.data = data
                     s.add(last_shot)
@@ -540,7 +581,7 @@ def _handle_false_shot(ctx: Dict[str, Any]) -> HandlerResult:
 
     if shot_idx is None:
         return HandlerResult(
-            reply="Which shot should I fix? Tell me \"mark shot 3 false\" or similar.",
+            reply='Which shot should I fix? Tell me "mark shot 3 false" or similar.',
             result_status="pending_user",
             action_taken={
                 "autofix": "flag_false_shot_pending",
@@ -632,29 +673,27 @@ def _call_openai_support(ctx: Dict[str, Any]) -> Optional[HandlerResult]:
     try:
         context_text = _compose_support_context(ctx)
         core_brief = (
-            "VIᵃSION is an intelligent motion training platform that fuses real-time pose detection, "
+            "VISᵃION is an intelligent motion training platform that fuses real-time pose detection, "
             "object recognition (YOLOv11), and LLM-based coaching to improve performance across sports, "
             "industrial workflows, healthcare rehab, and skill training. It runs on a mobile device camera, "
             "tracks motion phases, detects tools or workspace objects, and delivers natural-language feedback, "
             "success scores, and adaptive coaching."
         )
         how_to_use = (
-            "How to use VIᵃSION:\n"
-            "1. Create an account at https://www.viasion.com and log in.\n"
+            "How to use VISᵃION:\n"
+            "1. Create an account at https://www.visaion.com and log in.\n"
             "2. From My Sessions, pick a subscription or activity (e.g., golf) and tap Start Session.\n"
             "3. Position the camera slightly behind and to the side so your body and the object (club, tool, etc.) stay fully in frame.\n"
-            "4. When you hear 'Start when ready', perform the movement. VIᵃSION counts reps, analyses pose + object interaction, and speaks feedback.\n"
+            "4. When you hear 'Start when ready', perform the movement. VISᵃION counts reps, analyses pose + object interaction, and speaks feedback.\n"
             "5. After the set (usually 10 reps) it shows a full summary with scores and coaching tips."
         )
-        camera_tips = (
-            "Camera setup: keep both you and the object visible, angle the camera slightly behind/side for clear view of feet, torso, hands, and equipment."
-        )
+        camera_tips = "Camera setup: keep both you and the object visible, angle the camera slightly behind/side for clear view of feet, torso, hands, and equipment."
         membership = (
             "Memberships: corporate users automatically see assigned plans in My Sessions. Individual users open the Subscriptions menu to join plans; "
             "once subscribed, the plan appears in My Sessions with a Start Session button."
         )
         prompt = (
-            "You are VIᵃSION's embedded support coach. Use the knowledge below to answer accurately and concisely.\n\n"
+            "You are VISᵃION's embedded support coach. Use the knowledge below to answer accurately and concisely.\n\n"
             f"Platform overview:\n{core_brief}\n\n"
             f"{how_to_use}\n\n"
             f"Camera tips: {camera_tips}\n\n"
@@ -672,7 +711,7 @@ def _call_openai_support(ctx: Dict[str, Any]) -> Optional[HandlerResult]:
             },
         ]
         completion = client.chat.completions.create(
-            model=os.getenv("VIASION_SUPPORT_MODEL", "gpt-4o-mini"),
+            model=os.getenv("visaion_SUPPORT_MODEL", "gpt-4o-mini"),
             temperature=0.3,
             messages=messages,
         )
@@ -693,7 +732,9 @@ def _call_openai_support(ctx: Dict[str, Any]) -> Optional[HandlerResult]:
         return None
 
 
-def generate_general_reply(message: str, context: Optional[Dict[str, Any]] = None) -> Optional[HandlerResult]:
+def generate_general_reply(
+    message: str, context: Optional[Dict[str, Any]] = None
+) -> Optional[HandlerResult]:
     ctx = dict(context or {})
     ctx["message"] = message
     return _call_openai_support(ctx)

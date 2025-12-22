@@ -17,9 +17,9 @@ const ACTIVE_PROJECT_SLUG = 'basketball';
 function isBasketballProjectActive() {
     try {
         const project =
-            window.__viasion_ACTIVE_PROJECT ||
-            (typeof window.viasionProjectManager?.getActiveProject === 'function'
-                ? window.viasionProjectManager.getActiveProject()
+            window.__visaion_ACTIVE_PROJECT ||
+            (typeof window.visaionProjectManager?.getActiveProject === 'function'
+                ? window.visaionProjectManager.getActiveProject()
                 : null);
         const slug = project?.slug;
         return !slug || slug === ACTIVE_PROJECT_SLUG;
@@ -77,9 +77,9 @@ try { window.updateBottomStats?.(); } catch { }
     window.__lastAnnouncedShotId = window.__lastAnnouncedShotId || 0;
 
     // If a global coach hook exists, wrap it once so it can't repeat
-    if (typeof window.viasionOnShot === 'function' && !window.viasionOnShot.__wrapped) {
-        const orig = window.viasionOnShot;
-        window.viasionOnShot = function (rec) {
+    if (typeof window.visaionOnShot === 'function' && !window.visaionOnShot.__wrapped) {
+        const orig = window.visaionOnShot;
+        window.visaionOnShot = function (rec) {
             try {
                 if (!rec) return;
                 const id = rec.id ?? rec?.shotId ?? rec?.frameEnd ?? 0; // tolerate shapes
@@ -88,7 +88,7 @@ try { window.updateBottomStats?.(); } catch { }
                 return orig(rec);                                        // speak once
             } catch (e) { console.warn('[coach TTS] suppressed/failed:', e); }
         };
-        window.viasionOnShot.__wrapped = true;
+        window.visaionOnShot.__wrapped = true;
     }
 })();
 
@@ -148,8 +148,8 @@ window.SHOT_SCORER_MODE ??= 'weighted';   // 'weighted' | 'hybrid'
 
 
 // ===== Scorer preferences =====
-window.SHOT_SCORER_MODE ??= (localStorage.getItem('viasion_scorer_mode') || 'weighted');
-window.WEIGHTED_THRESH ??= Number(localStorage.getItem('viasion_weighted_thresh')) || WEIGHTED_THRESH;
+window.SHOT_SCORER_MODE ??= (localStorage.getItem('visaion_scorer_mode') || 'weighted');
+window.WEIGHTED_THRESH ??= Number(localStorage.getItem('visaion_weighted_thresh')) || WEIGHTED_THRESH;
 
 export function getShotScoreForSummary(shot) {
     try {
@@ -174,7 +174,7 @@ export function getScorerMode() {
 export function setScorerMode(mode = 'weighted') {
     const m = String(mode).toLowerCase();
     window.SHOT_SCORER_MODE = m;
-    localStorage.setItem('viasion_scorer_mode', m);
+    localStorage.setItem('visaion_scorer_mode', m);
     console.log('[scorer] mode =', m);
 }
 window.setScorerMode = setScorerMode; // also available from console
@@ -182,7 +182,7 @@ window.setScorerMode = setScorerMode; // also available from console
 export function setWeightedThresh(v) {
     const n = Math.max(0.5, Math.min(0.95, Number(v) || 0.75));
     window.WEIGHTED_THRESH = n;
-    localStorage.setItem('viasion_weighted_thresh', String(n));
+    localStorage.setItem('visaion_weighted_thresh', String(n));
     console.log('[scorer] threshold =', n);
 }
 window.setWeightedThresh = setWeightedThresh;
@@ -687,7 +687,7 @@ export function isBallInProximityZone(ballPt, hoopBox = null, opts = {}) {
 
     const inside = (ballPt.x >= x1 && ballPt.x <= x2 && ballPt.y >= yT && ballPt.y <= yB);
 
-    if (window.viasion_PROX_TRACE) {
+    if (window.visaion_PROX_TRACE) {
         console.log('[prox:box]', {
             // hoop center & rim line used
             cx: PB.H.cx, rimY: PB.H.rimTop, w: PB.H.w, h: PB.H.h,
@@ -760,7 +760,7 @@ function getMissReason(trail, hoopBox) {
 }
 
 
-// --- viasion Correction API (user-initiated) ---
+// --- visaion Correction API (user-initiated) ---
 export function applyShotCorrection({ id = null, made, reason = 'User correction', confidence = null }) {
     if (!Array.isArray(shotLog) || !shotLog.length) return null;
 
@@ -829,7 +829,7 @@ export function applyShotCorrection({ id = null, made, reason = 'User correction
 window.applyShotCorrection = applyShotCorrection;
 
 
-// viasion interaction for shot corrections
+// visaion interaction for shot corrections
 
 export async function reviewShotWithAI({ id = null } = {}) {
     const rec = (id != null) ? shotLog[id - 1] : shotLog.at(-1);
@@ -851,7 +851,7 @@ export async function reviewShotWithAI({ id = null } = {}) {
     };
 
     try {
-        const res = await fetch('/viasion/review_shot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const res = await fetch('/visaion/review_shot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!res.ok) throw new Error('review failed');
         const out = await res.json(); // { made:boolean, confidence:number(0..1), reason?:string }
         // Apply only if model proposes a change OR user asked for “accept suggestion”
@@ -860,7 +860,7 @@ export async function reviewShotWithAI({ id = null } = {}) {
         }
         return out;
     } catch (e) {
-        console.warn('[viasion/review] error', e);
+        console.warn('[visaion/review] error', e);
         return null;
     }
 }
@@ -1127,7 +1127,7 @@ export function results(trail, frameIndex, hoopBox, opts = {}) {
     window.__lastAnnouncedShotId = window.__lastAnnouncedShotId || 0;
     if (rec && window.__lastAnnouncedShotId !== rec.id) {
         window.__lastAnnouncedShotId = rec.id;
-        try { window.viasionOnShot?.(rec); } catch (e) { console.warn('[viasion] feedback failed:', e); }
+        try { window.visaionOnShot?.(rec); } catch (e) { console.warn('[visaion] feedback failed:', e); }
     }
 
     return rec;
@@ -1152,7 +1152,7 @@ function normHoop(hoop) {
 
 // ---------------- Weighted Scorer (clean, top-left convention) ----------------
 
-// Tunables (kept modest; tweak as needed - goal to tie to viasion model for optimization)
+// Tunables (kept modest; tweak as needed - goal to tie to visaion model for optimization)
 const WEIGHTS = {
     hoop: 0.15,
     net: 0.20,
@@ -1493,7 +1493,7 @@ export function drawShotStatsTable() {
       <td>${shot.entryAngle}°</td>
       <td>${shot.releaseAngle}°</td>
       <td>${shot.made ? '' : (shot.missReason ?? '-')}</td>
-      <td class="coach" title="${esc(shot.viasion)}">${esc(shot.viasion)}</td>`;
+      <td class="coach" title="${esc(shot.visaion)}">${esc(shot.visaion)}</td>`;
         tbody.appendChild(row);
     });
 
@@ -1795,7 +1795,7 @@ function countTubeHits(trail, hoop) {
 
 
 try {
-    const mgr = window?.viasionProjectManager;
+    const mgr = window?.visaionProjectManager;
     if (mgr?.registerModule) {
         mgr.registerModule('basketball/shot-logger', {
             project: ACTIVE_PROJECT_SLUG,

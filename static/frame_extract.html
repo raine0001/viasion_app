@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8" />
-    <title>viasion - Frame Extractor + YOLO Labeler</title>
+    <title>visaion - Frame Extractor + YOLO Labeler</title>
     <script src="/static/js/auth_guard.js" data-guard="auth"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark light" />
@@ -427,9 +427,9 @@
 <body>
     <div class="wrap">
         <div class="row" style="margin-bottom:8px">
-            <h1>viasion Frame Extractor + YOLO Labeler</h1>
+            <h1>visaion Frame Extractor + YOLO Labeler</h1>
             <span class="small muted" style="margin-left:auto">dataset: <code
-                    id="activeDatasetTag">viasion_seg</code></span>
+                    id="activeDatasetTag">visaion_seg</code></span>
         </div>
         <div class="projectNav" id="projectNavTabs">
             <button type="button" class="active" data-project-view="training">Training Lab</button>
@@ -852,7 +852,7 @@
         let currentDatasetSummary = null;
 
         function getActiveDatasetSlug() {
-            const slug = activeDatasetSlug || window.__viasionActiveDataset?.slug || null;
+            const slug = activeDatasetSlug || window.__visaionActiveDataset?.slug || null;
             return slug || null;
         }
 
@@ -881,7 +881,7 @@
 
         _projectTabs.forEach(btn => btn.addEventListener('click', () => setProjectView(btn.dataset.projectView)));
 
-        const projectManager = window.viasionProjectManager;
+        const projectManager = window.visaionProjectManager;
 
         function renderProjectList() {
             projectListEl.innerHTML = '';
@@ -981,7 +981,7 @@
                 return;
             }
             try {
-                const stored = localStorage.getItem('viasion_active_dataset');
+                const stored = localStorage.getItem('visaion_active_dataset');
                 if (stored) activeDatasetSlug = stored;
             } catch { }
             if (!activeDatasetSlug || !datasets.some(ds => ds.slug === activeDatasetSlug)) {
@@ -1093,10 +1093,10 @@
 
         function updateActiveDataset(ds, project, opts = {}) {
             activeDatasetSlug = ds.slug;
-            window.__viasionActiveDataset = ds;
+            window.__visaionActiveDataset = ds;
             applyDatasetLabels(ds);
             if (!opts.skipPersist) {
-                try { localStorage.setItem('viasion_active_dataset', activeDatasetSlug); } catch { }
+                try { localStorage.setItem('visaion_active_dataset', activeDatasetSlug); } catch { }
             }
             datasetListEl.querySelectorAll('.datasetCard').forEach(card => {
                 card.classList.toggle('active', card.dataset.slug === ds.slug);
@@ -1109,7 +1109,7 @@
             datasetSummaryEl.textContent = details.join(' | ') || 'Dataset ready.';
             renderDatasetInfo(ds);
             refreshDatasetHealth();
-            window.dispatchEvent(new CustomEvent('viasion:dataset-selected', { detail: { dataset: ds, project } }));
+            window.dispatchEvent(new CustomEvent('visaion:dataset-selected', { detail: { dataset: ds, project } }));
             try { populateFolderList(); } catch { }
             loadDatasetSummary(ds.slug);
         }

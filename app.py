@@ -1,4 +1,4 @@
-# Unified viasion app.py — optimized for dual model use, cleaned init, and removed /detect_video_init
+# Unified visaion app.py — optimized for dual model use, cleaned init, and removed /detect_video_init
 
 from flask import (
     Flask,
@@ -118,9 +118,9 @@ ALLOW_STUB_AUTH = _truthy(
     os.getenv("ALLOW_STUB_AUTH", _default_stub), default=(_default_stub == "1")
 )
 
-# Simple trace flag (enable with VIASION_TRACE=1; legacy DOACH_TRACE still honored)
+# Simple trace flag (enable with visaion_TRACE=1; legacy DOACH_TRACE still honored)
 try:
-    _TRACE = os.getenv("VIASION_TRACE") or os.getenv("DOACH_TRACE") or "1"
+    _TRACE = os.getenv("visaion_TRACE") or os.getenv("DOACH_TRACE") or "1"
     TRACE_ON = _TRACE.lower() not in ("0", "false", "no", "off", "")
 except Exception:
     TRACE_ON = True
@@ -132,6 +132,7 @@ def _trace(*args, **kwargs):
             print(*args, **kwargs)
     except Exception:
         pass
+
 
 PARTIAL_CHUNK_BYTES = 512 * 1024  # 512 KB initial streaming chunk
 FFMPEG_BIN = os.getenv("FFMPEG_BIN") or shutil.which("ffmpeg") or "ffmpeg"
@@ -180,7 +181,9 @@ def _remux_to_mp4(src: Path) -> Path | None:
     except subprocess.CalledProcessError as exc:
         stderr_text = ""
         try:
-            stderr_text = exc.stderr.decode("utf-8", errors="ignore") if exc.stderr else ""
+            stderr_text = (
+                exc.stderr.decode("utf-8", errors="ignore") if exc.stderr else ""
+            )
         except Exception:
             stderr_text = str(exc.stderr)
         _trace(
@@ -222,12 +225,19 @@ def _remux_to_mp4(src: Path) -> Path | None:
             sub_err = ""
             if isinstance(sub_exc, subprocess.CalledProcessError):
                 try:
-                    sub_err = sub_exc.stderr.decode("utf-8", errors="ignore") if sub_exc.stderr else ""
+                    sub_err = (
+                        sub_exc.stderr.decode("utf-8", errors="ignore")
+                        if sub_exc.stderr
+                        else ""
+                    )
                 except Exception:
                     sub_err = str(sub_exc.stderr)
             else:
                 sub_err = str(sub_exc)
-            _trace("[clip:ffmpeg] transcode failed", {"cmd": transcode_cmd, "error": sub_err[-400:]})
+            _trace(
+                "[clip:ffmpeg] transcode failed",
+                {"cmd": transcode_cmd, "error": sub_err[-400:]},
+            )
             try:
                 if dst_path.exists():
                     dst_path.unlink()
@@ -241,6 +251,7 @@ def _remux_to_mp4(src: Path) -> Path | None:
         except Exception:
             pass
     return None
+
 
 REQUIRED_LABELS = {"basketball", "hoop", "net", "backboard", "player"}
 CONFIDENCE_THRESHOLD = 0.01  # Lowered from 0.75 to 0.01 for improved detection
@@ -260,11 +271,11 @@ _PROJECT_MANIFEST_MTIME = None
 _DEFAULT_DATASET_FALLBACK = {
     "project": "basketball",
     "slug": "basketball_pose",
-    "root": "datasets/viasion_seg",
+    "root": "datasets/visaion_seg",
     "frameCacheRoot": "frame_cache",
     "framesRoot": "frames",
-    "labelTrainRoot": "datasets/viasion_seg/labels/train",
-    "imagesTrainRoot": "datasets/viasion_seg/images/train",
+    "labelTrainRoot": "datasets/visaion_seg/labels/train",
+    "imagesTrainRoot": "datasets/visaion_seg/images/train",
 }
 
 
@@ -290,7 +301,7 @@ def _normalize_dataset(project_slug, dataset_cfg):
     cfg = dict(dataset_cfg or {})
     cfg["project"] = project_slug or cfg.get("project") or "basketball"
     cfg["slug"] = cfg.get("slug") or f"{cfg['project']}_pose"
-    cfg["root"] = cfg.get("root") or "datasets/viasion_seg"
+    cfg["root"] = cfg.get("root") or "datasets/visaion_seg"
     cfg["frameCacheRoot"] = cfg.get("frameCacheRoot") or "frame_cache"
     cfg["framesRoot"] = cfg.get("framesRoot") or "frames"
     if not cfg.get("labelTrainRoot"):
@@ -1126,7 +1137,7 @@ def _get_dataset_detector(dataset_cfg):
     cfg = dataset_cfg or {}
     path = cfg.get("detector")
 
-    # Allow environment overrides per dataset/project (e.g., VIASION_DETECTOR_G_POSE=/models/best.pt)
+    # Allow environment overrides per dataset/project (e.g., visaion_DETECTOR_G_POSE=/models/best.pt)
     def _norm_env_key(value):
         return re.sub(r"[^A-Z0-9]+", "_", str(value).upper())
 
@@ -1137,16 +1148,16 @@ def _get_dataset_detector(dataset_cfg):
         key = _norm_env_key(slug)
         env_candidates.extend(
             [
-                f"VIASION_DETECTOR_{key}",
-                f"VIASION_DATASET_DETECTOR__{key}",
+                f"visaion_DETECTOR_{key}",
+                f"visaion_DATASET_DETECTOR__{key}",
             ]
         )
     if proj:
         key = _norm_env_key(proj)
         env_candidates.extend(
             [
-                f"VIASION_DETECTOR_{key}",
-                f"VIASION_PROJECT_DETECTOR__{key}",
+                f"visaion_DETECTOR_{key}",
+                f"visaion_PROJECT_DETECTOR__{key}",
             ]
         )
 
@@ -1396,7 +1407,9 @@ def _extract_preview_with_ffmpeg(src: Path, dest: Path) -> bool:
         subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
         return dest.exists() and dest.stat().st_size > 0
     except Exception as exc:  # pragma: no cover - best effort
-        _trace("[community:preview ffmpeg failed]", {"clip": str(src), "error": str(exc)})
+        _trace(
+            "[community:preview ffmpeg failed]", {"clip": str(src), "error": str(exc)}
+        )
         try:
             if dest.exists():
                 dest.unlink()
@@ -2040,7 +2053,10 @@ def api_microclip_upload():
             except Exception:
                 print(f"[microclip] repaired header for {dest_path}", flush=True)
         else:
-            print(f"[microclip] repair skipped (no cached header) for {dest_path}", flush=True)
+            print(
+                f"[microclip] repair skipped (no cached header) for {dest_path}",
+                flush=True,
+            )
     stream_filename = filename
     remuxed = None
     try:
@@ -2151,6 +2167,7 @@ def api_session_get(sid):
     if not sess:
         return jsonify({"error": "session not found"}), 404
     return jsonify(sess)
+
 
 def _range_aware_send(path=None, mimetype=None, *, sid=None, filename=None):
     """Return a response that honours Range headers for large media files.
@@ -2284,7 +2301,9 @@ def _ensure_shot_clip_urls(sid: str, shots: list[dict]) -> bool:
             idx_display = i
         current = shot.get("clip")
         if isinstance(current, dict):
-            current_path = current.get("path") or current.get("url") or current.get("href")
+            current_path = (
+                current.get("path") or current.get("url") or current.get("href")
+            )
         else:
             current_path = current
         preferred = _preferred_clip_rel(sid, idx_display)
@@ -3376,17 +3395,25 @@ def _normalize_profile_payload(data: dict | None) -> dict:
     profile["dominant_hand"] = (payload.get("dominant_hand") or "").strip()
     profile["skill_level"] = (payload.get("skill_level") or "").strip()
     try:
-        profile["height_cm"] = int(payload.get("height_cm")) if payload.get("height_cm") else None
+        profile["height_cm"] = (
+            int(payload.get("height_cm")) if payload.get("height_cm") else None
+        )
     except Exception:
         profile["height_cm"] = None
     try:
-        profile["weight_kg"] = int(payload.get("weight_kg")) if payload.get("weight_kg") else None
+        profile["weight_kg"] = (
+            int(payload.get("weight_kg")) if payload.get("weight_kg") else None
+        )
     except Exception:
         profile["weight_kg"] = None
     goals_val = payload.get("goals")
     goals: list[str] = []
     if isinstance(goals_val, str):
-        goals = [line.strip() for line in goals_val.replace("\r", "\n").split("\n") if line.strip()]
+        goals = [
+            line.strip()
+            for line in goals_val.replace("\r", "\n").split("\n")
+            if line.strip()
+        ]
     elif isinstance(goals_val, list):
         goals = [str(item).strip() for item in goals_val if str(item).strip()]
     profile["goals"] = goals
@@ -4020,9 +4047,9 @@ def api_face_clear():
     return jsonify({"status": result})
 
 
-@app.route("/my_viasion")
-def my_viasion():
-    return send_from_directory("static", "my_viasion.html")
+@app.route("/my_visaion")
+def my_visaion():
+    return send_from_directory("static", "my_visaion.html")
 
 
 @app.route("/user_setup")
@@ -4236,7 +4263,7 @@ def api_coach():
     )
 
     system = (
-        "You are viasion, a concise basketball shooting coach. "
+        "You are visaion, a concise basketball shooting coach. "
         "Be supportive and specific; give 1–3 concrete cues (e.g., 'elbow under ball', "
         "'hold follow-through', 'higher arc' , 'feet placement', 'snap wrist', 'release point'). Keep it under ~6 sentences."
         + lang_hint
@@ -5650,7 +5677,7 @@ def compile_dataset(folder):
     data = request.get_json()
     yaml_text = data.get("yaml", "")
 
-    base_path = os.path.join("datasets", "viasion_seg")
+    base_path = os.path.join("datasets", "visaion_seg")
     img_dir = os.path.join(base_path, "images", "train")
     label_dir = os.path.join(base_path, "labels", "train")
     os.makedirs(img_dir, exist_ok=True)
@@ -5695,7 +5722,7 @@ def _kickoff_training(folder=None):
             request.args.get("dataset") or ""
         ).strip()
         dataset = _resolve_dataset(dataset_slug or None)
-        dataset_slug = dataset.get("slug", "viasion")
+        dataset_slug = dataset.get("slug", "visaion")
 
         val_ratio = payload.get("val_ratio", request.args.get("val_ratio", 0.1))
         try:
@@ -6078,8 +6105,8 @@ def rotate_frame():
             print("⚠️ label rotate failed:", e)
 
     # Invalidate dataset copies (if they exist) to prevent stale training
-    ds_lbl = os.path.join("datasets", "viasion_seg", "labels", "train", label_name)
-    ds_img = os.path.join("datasets", "viasion_seg", "images", "train", filename)
+    ds_lbl = os.path.join("datasets", "visaion_seg", "labels", "train", label_name)
+    ds_img = os.path.join("datasets", "visaion_seg", "images", "train", filename)
     for p in (ds_lbl, ds_img):
         if os.path.exists(p):
             try:
@@ -6217,8 +6244,8 @@ def label_frame():
         # ✅ Save label and return
         yolo_path = save_yolo_labels(abs_path, high_conf_boxes)
         # 🟡 Also copy label + image to YOLO training dataset
-        train_label_dir = "datasets/viasion_seg/labels/train"
-        train_image_dir = "datasets/viasion_seg/images/train"
+        train_label_dir = "datasets/visaion_seg/labels/train"
+        train_image_dir = "datasets/visaion_seg/images/train"
         os.makedirs(train_label_dir, exist_ok=True)
         os.makedirs(train_image_dir, exist_ok=True)
 
@@ -6501,7 +6528,7 @@ def fix_label_swap():
                     w.write("\n".join(new_lines) + ("\n" if new_lines else ""))
                 changed += 1
                 # also update dataset copy if exists
-                ds_path = os.path.join("datasets", "viasion_seg", "labels", "train", fn)
+                ds_path = os.path.join("datasets", "visaion_seg", "labels", "train", fn)
                 if os.path.exists(ds_path):
                     with open(ds_path, "w") as w:
                         w.write("\n".join(new_lines) + ("\n" if new_lines else ""))
@@ -6752,7 +6779,7 @@ def set_detector_model():
 
 
 # route to serve training labels
-@app.route("/datasets/viasion_seg/labels/train/<filename>")
+@app.route("/datasets/visaion_seg/labels/train/<filename>")
 def serve_dataset_label(filename):
     dataset = _resolve_dataset("basketball_pose")
     result = _send_dataset_label(dataset, filename)
@@ -7937,7 +7964,7 @@ def admin_delete_event(event_id):
 #  Support API (skeleton for in-app help interactions)
 # ----------------------------------------------------------
 
-SUPPORT_ALLOWED_ROLES = {"user", "viasion", "admin"}
+SUPPORT_ALLOWED_ROLES = {"user", "visaion", "admin"}
 SUPPORT_RESULT_STATUSES = {
     "pending_user",
     "resolved",
@@ -8065,7 +8092,7 @@ def api_support_ingest():
 
     detected_intent = base_intent or "general"
     handler_result = None
-    viasion_reply_dict = None
+    visaion_reply_dict = None
 
     if role == "user":
         if not base_intent:
@@ -8108,7 +8135,7 @@ def api_support_ingest():
                     user_id=user_id,
                     session_id=payload.get("session_id"),
                     shot_id=payload.get("shot_id"),
-                    role="viasion",
+                    role="visaion",
                     message=handler_result.reply,
                     intent=detected_intent,
                     action_taken=handler_result.action_taken,
@@ -8119,7 +8146,7 @@ def api_support_ingest():
                 s.add(reply_row)
                 s.commit()
                 s.refresh(reply_row)
-                viasion_reply_dict = reply_row.to_dict()
+                visaion_reply_dict = reply_row.to_dict()
 
     response_body = {
         "ok": True,
@@ -8128,8 +8155,8 @@ def api_support_ingest():
     }
     if handler_result:
         response_body["handler"] = handler_result.to_dict()
-    if viasion_reply_dict:
-        response_body["response"] = viasion_reply_dict
+    if visaion_reply_dict:
+        response_body["response"] = visaion_reply_dict
     return jsonify(response_body), 201
 
 
@@ -8337,7 +8364,7 @@ if __name__ == "__main__":
         port = int(os.getenv("PORT", "5001"))
     except Exception:
         port = 5001
-    print(f"Starting viasion server on http://{host}:{port}")
+    print(f"Starting visaion server on http://{host}:{port}")
     try:
         app.run(host=host, port=port, debug=True, use_reloader=False, threaded=False)
     except OSError as e:

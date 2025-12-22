@@ -8,7 +8,7 @@
     const PROJECT_SLUG = 'golf';
     const POST_CAPTURE_DELAY_MS = 650;
     const HISTORY_LIMIT = 90;
-    const mgr = window.viasionProjectManager;
+    const mgr = window.visaionProjectManager;
 
     if (!mgr?.registerModule) {
         console.warn('[golf-metrics] project manager not present; module skipped');
@@ -33,7 +33,7 @@
     function isGolfActive() {
         try {
             const active = mgr.getActiveProject?.();
-            const slug = active?.slug || window.__viasion_ACTIVE_PROJECT?.slug || window.__viasion_ACTIVE_PROJECT;
+            const slug = active?.slug || window.__visaion_ACTIVE_PROJECT?.slug || window.__visaion_ACTIVE_PROJECT;
             return String(slug || '').toLowerCase() === PROJECT_SLUG;
         } catch {
             return false;

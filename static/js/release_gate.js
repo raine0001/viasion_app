@@ -5,9 +5,9 @@ const ACTIVE_PROJECT_SLUG = 'basketball';
 function isBasketballProjectActive() {
     try {
         const project =
-            window.__viasion_ACTIVE_PROJECT ||
-            (typeof window.viasionProjectManager?.getActiveProject === 'function'
-                ? window.viasionProjectManager.getActiveProject()
+            window.__visaion_ACTIVE_PROJECT ||
+            (typeof window.visaionProjectManager?.getActiveProject === 'function'
+                ? window.visaionProjectManager.getActiveProject()
                 : null);
         const slug = project?.slug;
         return !slug || slug === ACTIVE_PROJECT_SLUG;
@@ -557,7 +557,7 @@ try {
 } catch { }
 
 try {
-    const mgr = window?.viasionProjectManager;
+    const mgr = window?.visaionProjectManager;
     if (mgr?.registerModule) {
         mgr.registerModule('basketball/release-gate', {
             project: ACTIVE_PROJECT_SLUG,

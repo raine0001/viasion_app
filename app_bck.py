@@ -1,4 +1,4 @@
-# Unified viasion app.py — optimized for dual model use, cleaned init, and removed /detect_video_init
+# Unified visaion app.py — optimized for dual model use, cleaned init, and removed /detect_video_init
 from sqlalchemy import select, func, MetaData, Table
 from sqlalchemy.orm import Session  # if you use Core/engine sessions
 from sqlalchemy.dialects.mysql import insert as mysql_insert
@@ -106,11 +106,11 @@ _PROJECT_MANIFEST_MTIME = None
 _DEFAULT_DATASET_FALLBACK = {
     "project": "basketball",
     "slug": "basketball_pose",
-    "root": "datasets/viasion_seg",
+    "root": "datasets/visaion_seg",
     "frameCacheRoot": "frame_cache",
     "framesRoot": "frames",
-    "labelTrainRoot": "datasets/viasion_seg/labels/train",
-    "imagesTrainRoot": "datasets/viasion_seg/images/train",
+    "labelTrainRoot": "datasets/visaion_seg/labels/train",
+    "imagesTrainRoot": "datasets/visaion_seg/images/train",
 }
 
 
@@ -136,7 +136,7 @@ def _normalize_dataset(project_slug, dataset_cfg):
     cfg = dict(dataset_cfg or {})
     cfg["project"] = project_slug or cfg.get("project") or "basketball"
     cfg["slug"] = cfg.get("slug") or f"{cfg['project']}_pose"
-    cfg["root"] = cfg.get("root") or "datasets/viasion_seg"
+    cfg["root"] = cfg.get("root") or "datasets/visaion_seg"
     cfg["frameCacheRoot"] = cfg.get("frameCacheRoot") or "frame_cache"
     cfg["framesRoot"] = cfg.get("framesRoot") or "frames"
     if not cfg.get("labelTrainRoot"):
@@ -890,9 +890,9 @@ def api_me():
         )
 
 
-@app.route("/my_viasion")
-def my_viasion():
-    return send_from_directory("static", "my_viasion.html")
+@app.route("/my_visaion")
+def my_visaion():
+    return send_from_directory("static", "my_visaion.html")
 
 
 @app.route("/dashboard")
@@ -1137,7 +1137,7 @@ def api_coach():
     )
 
     system = (
-        "You are viasion, a concise basketball shooting coach. "
+        "You are visaion, a concise basketball shooting coach. "
         "Be supportive and specific; give 1–3 concrete cues (e.g., 'elbow under ball', "
         "'hold follow-through', 'higher arc' , 'feet placement', 'snap wrist', 'release point'). Keep it under ~6 sentences."
         + lang_hint
@@ -1670,7 +1670,7 @@ def compile_dataset(folder):
     data = request.get_json()
     yaml_text = data.get("yaml", "")
 
-    base_path = os.path.join("datasets", "viasion_seg")
+    base_path = os.path.join("datasets", "visaion_seg")
     img_dir = os.path.join(base_path, "images", "train")
     label_dir = os.path.join(base_path, "labels", "train")
     os.makedirs(img_dir, exist_ok=True)
@@ -1708,8 +1708,8 @@ def compile_dataset(folder):
 # replaces start_training - initiate training Yolo model
 def _kickoff_training():
     try:
-        yaml_path = os.path.join("datasets", "viasion_seg", "data.yaml")
-        run_name = f"viasion_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        yaml_path = os.path.join("datasets", "visaion_seg", "data.yaml")
+        run_name = f"visaion_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         epochs = 120
         imgsz = 640
         batch = 16
@@ -1966,8 +1966,8 @@ def rotate_frame():
             print("⚠️ label rotate failed:", e)
 
     # Invalidate dataset copies (if they exist) to prevent stale training
-    ds_lbl = os.path.join("datasets", "viasion_seg", "labels", "train", label_name)
-    ds_img = os.path.join("datasets", "viasion_seg", "images", "train", filename)
+    ds_lbl = os.path.join("datasets", "visaion_seg", "labels", "train", label_name)
+    ds_img = os.path.join("datasets", "visaion_seg", "images", "train", filename)
     for p in (ds_lbl, ds_img):
         if os.path.exists(p):
             try:
@@ -1986,7 +1986,7 @@ def load_yolo_label(folder, filename):
     """
     Search order:
       1) frames/<folder>/<filename>
-      2) datasets/viasion_seg/labels/train/<filename>  (fallback)
+      2) datasets/visaion_seg/labels/train/<filename>  (fallback)
     Returns text/plain if found; otherwise 204 (no content).
     """
     # primary: frames/<folder>/<filename>
@@ -1997,7 +1997,7 @@ def load_yolo_label(folder, filename):
 
     # fallback: dataset label copy
     ds_root = os.path.abspath(
-        os.path.join(app.root_path, "datasets", "viasion_seg", "labels", "train")
+        os.path.join(app.root_path, "datasets", "visaion_seg", "labels", "train")
     )
     ds_cand = os.path.abspath(os.path.join(ds_root, filename))
     if ds_cand.startswith(ds_root) and os.path.exists(ds_cand):
@@ -2098,8 +2098,8 @@ def label_frame():
         # ✅ Save label and return
         yolo_path = save_yolo_labels(abs_path, high_conf_boxes)
         # 🟡 Also copy label + image to YOLO training dataset
-        train_label_dir = "datasets/viasion_seg/labels/train"
-        train_image_dir = "datasets/viasion_seg/images/train"
+        train_label_dir = "datasets/visaion_seg/labels/train"
+        train_image_dir = "datasets/visaion_seg/images/train"
         os.makedirs(train_label_dir, exist_ok=True)
         os.makedirs(train_image_dir, exist_ok=True)
 
@@ -2370,7 +2370,7 @@ def fix_label_swap():
                     w.write("\n".join(new_lines) + ("\n" if new_lines else ""))
                 changed += 1
                 # also update dataset copy if exists
-                ds_path = os.path.join("datasets", "viasion_seg", "labels", "train", fn)
+                ds_path = os.path.join("datasets", "visaion_seg", "labels", "train", fn)
                 if os.path.exists(ds_path):
                     with open(ds_path, "w") as w:
                         w.write("\n".join(new_lines) + ("\n" if new_lines else ""))
@@ -2621,9 +2621,9 @@ def set_detector_model():
 
 
 # route to serve training labels
-@app.route("/datasets/viasion_seg/labels/train/<filename>")
+@app.route("/datasets/visaion_seg/labels/train/<filename>")
 def serve_dataset_label(filename):
-    return send_from_directory("datasets/viasion_seg/labels/train", filename)
+    return send_from_directory("datasets/visaion_seg/labels/train", filename)
 
 
 # list_frame_folders route to populate dropdown on extraction page
@@ -3019,7 +3019,7 @@ if __name__ == "__main__":
         port = int(os.getenv("PORT", "5001"))
     except Exception:
         port = 5001
-    print(f"Starting viasion server on http://{host}:{port}")
+    print(f"Starting visaion server on http://{host}:{port}")
     try:
         app.run(host=host, port=port, debug=True, use_reloader=False, threaded=False)
     except OSError as e:

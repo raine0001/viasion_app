@@ -19,7 +19,7 @@ export default function CommunityFeed() {
 
     return (
         <div style={{ padding: '1rem', maxWidth: '1000px', margin: '0 auto' }}>
-            <h2>🏀 viasion Community Sessions</h2>
+            <h2>🏀 visaion Community Sessions</h2>
 
             <div style={{ margin: '1rem 0' }}>
                 <strong>Filter by tag:</strong>
