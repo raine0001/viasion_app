@@ -66,15 +66,14 @@
 
 
         main {
-            display: grid;
-            grid-template-columns: 380px 1fr;
-            grid-auto-rows: minmax(0, 1fr);
-            gap: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
             padding: 14px;
             flex: 1 1 auto;
             box-sizing: border-box;
             min-height: 0;
-            height: auto;
+            overflow: hidden;
         }
 
 
@@ -279,6 +278,87 @@
             display: flex;
             gap: 8px;
             align-items: center;
+        }
+
+        .tab-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .tab-btn {
+            background: #101a26;
+            color: #cbd5f5;
+            border: 1px solid #273248;
+            padding: 8px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            letter-spacing: 0.02em;
+            text-transform: none;
+        }
+
+        .tab-btn:hover {
+            background: #162233;
+        }
+
+        .tab-btn.active {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+            box-shadow: 0 8px 18px rgba(37, 99, 235, 0.35);
+        }
+
+        .tab-panel {
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 0;
+            overflow: auto;
+            flex: 1 1 auto;
+        }
+
+        .tab-panel.active {
+            display: flex;
+        }
+
+        .tab-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid #1f2a36;
+            background: #111a25;
+        }
+
+        .tab-toolbar input {
+            flex: 1 1 220px;
+            width: auto;
+        }
+
+        .tab-toolbar select {
+            background: #0b0f14;
+            color: #e6edf3;
+            border: 1px solid #1f2a36;
+            padding: 6px 8px;
+            border-radius: 8px;
+        }
+
+        .session-picker {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 12px;
+            color: #94a3b8;
+            min-width: 220px;
+            flex: 1 1 260px;
+        }
+
+        .session-picker select {
+            width: 100%;
         }
 
 
@@ -1383,20 +1463,18 @@
 
         @media (max-width: 1040px) {
 
-
-
             main {
-                grid-template-columns: 1fr;
+                padding: 12px;
             }
 
-
+            .tab-btn {
+                flex: 1 1 100%;
+                text-align: center;
+            }
 
             #viewer {
                 min-height: 320px;
             }
-
-
-
         }
     </style>
 
@@ -1412,354 +1490,232 @@
 
     <header>
 
-
-
         <h1>visaion Admin</h1>
-
-
-
-        <div class="toolbar">
-
-
-
-            <input id="filterTxt" placeholder="Filter sessions..." type="text" />
-
-
-
-            <button class="btn" id="btnRefresh">Refresh</button>
-
-
-
-        </div>
-
-
 
     </header>
 
 
 
     <main>
+        <div class="tab-bar" role="tablist">
+            <button class="tab-btn active" type="button" role="tab" aria-selected="true" aria-controls="tab-live"
+                data-tab-target="live">Session Live</button>
+            <button class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-support"
+                data-tab-target="support">Support Thread</button>
+            <button class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-sessions"
+                data-tab-target="sessions">Sessions</button>
+            <button class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-subscriptions"
+                data-tab-target="subscriptions">Subscriptions</button>
+            <button class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-challenges"
+                data-tab-target="challenges">Challenge Management</button>
+            <button class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-community"
+                data-tab-target="community">Community Moderation</button>
+        </div>
 
-
-
-        <section id="sessionPane">
-
-
-
-            <h2>Sessions</h2>
-
-
-
-            <div class="list" id="sessionsList"></div>
-
-
-
-        </section>
-
-
-
-        <section>
-
-
-
-            <h2>Details</h2>
-
-
-
-            <div id="viewer">
-
-
-
-                <div class="shots-wrap">
-
-
-
-                    <div class="shots-header">
-
-
-
-                        <h3>Shots</h3>
-
-
-
-                        <span class="shots-meta" id="shotsMeta">0 of 0 made</span>
-
-
-
-                    </div>
-
-
-
-                    <div class="shots-table-wrap shots-empty" id="shotsTableWrap">Select a session to view shots.</div>
-
-
-
+        <div class="tab-panel active" id="tab-live" role="tabpanel" data-tab-panel="live">
+            <section id="livePane">
+                <h2>Session Live</h2>
+                <div class="tab-toolbar">
+                    <label class="session-picker">Session
+                        <select id="liveSessionPicker">
+                            <option value="">Select a session...</option>
+                        </select>
+                    </label>
                 </div>
-
-
-
-                <div class="debug-header">
-
-
-
-                    <div>
-
-
-
-                        <h2 style="margin:0;">visaion Live Debug</h2>
-
-
-
-                        <div class="muted" id="dbg-session-label" style="font-size:12px;">No session selected.</div>
-
-
-
+                <div id="viewer">
+                    <div class="shots-wrap">
+                        <div class="shots-header">
+                            <h3>Shots</h3>
+                            <span class="shots-meta" id="shotsMeta">0 of 0 made</span>
+                        </div>
+                        <div class="shots-table-wrap shots-empty" id="shotsTableWrap">Select a session to view shots.
+                        </div>
                     </div>
 
-
-
-                    <div class="debug-actions">
-
-
-
-                        <button disabled="" id="dbg-open-observe">Observe</button>
-
-
-
-                        <button disabled="" id="dbg-open-json">Open JSON</button>
-
-
-
-                        <button disabled="" id="adm-dbg-download">Download</button>
-
-
-
-                        <button disabled="" id="dbg-copy">Copy</button>
-
-
-
+                    <div class="debug-header">
+                        <div>
+                            <h2 style="margin:0;">visaion Live Debug</h2>
+                            <div class="muted" id="dbg-session-label" style="font-size:12px;">No session selected.</div>
+                        </div>
+                        <div class="debug-actions">
+                            <button disabled="" id="dbg-open-observe">Observe</button>
+                            <button disabled="" id="dbg-open-json">Open JSON</button>
+                            <button disabled="" id="adm-dbg-download">Download</button>
+                            <button disabled="" id="dbg-copy">Copy</button>
+                        </div>
                     </div>
-
-
-
+                    <pre id="dbg-json">(select a session to load debug details)</pre>
                 </div>
+            </section>
+        </div>
 
-
-
-                <pre id="dbg-json">(select a session to load debug details)</pre>
-
-
-
-
-
-
-
+        <div class="tab-panel" id="tab-support" role="tabpanel" data-tab-panel="support">
+            <section id="supportTabPane">
+                <h2>Support Thread</h2>
+                <div class="tab-toolbar">
+                    <label class="session-picker">Session
+                        <select id="supportSessionPicker">
+                            <option value="">Select a session...</option>
+                        </select>
+                    </label>
+                </div>
                 <div class="support-pane" id="supportPane">
-
-
-
                     <div class="support-header">
-
-
-
                         <h3>Support Thread</h3>
-
-
-
                         <span class="support-status" id="supportStatusLabel">Select a session to view support
                             history.</span>
-
-
-
                         <div class="support-tags" id="supportTicketTags"></div>
-
-
-
                     </div>
-
-
-
                     <div class="support-thread-box" id="supportThreadBox">
-
-
-
                         <div class="support-empty">No session selected.</div>
-
-
-
                     </div>
-
-
-
                     <div class="support-actions">
-
-
-
-                        <textarea id="supportReplyInput" placeholder="Reply as adminâ€¦" disabled></textarea>
-
-
-
+                        <textarea id="supportReplyInput" placeholder="Reply as admin..." disabled></textarea>
                         <div class="support-actions-row">
-
-
-
                             <button class="btn" id="supportRefreshBtn" type="button">Refresh Support</button>
-
-
-
                             <button class="btn" id="supportResolveBtn" type="button" disabled>Mark Resolved</button>
-
-
-
                             <button class="btn primary" id="supportReplySend" type="button" disabled>Send Reply</button>
-
-
-
                         </div>
-
-
-
-                    </div>
-
-
-
-                </div>
-
-
-
-
-
-
-
-            </div>
-
-
-
-        </section>
-
-
-
-        <section id="challengePane">
-            <h2>Challenge Management</h2>
-            <div class="challenge-wrap">
-                <div class="challenge-list" id="challengeList">
-                    <div class="muted" style="padding:8px;">No challenges loaded.</div>
-                </div>
-                <form class="challenge-form" id="challengeForm">
-                    <label>Slug
-                        <input id="challengeSlug" type="text" placeholder="autumn-shootout" required />
-                    </label>
-                    <label>Name
-                        <input id="challengeName" type="text" placeholder="Autumn Shootout" required />
-                    </label>
-                    <label>Start Date
-                        <input id="challengeStart" type="date" />
-                    </label>
-                    <label>End Date
-                        <input id="challengeEnd" type="date" />
-                    </label>
-                    <label>Daily Limit
-                        <input id="challengeDailyLimit" type="number" min="0" />
-                    </label>
-                    <label>Min Shots
-                        <input id="challengeMinShots" type="number" min="0" />
-                    </label>
-                    <label>Time Zone
-                        <input id="challengeTz" type="text" placeholder="America/New_York" />
-                    </label>
-                </form>
-                <div id="challengeStatus"></div>
-                <div class="challenge-actions">
-                    <button class="btn" type="button" id="challengeNewBtn">New</button>
-                    <button class="btn" type="button" id="challengeDeleteBtn" disabled>Delete</button>
-                    <button class="btn primary" type="button" id="challengeSaveBtn">Save</button>
-                </div>
-            </div>
-        </section>
-
-        <section id="subscriptionPane">
-            <h2>Subscriptions</h2>
-            <div class="subscription-wrap">
-                <div class="subscription-plans">
-                    <div class="subscription-plan-header">
-                        <h3>Plans</h3>
-                        <button class="btn" id="subscriptionNewBtn" type="button">New Plan</button>
-                    </div>
-                    <div class="subscription-plan-list" id="subscriptionPlanList">
-                        <div class="subscription-empty">No plans loaded.</div>
                     </div>
                 </div>
-                <div class="subscription-form">
-                    <h3>Plan Details</h3>
-                    <form id="subscriptionPlanForm">
-                        <label>Plan ID
-                            <input id="subscriptionPlanId" type="text" placeholder="golf_range_monthly" required />
+            </section>
+        </div>
+
+        <div class="tab-panel" id="tab-sessions" role="tabpanel" data-tab-panel="sessions">
+            <section id="sessionPane">
+                <h2>Sessions</h2>
+                <div class="tab-toolbar">
+                    <input id="filterTxt" placeholder="Filter sessions..." type="text" />
+                    <button class="btn" id="btnRefresh">Refresh</button>
+                </div>
+                <div class="list" id="sessionsList"></div>
+            </section>
+        </div>
+
+        <div class="tab-panel" id="tab-subscriptions" role="tabpanel" data-tab-panel="subscriptions">
+            <section id="subscriptionPane">
+                <h2>Subscriptions</h2>
+                <div class="subscription-wrap">
+                    <div class="subscription-plans">
+                        <div class="subscription-plan-header">
+                            <h3>Plans</h3>
+                            <button class="btn" id="subscriptionNewBtn" type="button">New Plan</button>
+                        </div>
+                        <div class="subscription-plan-list" id="subscriptionPlanList">
+                            <div class="subscription-empty">No plans loaded.</div>
+                        </div>
+                    </div>
+                    <div class="subscription-form">
+                        <h3>Plan Details</h3>
+                        <form id="subscriptionPlanForm">
+                            <label>Plan ID
+                                <input id="subscriptionPlanId" type="text" placeholder="golf_range_monthly" required />
+                            </label>
+                            <label>Name
+                                <input id="subscriptionPlanName" type="text" placeholder="Golf Range Analyzer" />
+                            </label>
+                            <label>Dataset
+                                <input id="subscriptionPlanDataset" type="text" placeholder="g_pose" required />
+                            </label>
+                            <label>Price
+                                <input id="subscriptionPlanPrice" type="number" step="0.01" min="0" />
+                            </label>
+                            <label>Period
+                                <select id="subscriptionPlanPeriod">
+                                    <option value="monthly">Monthly</option>
+                                    <option value="annual">Annual</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="lifetime">Lifetime</option>
+                                </select>
+                            </label>
+                            <label>Trial Days
+                                <input id="subscriptionPlanTrial" type="number" min="0" />
+                            </label>
+                            <label class="subscription-checkbox">
+                                <input id="subscriptionPlanActive" type="checkbox" checked />
+                                Active
+                            </label>
+                            <label>Description
+                                <textarea id="subscriptionPlanDescription" rows="3"
+                                    placeholder="Describe included access"></textarea>
+                            </label>
+                        </form>
+                        <div class="subscription-actions">
+                            <button class="btn" type="button" id="subscriptionSaveBtn">Save Plan</button>
+                            <button class="btn" type="button" id="subscriptionDeactivateBtn">Deactivate</button>
+                        </div>
+                        <div class="subscription-status" id="subscriptionStatus"></div>
+                    </div>
+                    <div class="subscription-users">
+                        <h3>Assigned Users</h3>
+                        <div class="subscription-user-list" id="subscriptionUserList">
+                            <div class="subscription-empty">Select a plan to view assignments.</div>
+                        </div>
+                        <div class="subscription-assign">
+                            <input id="subscriptionAssignUser" type="text" placeholder="user id or email" />
+                            <button class="btn" type="button" id="subscriptionAssignBtn">Assign</button>
+                        </div>
+                        <button class="btn" type="button" id="subscriptionReloadBtn">Reload</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="tab-panel" id="tab-challenges" role="tabpanel" data-tab-panel="challenges">
+            <section id="challengePane">
+                <h2>Challenge Management</h2>
+                <div class="challenge-wrap">
+                    <div class="challenge-list" id="challengeList">
+                        <div class="muted" style="padding:8px;">No challenges loaded.</div>
+                    </div>
+                    <form class="challenge-form" id="challengeForm">
+                        <label>Slug
+                            <input id="challengeSlug" type="text" placeholder="autumn-shootout" required />
                         </label>
                         <label>Name
-                            <input id="subscriptionPlanName" type="text" placeholder="Golf Range Analyzer" />
+                            <input id="challengeName" type="text" placeholder="Autumn Shootout" required />
                         </label>
-                        <label>Dataset
-                            <input id="subscriptionPlanDataset" type="text" placeholder="g_pose" required />
+                        <label>Start Date
+                            <input id="challengeStart" type="date" />
                         </label>
-                        <label>Price
-                            <input id="subscriptionPlanPrice" type="number" step="0.01" min="0" />
+                        <label>End Date
+                            <input id="challengeEnd" type="date" />
                         </label>
-                        <label>Period
-                            <select id="subscriptionPlanPeriod">
-                                <option value="monthly">Monthly</option>
-                                <option value="annual">Annual</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="lifetime">Lifetime</option>
-                            </select>
+                        <label>Daily Limit
+                            <input id="challengeDailyLimit" type="number" min="0" />
                         </label>
-                        <label>Trial Days
-                            <input id="subscriptionPlanTrial" type="number" min="0" />
+                        <label>Min Shots
+                            <input id="challengeMinShots" type="number" min="0" />
                         </label>
-                        <label class="subscription-checkbox">
-                            <input id="subscriptionPlanActive" type="checkbox" checked />
-                            Active
-                        </label>
-                        <label>Description
-                            <textarea id="subscriptionPlanDescription" rows="3"
-                                placeholder="Describe included access"></textarea>
+                        <label>Time Zone
+                            <input id="challengeTz" type="text" placeholder="America/New_York" />
                         </label>
                     </form>
-                    <div class="subscription-actions">
-                        <button class="btn" type="button" id="subscriptionSaveBtn">Save Plan</button>
-                        <button class="btn" type="button" id="subscriptionDeactivateBtn">Deactivate</button>
+                    <div id="challengeStatus"></div>
+                    <div class="challenge-actions">
+                        <button class="btn" type="button" id="challengeNewBtn">New</button>
+                        <button class="btn" type="button" id="challengeDeleteBtn" disabled>Delete</button>
+                        <button class="btn primary" type="button" id="challengeSaveBtn">Save</button>
                     </div>
-                    <div class="subscription-status" id="subscriptionStatus"></div>
                 </div>
-                <div class="subscription-users">
-                    <h3>Assigned Users</h3>
-                    <div class="subscription-user-list" id="subscriptionUserList">
-                        <div class="subscription-empty">Select a plan to view assignments.</div>
+            </section>
+        </div>
+
+        <div class="tab-panel" id="tab-community" role="tabpanel" data-tab-panel="community">
+            <section id="communityPane">
+                <h2>Community Moderation</h2>
+                <div class="community-wrap">
+                    <div class="community-toolbar">
+                        <input id="communityFilter" placeholder="Filter community posts..." type="text" />
+                        <button class="btn" id="communityRefreshBtn" type="button">Refresh</button>
                     </div>
-                    <div class="subscription-assign">
-                        <input id="subscriptionAssignUser" type="text" placeholder="user id or email" />
-                        <button class="btn" type="button" id="subscriptionAssignBtn">Assign</button>
+                    <div class="community-list" id="communityPostList">
+                        <div class="muted" style="padding:8px;">No community posts loaded.</div>
                     </div>
-                    <button class="btn" type="button" id="subscriptionReloadBtn">Reload</button>
+                    <div class="community-status" id="communityStatus"></div>
                 </div>
-            </div>
-        </section>
-
-        <section id="communityPane">
-            <h2>Community Moderation</h2>
-            <div class="community-wrap">
-                <div class="community-toolbar">
-                    <input id="communityFilter" placeholder="Filter community posts..." type="text" />
-                    <button class="btn" id="communityRefreshBtn" type="button">Refresh</button>
-                </div>
-                <div class="community-list" id="communityPostList">
-                    <div class="muted" style="padding:8px;">No community posts loaded.</div>
-                </div>
-                <div class="community-status" id="communityStatus"></div>
-            </div>
-        </section>
-
-
-
+            </section>
+        </div>
     </main>
     <script src="/static/js/admin_dashboard.js"></script>
 

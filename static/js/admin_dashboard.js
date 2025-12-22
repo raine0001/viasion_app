@@ -8,6 +8,31 @@
 
     if (!sessionsList) return;
 
+    const tabButtons = Array.from(document.querySelectorAll('[data-tab-target]'));
+    const tabPanels = Array.from(document.querySelectorAll('[data-tab-panel]'));
+
+    const setActiveTab = (name) => {
+        if (!tabButtons.length || !tabPanels.length) return;
+        const target = name || tabButtons[0]?.dataset.tabTarget;
+        if (!target) return;
+        tabButtons.forEach((btn) => {
+            const active = btn.dataset.tabTarget === target;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        tabPanels.forEach((panel) => {
+            const active = panel.dataset.tabPanel === target;
+            panel.classList.toggle('active', active);
+        });
+    };
+
+    if (tabButtons.length && tabPanels.length) {
+        tabButtons.forEach((btn) => {
+            btn.addEventListener('click', () => setActiveTab(btn.dataset.tabTarget));
+        });
+        setActiveTab('live');
+    }
+
 
 
 
@@ -19,6 +44,12 @@
 
 
     const btnRefresh = document.getElementById('btnRefresh');
+
+    const liveSessionPicker = document.getElementById('liveSessionPicker');
+
+    const supportSessionPicker = document.getElementById('supportSessionPicker');
+
+    const sessionPickers = [liveSessionPicker, supportSessionPicker].filter(Boolean);
 
 
 
@@ -1285,6 +1316,13 @@
 
 
 
+    const getSessionShotCount = (session) => {
+        if (!session || typeof session !== 'object') return 0;
+        const raw = session.shots ?? session.shot_count ?? session.totals?.attempts;
+        const count = Number(raw);
+        return Number.isFinite(count) ? count : 0;
+    };
+
     const LIVE_MAX_AGE_MS = 5 * 60 * 1000;
 
 
@@ -1301,11 +1339,11 @@
 
 
 
-        const shots = Number(session.shots ?? session.shot_count ?? session.totals?.attempts);
+        const shots = getSessionShotCount(session);
 
 
 
-        if (!Number.isFinite(shots) || shots <= 1 || shots >= 10) return false;
+        if (Number.isFinite(shots) && shots >= 10) return false;
 
 
 
@@ -1337,6 +1375,70 @@
 
 
 
+    };
+
+    const shouldShowSession = (session) => {
+        const shots = getSessionShotCount(session);
+        if (shots <= 0 && !session?.live) return false;
+        return true;
+    };
+
+    const formatSessionPickerLabel = (session) => {
+        const sid = String(session?.sid || '');
+        const shots = getSessionShotCount(session);
+        const parts = [];
+        parts.push(`${shots} shots`);
+        if (session?.live) parts.push('LIVE');
+        const user = session?.user ? (session.user.name || session.user.email || session.user.user_id) : '';
+        if (user) parts.push(user);
+        return parts.length ? `${sid} - ${parts.join(' - ')}` : sid;
+    };
+
+    const updateSessionPickers = () => {
+        if (!sessionPickers.length) return;
+        const selectable = sessions.filter((session) => {
+            const sid = String(session?.sid || '');
+            if (!sid) return false;
+            return shouldShowSession(session);
+        });
+        const hasActive = activeSid && selectable.some((session) => String(session.sid || '') === activeSid);
+        sessionPickers.forEach((picker) => {
+            if (!picker) return;
+            const frag = document.createDocumentFragment();
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = selectable.length ? 'Select a session...' : 'No sessions available';
+            placeholder.disabled = true;
+            frag.appendChild(placeholder);
+            selectable.forEach((session) => {
+                const sid = String(session.sid || '');
+                if (!sid) return;
+                const option = document.createElement('option');
+                option.value = sid;
+                option.textContent = formatSessionPickerLabel(session);
+                frag.appendChild(option);
+            });
+            picker.textContent = '';
+            picker.appendChild(frag);
+            if (hasActive) {
+                picker.value = activeSid;
+            } else {
+                picker.value = '';
+            }
+            picker.disabled = !selectable.length;
+        });
+    };
+
+    const syncSessionPickerSelection = (sid) => {
+        if (!sessionPickers.length) return;
+        sessionPickers.forEach((picker) => {
+            if (!picker) return;
+            if (sid && Array.from(picker.options).some((opt) => opt.value === sid)) {
+                picker.value = sid;
+            } else {
+                picker.value = '';
+            }
+        });
     };
 
 
@@ -1638,6 +1740,7 @@
 
 
             renderSessions();
+            updateSessionPickers();
 
 
 
@@ -2239,6 +2342,10 @@
 
             if (filter && !sid.toLowerCase().includes(filter)) return;
 
+            const shotsCount = getSessionShotCount(session);
+
+            if (!shouldShowSession(session)) return;
+
 
 
 
@@ -2273,7 +2380,7 @@
 
 
 
-            const shots = Number.isFinite(session.shots) ? session.shots : (session.totals?.attempts ?? '');
+            const shots = shotsCount;
 
 
 
@@ -2461,7 +2568,7 @@
 
 
 
-            if (!force && sessions.length) { renderSessions(); return; }
+            if (!force && sessions.length) { renderSessions(); updateSessionPickers(); return; }
 
 
 
@@ -2494,6 +2601,7 @@
 
 
             renderSessions();
+            updateSessionPickers();
 
 
 
@@ -4035,6 +4143,8 @@
 
         activeSid = sid;
 
+        syncSessionPickerSelection(sid);
+
 
 
         setActiveRow(sid);
@@ -5059,14 +5169,14 @@
 
             const hideBtn = document.createElement('button');
             hideBtn.className = `btn btn-mini${post?.hidden ? '' : ' btn-warning'}`;
-            hideBtn.textContent = post?.hidden ? 'Unhide' : 'Hide';
+            hideBtn.textContent = post?.hidden ? 'Approve' : 'Hide';
             hideBtn.addEventListener('click', async (event) => {
                 event.stopPropagation();
                 if (!sid) return;
                 hideBtn.disabled = true;
                 deleteBtn.disabled = true;
                 try {
-                    setCommunityStatus(`${post?.hidden ? 'Unhiding' : 'Hiding'} ${sid}...`, 'info');
+                    setCommunityStatus(`${post?.hidden ? 'Approving' : 'Hiding'} ${sid}...`, 'info');
                     const res = await fetch(`/admin/community/posts/${encodeURIComponent(sid)}`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
@@ -5209,9 +5319,19 @@
 
     if (supportRefreshBtn) supportRefreshBtn.addEventListener('click', () => loadSupportMetadata(true));
 
+    const handleSessionPickerChange = (event) => {
+        const value = event.target.value;
+        if (value) selectSession(value);
+    };
+
+    if (liveSessionPicker) liveSessionPicker.addEventListener('change', handleSessionPickerChange);
+
+    if (supportSessionPicker) supportSessionPicker.addEventListener('change', handleSessionPickerChange);
+
     if (communityFilterInput) communityFilterInput.addEventListener('input', () => renderCommunityPosts());
 
     if (communityRefreshBtn) communityRefreshBtn.addEventListener('click', () => loadCommunityPosts(true));
+
 
 
 
