@@ -614,6 +614,15 @@
 
             // Check auth and show next view after splash (3s)
             function afterSplash() {
+                const params = new URLSearchParams(location.search || '');
+                const trialFlag = (params.get('trial') || params.get('demo') || params.get('public') || '').toLowerCase();
+                const trialEnabled = ['1', 'true', 'yes', 'on'].includes(trialFlag);
+                if (trialEnabled) {
+                    try { splash.style.display = 'none'; } catch { }
+                    hideAuth();
+                    showStart();
+                    return;
+                }
                 fetch('/api/auth/me').then(r => r.json()).then(j => {
                     try { splash.style.display = 'none'; } catch { }
                     const user = j && j.user;

@@ -106,6 +106,87 @@
             margin-top: 8px;
         }
 
+        .cta-panel {
+            width: 100%;
+            max-width: 420px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .cta-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .cta-row>* {
+            flex: 1;
+        }
+
+        .cta-row button,
+        .cta-row .cta-link,
+        .try-session-options .cta-link {
+            margin: 0;
+        }
+
+        .cta-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            text-align: center;
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid #cbd5f5;
+            font-size: 15px;
+            box-sizing: border-box;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+        }
+
+        .cta-secondary {
+            background: #f8fafc;
+            color: #1d4ed8;
+            border: 1px solid #cbd5f5;
+        }
+
+        .cta-link.cta-secondary:hover,
+        button.cta-secondary:hover {
+            background: #eef2ff;
+            box-shadow: 0 6px 18px rgba(29, 78, 216, 0.18);
+            transform: translateY(-1px);
+        }
+
+        .cta-link.cta-secondary:active,
+        button.cta-secondary:active {
+            transform: translateY(0);
+        }
+
+        .try-session-options {
+            display: flex;
+            gap: 10px;
+        }
+
+        .try-session-options[hidden] {
+            display: none;
+        }
+
+        .cta-option {
+            font-size: 13px;
+            padding: 10px 12px;
+            background: #eef2ff;
+            color: #1e3a8a;
+            border: 1px solid #cbd5f5;
+        }
+
+        .cta-option:hover {
+            background: #dbeafe;
+            box-shadow: 0 6px 18px rgba(30, 58, 138, 0.18);
+        }
+
         .faq-assistant {
             width: 100%;
             max-width: 420px;
@@ -248,6 +329,11 @@
                 gap: 8px;
             }
 
+            .cta-row,
+            .try-session-options {
+                flex-direction: column;
+            }
+
             .faq-assistant {
                 padding: 18px;
                 border-radius: 12px;
@@ -272,6 +358,18 @@
             <button id="btnRegister">Register</button>
         </div>
         <div class="muted" id="msg"></div>
+    </div>
+    <div class="cta-panel" aria-label="Quick links">
+        <div class="cta-row">
+            <a class="cta-link cta-secondary" href="/static/community.html">Visaion Community</a>
+            <button id="btnTrySession" class="cta-secondary" type="button" aria-expanded="false"
+                aria-controls="trySessionOptions">Try a Session</button>
+        </div>
+        <div id="trySessionOptions" class="try-session-options" hidden>
+            <a class="cta-link cta-option"
+                href="/start_session?trial=1&cap=3&project=basketball">Basketball (3 shots)</a>
+            <a class="cta-link cta-option" href="/start_session?trial=1&cap=3&project=golf">Golf (3 swings)</a>
+        </div>
     </div>
     <div class="faq-assistant" aria-live="polite">
         <h3>Need a quick answer?</h3>
@@ -372,6 +470,20 @@
 
         document.getElementById('btnLogin').onclick = login;
         document.getElementById('btnRegister').onclick = register;
+
+        const tryBtn = document.getElementById('btnTrySession');
+        const tryOptions = document.getElementById('trySessionOptions');
+        if (tryBtn && tryOptions) {
+            tryBtn.addEventListener('click', () => {
+                const isHidden = tryOptions.hasAttribute('hidden');
+                if (isHidden) {
+                    tryOptions.removeAttribute('hidden');
+                } else {
+                    tryOptions.setAttribute('hidden', '');
+                }
+                tryBtn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+            });
+        }
 
         const faqThread = document.getElementById('faqThread');
         const faqForm = document.getElementById('faqForm');

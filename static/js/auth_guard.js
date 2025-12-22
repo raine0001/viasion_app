@@ -9,6 +9,14 @@
         .filter(Boolean);
     if (allow.includes('public')) return;
 
+    const currentPath = (window.location.pathname || '').toLowerCase();
+    const params = new URLSearchParams(window.location.search || '');
+    const trialFlag = [params.get('trial'), params.get('demo'), params.get('public')].find(Boolean) || '';
+    const trialEnabled = ['1', 'true', 'yes', 'on'].includes(trialFlag.toLowerCase());
+    if (trialEnabled && (currentPath.includes('/start_session') || currentPath.endsWith('/static/index.html'))) {
+        return;
+    }
+
     const loginUrl = '/static/login.html';
     const communityUrl = '/static/community.html';
 
