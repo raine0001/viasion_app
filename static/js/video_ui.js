@@ -66,6 +66,11 @@ try { window.__HUD_MANAGES_COUNTDOWN = true; } catch { }
 
 // stop the compositor when the session ends or page unloads
 window.addEventListener('hud:end-session', async () => {
+    try {
+        const baseMs = Number(window.__MICROCLIP_MS) || 0;
+        const waitMs = Math.max(2000, baseMs + 1500);
+        await window.__landscapeRecController?.waitForIdle?.(waitMs);
+    } catch { }
     try { await window.__landscapeRecController?.stop(); } catch { }
     window.__landscapeRecController = null;
 });
@@ -1408,7 +1413,8 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
     let initChunk = null;
 
-    let activeCapture = null;
+    const activeCaptures = new Set();
+    const idleWaiters = new Set();
 
     const headerChunks = [];
     let recorder = new MediaRecorder(stream, { mimeType });
@@ -1482,26 +1488,36 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         });
     }
 
-    function finalizeActiveCapture(reason = 'complete') {
-        if (!activeCapture || activeCapture.finalized) return null;
-        activeCapture.finalized = true;
-        activeCapture.flushRequested = false;
-        if (activeCapture.finalizeTimer) {
-            clearTimeout(activeCapture.finalizeTimer);
-            activeCapture.finalizeTimer = null;
+    function resolveIdleWaiters() {
+        if (activeCaptures.size) return;
+        if (!idleWaiters.size) return;
+        const waiters = Array.from(idleWaiters);
+        idleWaiters.clear();
+        waiters.forEach((fn) => {
+            try { fn(); } catch { }
+        });
+    }
+
+    function finalizeActiveCapture(capture, reason = 'complete') {
+        if (!capture || capture.finalized) return null;
+        capture.finalized = true;
+        capture.flushRequested = false;
+        if (capture.finalizeTimer) {
+            clearTimeout(capture.finalizeTimer);
+            capture.finalizeTimer = null;
         }
-        if (activeCapture.stopTimer) {
-            clearTimeout(activeCapture.stopTimer);
-            activeCapture.stopTimer = null;
+        if (capture.stopTimer) {
+            clearTimeout(capture.stopTimer);
+            capture.stopTimer = null;
         }
         let parts = [];
         const headerBlob = initChunk || fallbackInitChunk;
         try {
-            if (typeof activeCapture.buildParts === 'function') {
-                parts = activeCapture.buildParts(activeCapture.liveChunks || []);
+            if (typeof capture.buildParts === 'function') {
+                parts = capture.buildParts(capture.liveChunks || []);
             } else {
-                const live = Array.isArray(activeCapture.liveChunks)
-                    ? activeCapture.liveChunks.slice()
+                const live = Array.isArray(capture.liveChunks)
+                    ? capture.liveChunks.slice()
                     : [];
                 parts = headerBlob
                     ? [headerBlob, ...live.filter(blob => blob !== headerBlob)]
@@ -1530,9 +1546,10 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
             });
         }
         const clipBlob = new Blob(parts, { type: mimeType });
-        const resolver = activeCapture.resolve;
-        const rejecter = activeCapture.reject;
-        activeCapture = null;
+        const resolver = capture.resolve;
+        const rejecter = capture.reject;
+        activeCaptures.delete(capture);
+        if (!activeCaptures.size) resolveIdleWaiters();
         if (clipBlob.size > 0) {
             resolver?.(clipBlob);
             return clipBlob;
@@ -1545,9 +1562,10 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         if (recorder !== r) return;
         if (!e?.data || !e.data.size) return;
         if (window.DEBUG_MICROCLIP === true) {
+            const anyFlushRequested = Array.from(activeCaptures).some((capture) => capture.flushRequested);
             console.log('[landscapeRecorder] chunk', {
                 size: e.data.size,
-                flushRequested: !!(activeCapture?.flushRequested)
+                flushRequested: anyFlushRequested
             });
         }
         let blobData = e.data;
@@ -1588,26 +1606,28 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         buffer.push(entry);
         while (buffer.length && (now - buffer[0].ts) > bufferWindowMs) buffer.shift();
 
-        if (activeCapture) {
-            activeCapture.liveChunks.push(blobData);
-            activeCapture.remainingMs -= duration;
-            if (activeCapture.flushRequested) {
-                const sinceFlush = now - (activeCapture.flushRequestTime || now);
-                if (!activeCapture.finalized && (blobData.size >= MIN_FINAL_CHUNK_BYTES || sinceFlush >= MIN_FINAL_CHUNK_DELAY)) {
-                    finalizeActiveCapture('flush-complete');
-                }
-            } else if (activeCapture.remainingMs <= 0) {
-                activeCapture.flushRequested = true;
-                activeCapture.flushRequestTime = now;
-                if (activeCapture.finalizeTimer) {
-                    clearTimeout(activeCapture.finalizeTimer);
-                    activeCapture.finalizeTimer = null;
-                }
-                activeCapture.finalizeTimer = setTimeout(() => {
-                    if (activeCapture && !activeCapture.finalized) {
-                        finalizeActiveCapture('flush-timeout');
+        if (activeCaptures.size) {
+            for (const capture of Array.from(activeCaptures)) {
+                capture.liveChunks.push(blobData);
+                capture.remainingMs -= duration;
+                if (capture.flushRequested) {
+                    const sinceFlush = now - (capture.flushRequestTime || now);
+                    if (!capture.finalized && (blobData.size >= MIN_FINAL_CHUNK_BYTES || sinceFlush >= MIN_FINAL_CHUNK_DELAY)) {
+                        finalizeActiveCapture(capture, 'flush-complete');
                     }
-                }, Math.max(300, sliceMs * 6));
+                } else if (capture.remainingMs <= 0) {
+                    capture.flushRequested = true;
+                    capture.flushRequestTime = now;
+                    if (capture.finalizeTimer) {
+                        clearTimeout(capture.finalizeTimer);
+                        capture.finalizeTimer = null;
+                    }
+                    capture.finalizeTimer = setTimeout(() => {
+                        if (capture && !capture.finalized) {
+                            finalizeActiveCapture(capture, 'flush-timeout');
+                        }
+                    }, Math.max(300, sliceMs * 6));
+                }
             }
         }
     }
@@ -1722,6 +1742,26 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         });
     };
 
+    const waitForIdle = (timeoutMs = 0) => {
+        if (!activeCaptures.size) return Promise.resolve();
+        return new Promise((resolve) => {
+            const finish = () => {
+                idleWaiters.delete(finish);
+                resolve();
+            };
+            idleWaiters.add(finish);
+            const waitMs = Number(timeoutMs);
+            if (Number.isFinite(waitMs) && waitMs > 0) {
+                setTimeout(() => {
+                    if (idleWaiters.has(finish)) {
+                        idleWaiters.delete(finish);
+                        resolve();
+                    }
+                }, waitMs);
+            }
+        });
+    };
+
     const captureClip = ({ preMs, totalMs } = {}) => {
 
         const total = Math.max(200, Number.isFinite(totalMs) ? totalMs : (window.__MICROCLIP_MS ?? 3000));
@@ -1765,10 +1805,6 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         }
 
         return ready.then(() => new Promise((resolve, reject) => {
-            if (activeCapture) {
-                finalizeActiveCapture('preempted');
-            }
-
             const liveChunks = [];
             let currentCapture = null;
 
@@ -1824,12 +1860,12 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
             };
 
             currentCapture.finalizeTimer = setTimeout(() => {
-                if (activeCapture && activeCapture === currentCapture && !activeCapture.finalized) {
-                    finalizeActiveCapture('deadline');
+                if (currentCapture && !currentCapture.finalized) {
+                    finalizeActiveCapture(currentCapture, 'deadline');
                 }
             }, Math.max(700, remainingMs + 900));
 
-            activeCapture = currentCapture;
+            activeCaptures.add(currentCapture);
         }));
 
     };
@@ -1839,6 +1875,7 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         stream,
 
         captureClip,
+        waitForIdle,
 
         stop: async () => {
 
@@ -1854,7 +1891,8 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
             buffer.length = 0;
 
-            finalizeActiveCapture('stop-call');
+            const pending = Array.from(activeCaptures);
+            pending.forEach((capture) => finalizeActiveCapture(capture, 'stop-call'));
 
         }
 

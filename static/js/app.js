@@ -941,10 +941,14 @@ window.poseDetectSerial = poseDetectSerial;
     }
     window.emitMicroclipSummary = emitMicroclipSummary; // keep fallback callable
 
-    async function startMicroClip(shotId, releaseFrame = null) {
+    async function startMicroClip(shotId, releaseFrame = null, options = {}) {
+        const deferSummary = options?.deferSummary === true;
+        const maybeEmitSummary = () => {
+            if (!deferSummary) emitMicroclipSummary(shotId);
+        };
         if (!window.USE_MICROCLIP || !window.__CLIPS_AVAILABLE) {
             window.updateShot?.(shotId, { clip: { status: 'disabled' } });
-            emitMicroclipSummary(shotId);
+            maybeEmitSummary();
             return;
         }
 
@@ -1023,7 +1027,7 @@ window.poseDetectSerial = poseDetectSerial;
             } catch (err) {
                 window.updateShot?.(shotId, { clip: { status: 'error', reason: String(err) } });
             } finally {
-                emitMicroclipSummary(shotId);
+                maybeEmitSummary();
             }
             if (window.__sessionTotals) window.__sessionTotals.attempts = (window.__sessionTotals.attempts || 0) + 1;
             return;
@@ -1032,7 +1036,7 @@ window.poseDetectSerial = poseDetectSerial;
         const stream = comp?.stream || v?.captureStream?.() || v?.srcObject;
         if (!stream || !stream.getVideoTracks?.().length) {
             window.updateShot?.(shotId, { clip: { status: stream ? 'no-video-track' : 'no-stream' } });
-            emitMicroclipSummary(shotId);
+            maybeEmitSummary();
             return;
         }
 
@@ -1047,12 +1051,12 @@ window.poseDetectSerial = poseDetectSerial;
         rec.onstop = async () => {
             if (!chunks.length) {
                 window.updateShot?.(shotId, { clip: { status: 'error', reason: 'empty' } });
-                emitMicroclipSummary(shotId);
+                maybeEmitSummary();
                 return;
             }
             const blob = new Blob(chunks, { type: mime || 'video/webm' });
             await persistClipBlob(blob);
-            emitMicroclipSummary(shotId);
+            maybeEmitSummary();
         };
 
         try { if (v?.paused) await v.play(); } catch { }
@@ -2402,8 +2406,30 @@ function setPoseIfMissing(shotId, snap) {
             }
 
             // Create shot record (UI) and assign identity
-            const rec = window.createShot?.();
-            const shotId = rec?.id || (Number(window.__SHOT_ID || 0) || 1);
+            const swingState = window.__swingGateState || null;
+            const pendingShotId = Number(swingState?.clipShotId);
+            const pendingClipStarted = swingState?.clipStarted === true;
+            let shotId = null;
+            if (Number.isFinite(pendingShotId) && pendingShotId > 0) {
+                const pendingRec = (window.__shots instanceof Map && typeof window.__shots.get === 'function')
+                    ? window.__shots.get(pendingShotId)
+                    : null;
+                if (pendingRec) shotId = pendingShotId;
+            }
+            if (!Number.isFinite(shotId) || shotId <= 0) {
+                const rec = window.createShot?.();
+                shotId = rec?.id || (Number(window.__SHOT_ID || 0) || 1);
+            }
+            const clipStartedEarly = Number.isFinite(shotId) && shotId === pendingShotId && pendingClipStarted;
+            if (Number.isFinite(shotId) && shotId === pendingShotId && swingState) {
+                try {
+                    swingState.clipShotId = null;
+                    swingState.clipStarted = false;
+                    swingState.clipTriggerFrame = null;
+                    swingState.clipTriggerTime = 0;
+                    swingState.clipTriggerReason = null;
+                } catch { }
+            }
 
             if (releaseSnapshot) {
                 canonicalSnapshot = setPoseIfMissing(shotId, releaseSnapshot) || releaseSnapshot;
@@ -2437,7 +2463,9 @@ function setPoseIfMissing(shotId, snap) {
 
             // Microclip or summary fallback
             if (window.USE_MICROCLIP && window.__CLIPS_AVAILABLE) {
-                window.__startMicroClip?.(shotId, fnum);
+                if (!clipStartedEarly) {
+                    window.__startMicroClip?.(shotId, fnum);
+                }
             } else {
                 try { window.emitMicroclipSummary?.(shotId); } catch { }
             }
@@ -3037,6 +3065,12 @@ function startPreDetectWarm(videoEl) {
             lastReleaseTime: 0,
             cooldownUntil: 0,
             missingFrames: 0,
+            clipShotId: null,
+            clipTriggerFrame: null,
+            clipTriggerTime: 0,
+            clipTriggerReady: false,
+            clipStarted: false,
+            clipTriggerReason: null,
         };
     }
 
@@ -3239,6 +3273,12 @@ function startPreDetectWarm(videoEl) {
                     state.phase = 'downswing';
                     state.lastDownFrame = frame;
                     state.lowWater = maxWristY;
+                    if (!state.clipShotId && !state.clipTriggerReady) {
+                        state.clipTriggerReady = true;
+                        state.clipTriggerFrame = frame;
+                        state.clipTriggerTime = now;
+                        state.clipTriggerReason = wristsBelowHip ? 'hip-cross' : 'drop-enough';
+                    }
                     if (window.SWING_DEBUG) {
                         console.debug('[swing] backswing->downswing', {
                             frame,
@@ -3372,11 +3412,22 @@ function startPreDetectWarm(videoEl) {
                 lastBelowFrame: state.lastBelowFrame,
             });
         }
+        let clipTrigger = null;
+        if (state.clipTriggerReady) {
+            clipTrigger = {
+                frame: Number.isFinite(state.clipTriggerFrame) ? state.clipTriggerFrame : frame,
+                reason: state.clipTriggerReason || 'backswing->downswing',
+            };
+            state.clipTriggerReady = false;
+            state.clipTriggerReason = null;
+        }
+
         return {
             released: false,
             reason: 'awaiting-phase',
             score: 0,
             tests,
+            clipTrigger,
         };
     }
 
@@ -3387,6 +3438,40 @@ function startPreDetectWarm(videoEl) {
         window.addEventListener('hud:end-session', reset, { passive: true });
         window.addEventListener('session:reset', reset, { passive: true });
         resetSwingState();
+    }
+
+    function maybeStartSwingClip(trigger) {
+        if (!trigger) return;
+        if (window.USE_MICROCLIP === false || window.__CLIPS_AVAILABLE === false) return;
+        if (typeof window.__startMicroClip !== 'function') return;
+
+        const state = ensureSwingState();
+        const now = Date.now();
+        const baseMs = Number(window.__MICROCLIP_MS) || 0;
+        const staleMs = Math.max(2500, baseMs * 2);
+
+        if (state.clipShotId && state.clipStarted) {
+            if (state.clipTriggerTime && (now - state.clipTriggerTime) > staleMs) {
+                state.clipShotId = null;
+                state.clipStarted = false;
+            } else {
+                return;
+            }
+        }
+
+        const rec = window.createShot?.();
+        const shotId = rec?.id || null;
+        if (!Number.isFinite(shotId) || shotId <= 0) return;
+
+        state.clipShotId = shotId;
+        state.clipStarted = true;
+        state.clipTriggerFrame = Number.isFinite(trigger.frame) ? trigger.frame : null;
+        state.clipTriggerTime = now;
+        state.clipTriggerReason = trigger.reason || 'backswing';
+
+        try {
+            window.__startMicroClip?.(shotId, state.clipTriggerFrame, { deferSummary: true, trigger: state.clipTriggerReason });
+        } catch { }
     }
 
     function tryRelease() {
@@ -3401,6 +3486,9 @@ function startPreDetectWarm(videoEl) {
         const gate = usingSwing
             ? evaluateSwingGate(hist, workflow)
             : (window.releaseGate ? window.releaseGate(hist.slice(-8)) : { released: false });
+        if (usingSwing && gate?.clipTrigger) {
+            maybeStartSwingClip(gate.clipTrigger);
+        }
         if (usingSwing && window.SWING_DEBUG) {
             console.debug('[swing] gate', gate);
         }
