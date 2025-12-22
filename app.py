@@ -1256,7 +1256,17 @@ def shot_summary():
 
 
 # ---------------------- Session API (demo-friendly) ----------------------
-SESSIONS_DIR = os.path.join(app.root_path, "sessions")
+def _resolve_sessions_dir():
+    override = (os.getenv("SESSIONS_DIR") or "").strip()
+    if override:
+        return os.path.abspath(override)
+    data_root = (os.getenv("DATA_DIR") or "").strip()
+    if data_root:
+        return os.path.abspath(os.path.join(data_root, "sessions"))
+    return os.path.join(app.root_path, "sessions")
+
+
+SESSIONS_DIR = _resolve_sessions_dir()
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 COMMUNITY_DIR = os.path.join(SESSIONS_DIR, "_community")
 COMMUNITY_FEED_PATH = os.path.join(COMMUNITY_DIR, "feed.json")
@@ -1357,6 +1367,117 @@ def _write_session(sid: str, data: dict):
     p = _session_json_path(sid)
     with open(p, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def _normalize_user_id(value):
+    if value is None:
+        return None
+    return str(value)
+
+
+def _session_owner_id(sess: dict) -> str | None:
+    if not isinstance(sess, dict):
+        return None
+    owner = sess.get("userId")
+    if owner is None:
+        owner = sess.get("user_id")
+    return _normalize_user_id(owner)
+
+
+def _summarize_session_file(sid: str, sess: dict) -> dict | None:
+    if not isinstance(sess, dict):
+        return None
+    shots = list(sess.get("shots") or [])
+    totals_raw = sess.get("totals")
+    totals = totals_raw if isinstance(totals_raw, dict) else {}
+    attempts = totals.get("attempts")
+    if attempts is None:
+        attempts = len(shots)
+    try:
+        attempts = int(attempts)
+    except Exception:
+        attempts = len(shots)
+    made = totals.get("made")
+    if made is None:
+        made = sum(
+            1 for s in shots if isinstance(s, dict) and s.get("made") is True
+        )
+    try:
+        made = int(made)
+    except Exception:
+        made = 0
+    accuracy = totals.get("accuracy")
+    if accuracy is None:
+        accuracy = int(round((made / max(1, attempts)) * 100)) if attempts else 0
+    try:
+        accuracy = int(accuracy)
+    except Exception:
+        accuracy = 0
+    last_ms = None
+    for shot in shots:
+        if not isinstance(shot, dict):
+            continue
+        t = shot.get("t") or shot.get("time") or shot.get("ts")
+        if isinstance(t, (int, float)):
+            last_ms = t if last_ms is None else max(last_ms, t)
+    last_iso = None
+    if last_ms is not None:
+        try:
+            last_iso = datetime.fromtimestamp(last_ms / 1000, timezone.utc).isoformat()
+        except Exception:
+            last_iso = None
+    totals_norm = {"attempts": attempts, "made": made, "accuracy": accuracy}
+    return {
+        "sid": sid,
+        "startedAt": sess.get("startedAt"),
+        "endedAt": sess.get("endedAt"),
+        "totals": totals_norm,
+        "shots": attempts,
+        "makes": made,
+        "accuracy": accuracy,
+        "last_shot_at": last_iso,
+        "user_id": _session_owner_id(sess),
+    }
+
+
+def _load_fs_session_summaries() -> dict:
+    summaries = {}
+    try:
+        for sid in sorted(os.listdir(SESSIONS_DIR)):
+            p = os.path.join(SESSIONS_DIR, sid, "session.json")
+            if not os.path.exists(p):
+                continue
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    sdat = json.load(f)
+            except Exception:
+                continue
+            summary = _summarize_session_file(sid, sdat)
+            if summary:
+                summaries[sid] = summary
+    except Exception:
+        pass
+    return summaries
+
+
+def _should_include_owner(owner_id: str | None, current_uid, include_unowned: bool) -> bool:
+    if current_uid is None:
+        return True
+    current_norm = _normalize_user_id(current_uid)
+    if owner_id == current_norm:
+        return True
+    if include_unowned and owner_id in (None, "", "null"):
+        return True
+    return False
+
+
+def _to_epoch_ms(dt) -> int | None:
+    if not dt:
+        return None
+    try:
+        return int(dt.timestamp() * 1000)
+    except Exception:
+        return None
 
 
 def _community_detail_path(sid: str) -> str:
@@ -2125,6 +2246,9 @@ def api_session_end(sid):
     sess = _read_session(sid)
     if not sess:
         return jsonify({"error": "session not found"}), 404
+    user_id = session.get("user_id")
+    if user_id and not sess.get("userId"):
+        sess["userId"] = user_id
     sess["endedAt"] = int(time.time() * 1000)
     # Recompute totals
     shots = sess.get("shots", [])
@@ -2149,27 +2273,65 @@ def api_session_end(sid):
 @app.get("/api/sessions")
 def api_sessions_list():
     current_uid = session.get("user_id")
-    items = []
-    for sid in sorted(os.listdir(SESSIONS_DIR)):
-        p = os.path.join(SESSIONS_DIR, sid, "session.json")
-        if os.path.exists(p):
-            try:
-                with open(p, "r", encoding="utf-8") as f:
-                    s = json.load(f)
-                owner_id = s.get("userId")
-                if current_uid and owner_id != current_uid:
-                    continue
-                items.append(
-                    {
-                        "id": s.get("id", sid),
-                        "startedAt": s.get("startedAt"),
-                        "endedAt": s.get("endedAt"),
-                        "totals": s.get("totals", {}),
-                        "shots": len(s.get("shots", [])),
+    include_unowned = _truthy(request.args.get("include_unowned"), default=False)
+    fs_summaries = _load_fs_session_summaries()
+    items_by_sid = {}
+    for sid, summary in fs_summaries.items():
+        owner_id = summary.get("user_id")
+        if not _should_include_owner(owner_id, current_uid, include_unowned):
+            continue
+        items_by_sid[sid] = {
+            "id": sid,
+            "startedAt": summary.get("startedAt"),
+            "endedAt": summary.get("endedAt"),
+            "totals": summary.get("totals") or {},
+            "shots": summary.get("shots") or 0,
+        }
+    try:
+        db = _db_get()
+        if db:
+            from sqlalchemy import select, or_
+
+            current_uid_db = current_uid
+            if current_uid_db is not None:
+                try:
+                    current_uid_db = int(current_uid_db)
+                except Exception:
+                    pass
+            with db["Session"]() as s:
+                query = select(db["SessionRow"])
+                if current_uid_db is not None:
+                    if include_unowned:
+                        query = query.where(
+                            or_(
+                                db["SessionRow"].user_id == current_uid_db,
+                                db["SessionRow"].user_id.is_(None),
+                            )
+                        )
+                    else:
+                        query = query.where(db["SessionRow"].user_id == current_uid_db)
+                rows = s.execute(query).scalars().all()
+                for row in rows:
+                    sid = row.sid
+                    if sid in items_by_sid:
+                        continue
+                    shots_count = int(row.shots_count or 0)
+                    makes = int(row.makes or 0)
+                    accuracy = int(row.accuracy or 0)
+                    items_by_sid[sid] = {
+                        "id": sid,
+                        "startedAt": _to_epoch_ms(row.created_at),
+                        "endedAt": _to_epoch_ms(row.ended_at),
+                        "totals": {
+                            "attempts": shots_count,
+                            "made": makes,
+                            "accuracy": accuracy,
+                        },
+                        "shots": shots_count,
                     }
-                )
-            except Exception:
-                pass
+    except Exception:
+        pass
+    items = list(items_by_sid.values())
     items.sort(key=lambda x: x.get("startedAt") or 0, reverse=True)
     return jsonify({"sessions": items})
 
@@ -4632,6 +4794,7 @@ def admin_sessions():
     """List sessions with basic stats and user info when available."""
     items = []
     try:
+        fs_summaries = _load_fs_session_summaries()
         db = _db_get()
         if db:
             from sqlalchemy import select
@@ -4645,71 +4808,67 @@ def admin_sessions():
                         .order_by(db["ShotRow"].created_at.desc())
                         .limit(1)
                     ).scalar_one_or_none()
-                    items.append(
-                        {
-                            "sid": r.sid,
-                            "created_at": r.created_at.isoformat()
-                            if r.created_at
-                            else None,
-                            "ended_at": r.ended_at.isoformat() if r.ended_at else None,
-                            "updated_at": r.updated_at.isoformat()
-                            if getattr(r, "updated_at", None)
-                            else None,
-                            "last_shot_at": last_shot_dt.isoformat()
-                            if last_shot_dt
-                            else None,
-                            "shots": r.shots_count,
-                            "makes": r.makes,
-                            "accuracy": r.accuracy,
-                            "user": (
-                                {
-                                    "user_id": r.user.user_id,
-                                    "name": r.user.name,
-                                    "email": r.user.email,
-                                }
-                                if r.user
-                                else None
-                            ),
-                        }
-                    )
-        else:
-            # Fallback to filesystem-only
-            for sid in sorted(os.listdir(SESSIONS_DIR)):
-                p = os.path.join(SESSIONS_DIR, sid, "session.json")
-                if os.path.exists(p):
-                    try:
-                        with open(p, "r", encoding="utf-8") as f:
-                            sdat = json.load(f)
-                        shots = sdat.get("shots", []) or []
-                        last_ms = None
-                        for shot in shots:
-                            try:
-                                t = shot.get("t")
-                                if isinstance(t, (int, float)):
-                                    last_ms = max(last_ms or t, t)
-                            except Exception:
-                                continue
-                        last_iso = None
-                        if last_ms is not None:
-                            try:
-                                last_iso = datetime.fromtimestamp(
-                                    last_ms / 1000, timezone.utc
-                                ).isoformat()
-                            except Exception:
-                                last_iso = None
-                        items.append(
+                    item = {
+                        "sid": r.sid,
+                        "created_at": r.created_at.isoformat()
+                        if r.created_at
+                        else None,
+                        "ended_at": r.ended_at.isoformat() if r.ended_at else None,
+                        "updated_at": r.updated_at.isoformat()
+                        if getattr(r, "updated_at", None)
+                        else None,
+                        "last_shot_at": last_shot_dt.isoformat()
+                        if last_shot_dt
+                        else None,
+                        "shots": r.shots_count,
+                        "makes": r.makes,
+                        "accuracy": r.accuracy,
+                        "user": (
                             {
-                                "sid": sid,
-                                "created_at": sdat.get("startedAt"),
-                                "ended_at": sdat.get("endedAt"),
-                                "updated_at": None,
-                                "last_shot_at": last_iso,
-                                "shots": len(shots),
-                                "user": None,
+                                "user_id": r.user.user_id,
+                                "name": r.user.name,
+                                "email": r.user.email,
                             }
-                        )
-                    except Exception:
-                        pass
+                            if r.user
+                            else None
+                        ),
+                    }
+                    fs = fs_summaries.pop(r.sid, None)
+                    if fs:
+                        fs_shots = fs.get("shots")
+                        if fs_shots is not None:
+                            try:
+                                item["shots"] = max(int(item["shots"] or 0), int(fs_shots))
+                            except Exception:
+                                item["shots"] = fs_shots
+                        if item.get("makes") is None and fs.get("makes") is not None:
+                            item["makes"] = fs.get("makes")
+                        if item.get("accuracy") is None and fs.get("accuracy") is not None:
+                            item["accuracy"] = fs.get("accuracy")
+                        if not item.get("created_at") and fs.get("startedAt") is not None:
+                            item["created_at"] = fs.get("startedAt")
+                        if not item.get("ended_at") and fs.get("endedAt") is not None:
+                            item["ended_at"] = fs.get("endedAt")
+                        if not item.get("last_shot_at") and fs.get("last_shot_at"):
+                            item["last_shot_at"] = fs.get("last_shot_at")
+                        if not item.get("user") and fs.get("user_id"):
+                            item["user"] = {"user_id": fs.get("user_id")}
+                    items.append(item)
+        for sid, fs in fs_summaries.items():
+            user_id = fs.get("user_id")
+            items.append(
+                {
+                    "sid": sid,
+                    "created_at": fs.get("startedAt"),
+                    "ended_at": fs.get("endedAt"),
+                    "updated_at": None,
+                    "last_shot_at": fs.get("last_shot_at"),
+                    "shots": fs.get("shots"),
+                    "makes": fs.get("makes"),
+                    "accuracy": fs.get("accuracy"),
+                    "user": {"user_id": user_id} if user_id else None,
+                }
+            )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     return jsonify({"sessions": items})

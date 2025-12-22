@@ -3961,7 +3961,7 @@
 
                 try {
 
-                    const res = await fetch('/api/sessions', { credentials: 'include' });
+                    const res = await fetch('/api/sessions?include_unowned=1', { credentials: 'include' });
 
                     if (res.status === 401) {
                         window.location.href = '/static/login.html';
