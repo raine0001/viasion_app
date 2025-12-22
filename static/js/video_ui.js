@@ -1414,6 +1414,7 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
     let initChunk = null;
 
     const activeCaptures = new Set();
+    const captureByKey = new Map();
     const idleWaiters = new Set();
 
     const headerChunks = [];
@@ -1549,6 +1550,9 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         const resolver = capture.resolve;
         const rejecter = capture.reject;
         activeCaptures.delete(capture);
+        if (capture.key) {
+            captureByKey.delete(String(capture.key));
+        }
         if (!activeCaptures.size) resolveIdleWaiters();
         if (clipBlob.size > 0) {
             resolver?.(clipBlob);
@@ -1762,7 +1766,7 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         });
     };
 
-    const captureClip = ({ preMs, totalMs } = {}) => {
+    const captureClip = ({ preMs, totalMs, key } = {}) => {
 
         const total = Math.max(200, Number.isFinite(totalMs) ? totalMs : (window.__MICROCLIP_MS ?? 3000));
 
@@ -1856,8 +1860,12 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
                 flushRequested: false,
                 finalized: false,
                 finalizeTimer: null,
-                flushRequestTime: null
+                flushRequestTime: null,
+                key: key != null ? String(key) : null
             };
+            if (currentCapture.key) {
+                captureByKey.set(String(currentCapture.key), currentCapture);
+            }
 
             currentCapture.finalizeTimer = setTimeout(() => {
                 if (currentCapture && !currentCapture.finalized) {
@@ -1875,6 +1883,27 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         stream,
 
         captureClip,
+        extendCapture: (key, extraMs = 0) => {
+            const k = key != null ? String(key) : '';
+            if (!k) return false;
+            const capture = captureByKey.get(k);
+            if (!capture || capture.finalized) return false;
+            const addMs = Number(extraMs);
+            if (!Number.isFinite(addMs) || addMs <= 0) return false;
+            capture.remainingMs = Math.max(0, Number(capture.remainingMs) || 0) + addMs;
+            capture.flushRequested = false;
+            capture.flushRequestTime = null;
+            if (capture.finalizeTimer) {
+                clearTimeout(capture.finalizeTimer);
+                capture.finalizeTimer = null;
+            }
+            capture.finalizeTimer = setTimeout(() => {
+                if (capture && !capture.finalized) {
+                    finalizeActiveCapture(capture, 'extend-deadline');
+                }
+            }, Math.max(700, capture.remainingMs + 900));
+            return true;
+        },
         waitForIdle,
 
         stop: async () => {

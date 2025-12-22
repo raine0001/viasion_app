@@ -965,6 +965,7 @@ window.poseDetectSerial = poseDetectSerial;
         const totalMs = Number(window.__MICROCLIP_MS) || 3000;
         const preSetting = Number(window.__MICROCLIP_PRE_MS);
         const preMs = Math.max(0, Math.min(Number.isFinite(preSetting) ? preSetting : 360, totalMs - 120));
+        const captureKey = options?.captureKey ?? shotId;
 
         async function persistClipBlob(blob) {
             if (!blob || !blob.size) {
@@ -1022,7 +1023,7 @@ window.poseDetectSerial = poseDetectSerial;
         if (comp && typeof comp.captureClip === 'function') {
             window.updateShot?.(shotId, { clip: { status: 'recording', ms: totalMs, frame: releaseFrame } });
             try {
-                const blob = await comp.captureClip({ preMs, totalMs });
+                const blob = await comp.captureClip({ preMs, totalMs, key: captureKey });
                 await persistClipBlob(blob);
             } catch (err) {
                 window.updateShot?.(shotId, { clip: { status: 'error', reason: String(err) } });
@@ -2435,6 +2436,32 @@ function setPoseIfMissing(shotId, snap) {
                         });
                     }
                 }
+            }
+            if (clipStartedEarly && swingState && Number.isFinite(swingState.clipTriggerTime)) {
+                try {
+                    const totalMs = Number(window.__MICROCLIP_MS) || 3000;
+                    const preSetting = Number(window.__MICROCLIP_PRE_MS);
+                    const preMs = Math.max(0, Math.min(Number.isFinite(preSetting) ? preSetting : 360, totalMs - 120));
+                    const postMs = Math.max(0, totalMs - preMs);
+                    const minPostMs = Math.max(900, Math.min(2000, postMs));
+                    const releaseTime = Date.now();
+                    const triggerTime = Number(swingState.clipTriggerTime || 0) || releaseTime;
+                    const currentEnd = triggerTime + totalMs;
+                    const remainingMs = currentEnd - releaseTime;
+                    if (remainingMs < minPostMs) {
+                        const extraMs = minPostMs - Math.max(0, remainingMs);
+                        const extended = window.__landscapeRecController?.extendCapture?.(shotId, extraMs);
+                        if (window.DEBUG_MICROCLIP === true || window.SWING_DEBUG === true) {
+                            console.log('[microclip] extend post-roll', {
+                                shotId,
+                                remainingMs: Math.round(remainingMs),
+                                minPostMs,
+                                extraMs: Math.round(extraMs),
+                                extended
+                            });
+                        }
+                    }
+                } catch { }
             }
             if (Number.isFinite(shotId) && shotId === pendingShotId && swingState) {
                 try {
