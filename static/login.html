@@ -404,6 +404,7 @@
                 if (!path.startsWith('/')) return DEFAULT_RETURN;
                 if (path.includes('/start_session')) return DEFAULT_RETURN;
                 if (path === '/' || path === '/index.html') return DEFAULT_RETURN;
+                if (path === '/d_admin') return url.pathname + (url.search || '');
                 if (!path.startsWith('/static/')) return DEFAULT_RETURN;
                 return url.pathname + (url.search || '');
             } catch {

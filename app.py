@@ -1391,6 +1391,19 @@ def _write_community_feed(posts: list[dict]):
     os.replace(tmp_path, COMMUNITY_FEED_PATH)
 
 
+def _community_post_id(post: dict) -> str | None:
+    if not isinstance(post, dict):
+        return None
+    return post.get("sessionId") or post.get("id")
+
+
+def _find_community_post(posts: list[dict], sid: str):
+    for idx, post in enumerate(posts):
+        if _community_post_id(post) == sid:
+            return idx, post
+    return None, None
+
+
 def _extract_preview_with_ffmpeg(src: Path, dest: Path) -> bool:
     cmd = [
         FFMPEG_BIN,
@@ -2404,7 +2417,11 @@ def api_community_publish():
             preview_rev = int(time.time())
 
     posts = _load_community_feed()
-    post_map = {item.get("sessionId"): item for item in posts}
+    post_map = {}
+    for item in posts:
+        key = _community_post_id(item)
+        if key:
+            post_map[key] = item
     existing = post_map.get(sid)
     created_at = existing.get("createdAt") if isinstance(existing, dict) else None
     if not created_at:
@@ -2431,6 +2448,11 @@ def api_community_publish():
         "previewRev": preview_rev,
     }
 
+    if isinstance(existing, dict):
+        for key in ("hidden", "hiddenAt", "hiddenBy", "hiddenReason"):
+            if key in existing:
+                summary_entry[key] = existing.get(key)
+
     detail_payload = {
         "id": sid,
         "title": title,
@@ -2448,6 +2470,14 @@ def api_community_publish():
     if summary_entry["preview"]:
         detail_payload["preview"] = summary_entry["preview"]
         detail_payload["previewRev"] = preview_rev
+    if summary_entry.get("hidden"):
+        detail_payload["hidden"] = True
+        if summary_entry.get("hiddenAt") is not None:
+            detail_payload["hiddenAt"] = summary_entry.get("hiddenAt")
+        if summary_entry.get("hiddenBy"):
+            detail_payload["hiddenBy"] = summary_entry.get("hiddenBy")
+        if summary_entry.get("hiddenReason"):
+            detail_payload["hiddenReason"] = summary_entry.get("hiddenReason")
 
     post_map[sid] = summary_entry
     updated_posts = sorted(
@@ -2466,7 +2496,7 @@ def api_community_feed():
     posts = _load_community_feed()
     changed = False
     for post in posts:
-        sid = post.get("id")
+        sid = _community_post_id(post)
         if not sid:
             continue
         shots = post.get("shots")
@@ -2477,11 +2507,16 @@ def api_community_feed():
             _write_community_feed(posts)
         except Exception as exc:
             _trace("community:feed update failed", exc)
-    return jsonify({"posts": posts})
+    visible_posts = [post for post in posts if not post.get("hidden")]
+    return jsonify({"posts": visible_posts})
 
 
 @app.get("/api/community/session/<sid>")
 def api_community_session_detail(sid):
+    posts = _load_community_feed()
+    _, post = _find_community_post(posts, sid)
+    if not post or post.get("hidden"):
+        return jsonify({"error": "session not published"}), 404
     detail_path = _community_detail_path(sid)
     if not os.path.exists(detail_path):
         return jsonify({"error": "session not published"}), 404
@@ -2498,6 +2533,10 @@ def api_community_session_detail(sid):
 
 @app.get("/api/community/preview/<sid>.jpg")
 def api_community_preview(sid):
+    posts = _load_community_feed()
+    _, post = _find_community_post(posts, sid)
+    if not post or post.get("hidden"):
+        abort(404)
     preview_path = _ensure_preview_image(sid)
     if not preview_path or not os.path.exists(preview_path):
         abort(404)
@@ -4487,6 +4526,105 @@ def list_frames(video_name):
 
 
 # ---------------------- Admin Debug Views ----------------------
+
+
+@app.get("/admin/community/posts")
+def admin_community_posts():
+    posts = _load_community_feed()
+    return jsonify({"posts": posts})
+
+
+@app.get("/admin/community/session/<sid>")
+def admin_community_session_detail(sid):
+    detail_path = _community_detail_path(sid)
+    if not os.path.exists(detail_path):
+        return jsonify({"error": "session not published"}), 404
+    with open(detail_path, "r", encoding="utf-8") as f:
+        detail = json.load(f)
+    if _ensure_shot_clip_urls(sid, detail.get("shots") or []):
+        try:
+            with open(detail_path, "w", encoding="utf-8") as f:
+                json.dump(detail, f, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            _trace("community:detail update failed", exc)
+    return jsonify(detail)
+
+
+@app.get("/admin/community/preview/<sid>.jpg")
+def admin_community_preview(sid):
+    preview_path = _ensure_preview_image(sid)
+    if not preview_path or not os.path.exists(preview_path):
+        abort(404)
+    return send_file(preview_path, mimetype="image/jpeg")
+
+
+@app.patch("/admin/community/posts/<sid>")
+def admin_community_post_update(sid):
+    payload = request.get_json(silent=True) or {}
+    posts = _load_community_feed()
+    idx, post = _find_community_post(posts, sid)
+    if post is None:
+        return jsonify({"error": "post not found"}), 404
+
+    if payload.get("delete") is True or (payload.get("action") or "").lower() == "delete":
+        posts.pop(idx)
+        _write_community_feed(posts)
+        detail_path = _community_detail_path(sid)
+        try:
+            if os.path.exists(detail_path):
+                os.remove(detail_path)
+        except OSError:
+            pass
+        return jsonify({"ok": True, "deleted": True})
+
+    if "hidden" in payload:
+        hide_flag = bool(payload.get("hidden"))
+        updated = dict(post)
+        if hide_flag:
+            updated["hidden"] = True
+            updated["hiddenAt"] = int(time.time() * 1000)
+            updated["hiddenBy"] = str(
+                payload.get("by") or session.get("user_id") or "admin"
+            )
+            reason = (payload.get("reason") or "").strip()
+            if reason:
+                updated["hiddenReason"] = reason
+        else:
+            updated.pop("hidden", None)
+            updated.pop("hiddenAt", None)
+            updated.pop("hiddenBy", None)
+            updated.pop("hiddenReason", None)
+        posts[idx] = updated
+        _write_community_feed(posts)
+
+        detail_path = _community_detail_path(sid)
+        if os.path.exists(detail_path):
+            try:
+                with open(detail_path, "r", encoding="utf-8") as f:
+                    detail = json.load(f)
+            except Exception:
+                detail = None
+            if isinstance(detail, dict):
+                if hide_flag:
+                    detail["hidden"] = True
+                    detail["hiddenAt"] = updated.get("hiddenAt")
+                    detail["hiddenBy"] = updated.get("hiddenBy")
+                    if updated.get("hiddenReason"):
+                        detail["hiddenReason"] = updated.get("hiddenReason")
+                else:
+                    detail.pop("hidden", None)
+                    detail.pop("hiddenAt", None)
+                    detail.pop("hiddenBy", None)
+                    detail.pop("hiddenReason", None)
+                try:
+                    with open(detail_path, "w", encoding="utf-8") as f:
+                        json.dump(detail, f, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
+
+        return jsonify({"ok": True, "post": updated})
+
+    return jsonify({"error": "no updates"}), 400
 
 
 @app.get("/admin/sessions")

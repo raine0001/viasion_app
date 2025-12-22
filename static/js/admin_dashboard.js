@@ -132,6 +132,11 @@
         reloadBtn: document.getElementById('subscriptionReloadBtn'),
     };
 
+    const communityFilterInput = document.getElementById('communityFilter');
+    const communityRefreshBtn = document.getElementById('communityRefreshBtn');
+    const communityPostList = document.getElementById('communityPostList');
+    const communityStatus = document.getElementById('communityStatus');
+
     const subscriptionState = {
         plans: new Map(),
         usersByPlan: new Map(),
@@ -193,6 +198,10 @@
 
 
     let supportLoading = false;
+
+    let communityPosts = [];
+    let communityLoading = false;
+
     let challenges = [];
 
 
@@ -4913,6 +4922,239 @@
         subscriptionUI.planId?.focus();
     };
 
+    const getCommunityPostId = (post) => {
+        if (!post || typeof post !== 'object') return '';
+        return String(post.sessionId || post.id || '');
+    };
+
+    const setCommunityStatus = (message = '', tone = 'info') => {
+        if (!communityStatus) return;
+        communityStatus.textContent = message || '';
+        communityStatus.classList.remove('success', 'error', 'warn');
+        if (tone === 'success' || tone === 'error' || tone === 'warn') {
+            communityStatus.classList.add(tone);
+        }
+    };
+
+    const applyCommunityUpdate = (sid, updatedPost) => {
+        if (!sid) return;
+        const idx = communityPosts.findIndex((post) => getCommunityPostId(post) === sid);
+        if (!updatedPost) return;
+        if (idx >= 0) {
+            communityPosts[idx] = updatedPost;
+        } else {
+            communityPosts.unshift(updatedPost);
+        }
+    };
+
+    const renderCommunityPosts = () => {
+        if (!communityPostList) return;
+        const filterValue = (communityFilterInput?.value || '').trim().toLowerCase();
+        const filtered = communityPosts.filter((post) => {
+            if (!filterValue) return true;
+            const haystack = [
+                getCommunityPostId(post),
+                post?.title,
+                post?.summary,
+                post?.author,
+                post?.projectName,
+                post?.project,
+                ...(post?.tags || []),
+            ]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+            return haystack.includes(filterValue);
+        });
+
+        communityPostList.textContent = '';
+
+        if (!filtered.length) {
+            const empty = document.createElement('div');
+            empty.className = 'muted';
+            empty.style.padding = '8px';
+            empty.textContent = communityPosts.length ? 'No posts match filter.' : 'No community posts found.';
+            communityPostList.appendChild(empty);
+            return;
+        }
+
+        filtered.forEach((post) => {
+            const sid = getCommunityPostId(post);
+            const row = document.createElement('div');
+            row.className = 'community-row' + (post?.hidden ? ' is-hidden' : '');
+
+            const preview = document.createElement('img');
+            preview.className = 'community-preview';
+            const previewBase = typeof post?.preview === 'string'
+                ? post.preview.replace('/api/community/preview/', '/admin/community/preview/')
+                : (sid ? `/admin/community/preview/${encodeURIComponent(sid)}.jpg` : '');
+            if (previewBase) {
+                const rev = post?.previewRev || post?.createdAt || '';
+                preview.src = rev ? `${previewBase}?v=${encodeURIComponent(rev)}` : previewBase;
+            }
+            preview.alt = post?.title ? `Preview for ${post.title}` : 'Preview';
+            preview.loading = 'lazy';
+            preview.addEventListener('error', () => { preview.style.display = 'none'; });
+            row.appendChild(preview);
+
+            const main = document.createElement('div');
+            main.className = 'community-main';
+
+            const title = document.createElement('div');
+            title.className = 'community-title';
+            title.textContent = post?.title || 'Untitled post';
+            main.appendChild(title);
+
+            const meta = document.createElement('div');
+            meta.className = 'community-meta';
+            const metaParts = [];
+            if (post?.createdAt) metaParts.push(fmtDate(post.createdAt));
+            if (post?.author) metaParts.push(`by ${post.author}`);
+            if (post?.stats) {
+                const attempts = Number(post.stats.attempts);
+                const accuracy = Number(post.stats.accuracy);
+                if (Number.isFinite(attempts)) metaParts.push(`${attempts} shots`);
+                if (Number.isFinite(accuracy)) metaParts.push(`${accuracy}%`);
+            }
+            if (sid) metaParts.push(`sid ${sid}`);
+            if (post?.hidden) metaParts.push('hidden');
+            meta.textContent = metaParts.join(' - ');
+            main.appendChild(meta);
+
+            if (post?.summary) {
+                const summary = document.createElement('div');
+                summary.className = 'community-summary';
+                summary.textContent = post.summary;
+                main.appendChild(summary);
+            }
+
+            if (Array.isArray(post?.tags) && post.tags.length) {
+                const tagsWrap = document.createElement('div');
+                tagsWrap.className = 'community-tags';
+                post.tags.forEach((tag) => {
+                    const chip = document.createElement('span');
+                    chip.className = 'community-tag';
+                    const clean = String(tag || '').trim();
+                    chip.textContent = clean.startsWith('#') ? clean : `#${clean}`;
+                    tagsWrap.appendChild(chip);
+                });
+                main.appendChild(tagsWrap);
+            }
+
+            row.appendChild(main);
+
+            const actions = document.createElement('div');
+            actions.className = 'community-actions';
+
+            const viewBtn = document.createElement('button');
+            viewBtn.className = 'btn btn-mini';
+            viewBtn.textContent = 'Open JSON';
+            viewBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (sid) {
+                    window.open(`/admin/community/session/${encodeURIComponent(sid)}`, '_blank');
+                }
+            });
+            actions.appendChild(viewBtn);
+
+            const hideBtn = document.createElement('button');
+            hideBtn.className = `btn btn-mini${post?.hidden ? '' : ' btn-warning'}`;
+            hideBtn.textContent = post?.hidden ? 'Unhide' : 'Hide';
+            hideBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                if (!sid) return;
+                hideBtn.disabled = true;
+                deleteBtn.disabled = true;
+                try {
+                    setCommunityStatus(`${post?.hidden ? 'Unhiding' : 'Hiding'} ${sid}...`, 'info');
+                    const res = await fetch(`/admin/community/posts/${encodeURIComponent(sid)}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ hidden: !post?.hidden }),
+                    });
+                    if (!res.ok) {
+                        const msg = await res.text();
+                        throw new Error(msg || res.statusText || `http ${res.status}`);
+                    }
+                    const data = await res.json();
+                    if (data?.post) {
+                        applyCommunityUpdate(sid, data.post);
+                    }
+                    setCommunityStatus(`Updated ${sid}.`, 'success');
+                    renderCommunityPosts();
+                } catch (err) {
+                    console.error('[admin] community hide failed', err);
+                    setCommunityStatus(`Update failed: ${err.message || err}`, 'error');
+                }
+            });
+            actions.appendChild(hideBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-mini btn-danger';
+            deleteBtn.textContent = 'Delete';
+            deleteBtn.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                if (!sid) return;
+                if (!confirm(`Delete community post ${sid}? This cannot be undone.`)) return;
+                hideBtn.disabled = true;
+                deleteBtn.disabled = true;
+                try {
+                    setCommunityStatus(`Deleting ${sid}...`, 'warn');
+                    const res = await fetch(`/admin/community/posts/${encodeURIComponent(sid)}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ delete: true }),
+                    });
+                    if (!res.ok) {
+                        const msg = await res.text();
+                        throw new Error(msg || res.statusText || `http ${res.status}`);
+                    }
+                    const data = await res.json();
+                    if (data?.deleted) {
+                        communityPosts = communityPosts.filter((item) => getCommunityPostId(item) !== sid);
+                    }
+                    setCommunityStatus(`Deleted ${sid}.`, 'success');
+                    renderCommunityPosts();
+                } catch (err) {
+                    console.error('[admin] community delete failed', err);
+                    setCommunityStatus(`Delete failed: ${err.message || err}`, 'error');
+                }
+            });
+            actions.appendChild(deleteBtn);
+
+            row.appendChild(actions);
+            communityPostList.appendChild(row);
+        });
+    };
+
+    const loadCommunityPosts = async (force = false) => {
+        if (!communityPostList) return;
+        if (communityLoading) return;
+        if (!force && communityPosts.length) {
+            renderCommunityPosts();
+            return;
+        }
+        communityLoading = true;
+        communityPostList.innerHTML = '<div class="muted" style="padding:8px;">Loading...</div>';
+        try {
+            setCommunityStatus('Loading community posts...', 'info');
+            const res = await fetch('/admin/community/posts', { credentials: 'include' });
+            if (!res.ok) throw new Error('http ' + res.status);
+            const data = await res.json();
+            communityPosts = Array.isArray(data?.posts) ? data.posts : [];
+            setCommunityStatus(`Loaded ${communityPosts.length} posts.`, 'success');
+        } catch (err) {
+            console.error('[admin] community load failed', err);
+            communityPosts = [];
+            setCommunityStatus(`Failed to load community posts: ${err.message || err}`, 'error');
+        } finally {
+            communityLoading = false;
+            renderCommunityPosts();
+        }
+    };
+
     if (subscriptionUI.newBtn) subscriptionUI.newBtn.addEventListener('click', newSubscriptionPlan);
 
     if (subscriptionUI.saveBtn) subscriptionUI.saveBtn.addEventListener('click', saveSubscriptionPlan);
@@ -4966,6 +5208,10 @@
 
 
     if (supportRefreshBtn) supportRefreshBtn.addEventListener('click', () => loadSupportMetadata(true));
+
+    if (communityFilterInput) communityFilterInput.addEventListener('input', () => renderCommunityPosts());
+
+    if (communityRefreshBtn) communityRefreshBtn.addEventListener('click', () => loadCommunityPosts(true));
 
 
 
@@ -5065,7 +5311,7 @@
 
 
 
-    if (btnRefresh) btnRefresh.addEventListener('click', () => { loadSessions(true); loadSupportMetadata(true); loadChallenges(true); loadSubscriptionConfig(true); });
+    if (btnRefresh) btnRefresh.addEventListener('click', () => { loadSessions(true); loadSupportMetadata(true); loadChallenges(true); loadSubscriptionConfig(true); loadCommunityPosts(true); });
 
 
 
@@ -5086,6 +5332,8 @@
 
 
     loadChallenges();
+
+    loadCommunityPosts();
 
 
 

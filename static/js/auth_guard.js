@@ -21,8 +21,13 @@
     const communityUrl = '/static/community.html';
 
     const redirectToLogin = () => {
+        const rawPath = window.location.pathname || '';
+        const rawSearch = window.location.search || '';
+        const safeReturn = (rawPath.startsWith('/static/') || rawPath === '/d_admin')
+            ? `${rawPath}${rawSearch || ''}`
+            : '/static/my_sessions.html';
         const qs = new URLSearchParams();
-        qs.set('return', '/static/my_sessions.html');
+        qs.set('return', safeReturn);
         window.location.replace(`${loginUrl}?${qs.toString()}`);
     };
 
