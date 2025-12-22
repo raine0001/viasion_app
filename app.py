@@ -1369,6 +1369,41 @@ def _write_session(sid: str, data: dict):
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 
+def _persist_coach_feedback_fs(sid: str, shot_idx: int, text: str, score_val: float | None) -> bool:
+    try:
+        sess = _read_session(sid)
+    except Exception:
+        sess = None
+    if not isinstance(sess, dict):
+        return False
+    shots = list(sess.get("shots") or [])
+    updated = False
+    for shot in shots:
+        if isinstance(shot, dict) and shot.get("idx") == shot_idx:
+            shot["coachNote"] = text
+            shot["coach_summary"] = text
+            if score_val is not None:
+                shot["poseScore"] = score_val
+            updated = True
+            break
+    if not updated and 0 <= shot_idx < len(shots):
+        shot = shots[shot_idx]
+        if isinstance(shot, dict):
+            shot["coachNote"] = text
+            shot["coach_summary"] = text
+            if score_val is not None:
+                shot["poseScore"] = score_val
+            updated = True
+    if not updated:
+        return False
+    sess["shots"] = shots
+    try:
+        _write_session(sid, sess)
+    except Exception:
+        return False
+    return True
+
+
 def _normalize_user_id(value):
     if value is None:
         return None
@@ -4546,11 +4581,29 @@ def api_coach():
     return jsonify({"text": text, "latency_ms": dt_ms})
 
 
-@app.post("/api/coach/finalize")
-def api_coach_finalize():
-    data = request.get_json(force=True, silent=True) or {}
-    sid = (data.get("sid") or "").strip() or None
+def _handle_ai_feedback_payload(data: dict, sid_override: str | None = None):
+    data = data or {}
+    sid = (
+        sid_override
+        or (data.get("sid") or data.get("sessionId") or "").strip()
+        or None
+    )
     shot_idx_raw = data.get("shot_idx")
+    if shot_idx_raw is None:
+        shot_idx_raw = data.get("shotIdx")
+    if shot_idx_raw is None:
+        shot_idx_raw = data.get("shotId")
+        if (
+            shot_idx_raw is not None
+            and data.get("shot_idx") is None
+            and data.get("shotIdx") is None
+        ):
+            try:
+                shot_idx_raw = int(shot_idx_raw) - 1
+            except Exception:
+                pass
+    if shot_idx_raw is None:
+        shot_idx_raw = data.get("idx")
     text = (data.get("text") or "").strip()
     provider = data.get("provider") or "client-final"
     model = data.get("model") or "coach-final"
@@ -4564,75 +4617,105 @@ def api_coach_finalize():
                 score_val = None
             break
     if not sid or text == "" or shot_idx_raw is None:
-        return jsonify({"error": "sid, shot_idx, and text are required"}), 400
+        return {"error": "sid, shot_idx, and text are required"}, 400
     try:
         shot_idx = int(shot_idx_raw)
     except (TypeError, ValueError):
-        return jsonify({"error": "shot_idx must be an integer"}), 400
+        return {"error": "shot_idx must be an integer"}, 400
+    db_saved = False
+    db_error = None
     try:
         db = _db_get()
         if not db:
-            return jsonify(
-                {"ok": False, "warning": "database unavailable", "text": text}
-            )
-        from sqlalchemy import select
+            db_error = "database unavailable"
+        else:
+            from sqlalchemy import select
 
-        with db["Session"]() as sdb:
-            FB = db.get("CoachFeedbackRow")
-            if FB is not None:
-                row = (
-                    sdb.execute(
-                        select(FB)
-                        .where(FB.sid == sid, FB.shot_idx == shot_idx)
-                        .order_by(FB.id.desc())
-                    )
-                    .scalars()
-                    .first()
-                )
-                if row:
-                    row.text = text
-                    row.provider = provider
-                    if score_val is not None:
-                        row.score = score_val
-                    if model:
-                        row.model = model
-                    if latency_ms:
-                        row.latency_ms = latency_ms
-                else:
-                    sdb.add(
-                        FB(
-                            sid=sid,
-                            shot_idx=shot_idx,
-                            provider=provider,
-                            model=model,
-                            latency_ms=latency_ms,
-                            text=text,
-                            score=score_val,
+            with db["Session"]() as sdb:
+                FB = db.get("CoachFeedbackRow")
+                if FB is not None:
+                    row = (
+                        sdb.execute(
+                            select(FB)
+                            .where(FB.sid == sid, FB.shot_idx == shot_idx)
+                            .order_by(FB.id.desc())
                         )
+                        .scalars()
+                        .first()
                     )
-            Shot = db.get("ShotRow")
-            if Shot is not None:
-                sr = sdb.execute(
-                    select(Shot).where(Shot.sid == sid, Shot.idx == shot_idx)
-                ).scalar_one_or_none()
-                if sr is None:
-                    sr = Shot(sid=sid, idx=shot_idx, data={})
-                    sdb.add(sr)
-                try:
-                    payload = dict(sr.data or {})
-                    payload["coach_summary"] = text
-                    if score_val is not None:
-                        payload["poseScore"] = score_val
-                    sr.data = payload
-                except Exception:
-                    base = {"coach_summary": text}
-                    if score_val is not None:
-                        base["poseScore"] = score_val
-                    sr.data = base
-            sdb.commit()
-        return jsonify({"ok": True})
+                    if row:
+                        row.text = text
+                        row.provider = provider
+                        if score_val is not None:
+                            row.score = score_val
+                        if model:
+                            row.model = model
+                        if latency_ms:
+                            row.latency_ms = latency_ms
+                    else:
+                        sdb.add(
+                            FB(
+                                sid=sid,
+                                shot_idx=shot_idx,
+                                provider=provider,
+                                model=model,
+                                latency_ms=latency_ms,
+                                text=text,
+                                score=score_val,
+                            )
+                        )
+                Shot = db.get("ShotRow")
+                if Shot is not None:
+                    sr = sdb.execute(
+                        select(Shot).where(Shot.sid == sid, Shot.idx == shot_idx)
+                    ).scalar_one_or_none()
+                    if sr is None:
+                        sr = Shot(sid=sid, idx=shot_idx, data={})
+                        sdb.add(sr)
+                    try:
+                        payload = dict(sr.data or {})
+                        payload["coach_summary"] = text
+                        if score_val is not None:
+                            payload["poseScore"] = score_val
+                        sr.data = payload
+                    except Exception:
+                        base = {"coach_summary": text}
+                        if score_val is not None:
+                            base["poseScore"] = score_val
+                        sr.data = base
+                sdb.commit()
+            db_saved = True
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        db_error = str(e)
+
+    fs_saved = _persist_coach_feedback_fs(sid, shot_idx, text, score_val)
+    if not db_saved and not fs_saved:
+        return {"ok": False, "error": db_error or "unable to save"}, 500
+    payload = {"ok": True, "stored": {"db": db_saved, "fs": fs_saved}}
+    if db_error:
+        payload["warning"] = db_error
+    return payload, 200
+
+
+@app.post("/api/coach/finalize")
+def api_coach_finalize():
+    data = request.get_json(force=True, silent=True) or {}
+    payload, status = _handle_ai_feedback_payload(data)
+    return jsonify(payload), status
+
+
+@app.post("/api/ai_feedback")
+def api_ai_feedback():
+    data = request.get_json(force=True, silent=True) or {}
+    payload, status = _handle_ai_feedback_payload(data)
+    return jsonify(payload), status
+
+
+@app.post("/api/sessions/<sid>/ai_feedback")
+def api_session_ai_feedback(sid):
+    data = request.get_json(force=True, silent=True) or {}
+    payload, status = _handle_ai_feedback_payload(data, sid_override=sid)
+    return jsonify(payload), status
 
 
 # -----------app routes --------------

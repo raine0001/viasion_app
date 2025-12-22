@@ -1858,8 +1858,33 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
         }
 
-  };
+    };
 
+}
+
+function warmLandscapeRecorder() {
+    if (window.__landscapeRecController) return;
+    if (window.USE_MICROCLIP === false || window.__CLIPS_AVAILABLE === false) return;
+    if (typeof window.startLandscapeRecorder !== 'function') return;
+
+    const videoEl = document.getElementById('videoPlayer');
+    if (!videoEl) return;
+
+    const start = async () => {
+        if (window.__landscapeRecController) return;
+        try {
+            const comp = await window.startLandscapeRecorder(videoEl, { width: 1280, height: 720, fps: 30 });
+            if (comp) window.__landscapeRecController = comp;
+        } catch (err) {
+            console.warn('[hud] landscape recorder warm failed', err);
+        }
+    };
+
+    if (videoEl.readyState >= 2) {
+        start();
+    } else {
+        videoEl.addEventListener('loadedmetadata', start, { once: true });
+    }
 }
 
 // Reset to start overlay state
@@ -2037,6 +2062,7 @@ function handleHudStartSession(event) {
     try { window.__SESSION_ACTIVE = true; } catch { }
     try { window.__SESSION_SHOT_COUNT = 0; } catch { }
     try { window.__armCountdownActive = false; } catch { }
+    try { warmLandscapeRecorder(); } catch { }
 
     try { setSessionStatus?.('SESSION IN PROGRESS…'); } catch { }
     try { hidePromptMessage(); } catch { }
