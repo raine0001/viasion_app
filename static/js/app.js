@@ -2420,7 +2420,22 @@ function setPoseIfMissing(shotId, snap) {
                 const rec = window.createShot?.();
                 shotId = rec?.id || (Number(window.__SHOT_ID || 0) || 1);
             }
-            const clipStartedEarly = Number.isFinite(shotId) && shotId === pendingShotId && pendingClipStarted;
+            let clipStartedEarly = Number.isFinite(shotId) && shotId === pendingShotId && pendingClipStarted;
+            if (clipStartedEarly && swingState && Number.isFinite(swingState.clipTriggerTime)) {
+                const clipTriggerAgeMs = Date.now() - Number(swingState.clipTriggerTime || 0);
+                const totalMs = Number(window.__MICROCLIP_MS) || 3000;
+                const maxLeadMs = Math.max(1200, totalMs - 250);
+                if (Number.isFinite(clipTriggerAgeMs) && clipTriggerAgeMs > maxLeadMs) {
+                    clipStartedEarly = false;
+                    if (window.DEBUG_MICROCLIP === true || window.SWING_DEBUG === true) {
+                        console.warn('[microclip] early clip stale; recapturing at release', {
+                            shotId,
+                            clipTriggerAgeMs: Math.round(clipTriggerAgeMs),
+                            totalMs
+                        });
+                    }
+                }
+            }
             if (Number.isFinite(shotId) && shotId === pendingShotId && swingState) {
                 try {
                     swingState.clipShotId = null;

@@ -113,7 +113,11 @@ except Exception:
     app.secret_key = os.urandom(24)
 
 # Stub auth fallback is disabled by default when a DB URI is present.
-_default_stub = "0" if os.getenv("SQLALCHEMY_DATABASE_URI") else "1"
+_has_db_uri = any(
+    os.getenv(key)
+    for key in ("SQLALCHEMY_DATABASE_URI", "DATABASE_URI", "DATABASE_URL")
+)
+_default_stub = "0" if _has_db_uri else "1"
 ALLOW_STUB_AUTH = _truthy(
     os.getenv("ALLOW_STUB_AUTH", _default_stub), default=(_default_stub == "1")
 )
@@ -2829,7 +2833,10 @@ def _try_init_db():
     try:
         load_dotenv()
         uri = (
-            os.getenv("SQLALCHEMY_DATABASE_URI") or os.getenv("DATABASE_URI") or ""
+            os.getenv("SQLALCHEMY_DATABASE_URI")
+            or os.getenv("DATABASE_URI")
+            or os.getenv("DATABASE_URL")
+            or ""
         ).strip()
         if not uri:
             return None
