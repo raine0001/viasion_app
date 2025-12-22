@@ -46,13 +46,20 @@
 
     async function loadManifest() {
         if (state.manifest) return state.manifest;
-        try {
-            const res = await fetch(manifestEndpoint, { cache: 'no-store' });
+        const fetchManifest = async (url) => {
+            const res = await fetch(url, { cache: 'no-store' });
             if (!res.ok) throw new Error(`Manifest HTTP ${res.status}`);
-            state.manifest = await res.json();
+            return res.json();
+        };
+        try {
+            state.manifest = await fetchManifest(manifestEndpoint);
         } catch (err) {
-            console.warn('[ProjectManager] failed to load manifest; using fallback', err);
-            state.manifest = fallbackManifest;
+            try {
+                state.manifest = await fetchManifest('/static/config/projects.json');
+            } catch (err2) {
+                console.warn('[ProjectManager] failed to load manifest; using fallback', err2);
+                state.manifest = fallbackManifest;
+            }
         }
         if (!state.activeProjectSlug) {
             const def = state.manifest.defaultProject || Object.keys(state.manifest.projects || {})[0];
