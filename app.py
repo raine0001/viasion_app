@@ -1474,6 +1474,131 @@ def _db_write_session_payload(sid: str, data: dict) -> bool:
         return False
 
 
+def _db_build_session_payload(sid: str) -> dict | None:
+    db = _db_get()
+    if not db:
+        return None
+    try:
+        from sqlalchemy import select
+
+        with db["Session"]() as s:
+            SessionRow = db["SessionRow"]
+            ShotRow = db["ShotRow"]
+            sess_row = s.get(SessionRow, sid)
+            if not sess_row:
+                return None
+            shots = []
+            rows = (
+                s.execute(
+                    select(ShotRow)
+                    .where(ShotRow.sid == sid)
+                    .order_by(ShotRow.idx.asc())
+                )
+                .scalars()
+                .all()
+            )
+            for r in rows:
+                base = r.data if isinstance(r.data, dict) else {}
+                shot = dict(base)
+                shot.setdefault("idx", r.idx)
+                if r.made is not None:
+                    shot.setdefault("made", r.made)
+                if r.entry_angle is not None:
+                    shot.setdefault("entryAngle", r.entry_angle)
+                if r.release_angle is not None:
+                    shot.setdefault("releaseAngle", r.release_angle)
+                if r.arc_height is not None:
+                    shot.setdefault("arcHeight", r.arc_height)
+                if r.miss_reason is not None:
+                    shot.setdefault("missReason", r.miss_reason)
+                if r.pose_score is not None:
+                    shot.setdefault("poseScore", r.pose_score)
+                shots.append(shot)
+
+            attempts = len(shots)
+            makes = sum(1 for shot in shots if shot.get("made") is True)
+            accuracy = int(round((makes / attempts) * 100)) if attempts else 0
+            if sess_row.shots_count is not None:
+                try:
+                    attempts = max(attempts, int(sess_row.shots_count))
+                except Exception:
+                    pass
+            if sess_row.makes is not None:
+                try:
+                    makes = max(makes, int(sess_row.makes))
+                except Exception:
+                    pass
+            if sess_row.accuracy is not None:
+                try:
+                    accuracy = int(sess_row.accuracy)
+                except Exception:
+                    pass
+
+            payload = {
+                "id": sid,
+                "startedAt": _to_epoch_ms(sess_row.created_at),
+                "endedAt": _to_epoch_ms(sess_row.ended_at),
+                "shots": shots,
+                "totals": {"attempts": attempts, "made": makes, "accuracy": accuracy},
+            }
+            if sess_row.user_id is not None:
+                payload["userId"] = sess_row.user_id
+            return payload
+    except Exception as exc:
+        _trace("db_build_session_payload", exc)
+        if DB_REQUIRED:
+            raise
+        return None
+
+
+def _merge_session_payload(sess: dict, db_payload: dict) -> dict:
+    if not isinstance(sess, dict) or not isinstance(db_payload, dict):
+        return sess
+    base_shots = list(sess.get("shots") or [])
+    db_shots = list(db_payload.get("shots") or [])
+    if not db_shots:
+        return sess
+    merged = []
+    seen = set()
+    for shot in base_shots:
+        if not isinstance(shot, dict):
+            continue
+        try:
+            idx = int(shot.get("idx"))
+        except Exception:
+            idx = None
+        if idx is not None:
+            seen.add(idx)
+        merged.append(shot)
+    for shot in db_shots:
+        if not isinstance(shot, dict):
+            continue
+        try:
+            idx = int(shot.get("idx"))
+        except Exception:
+            idx = None
+        if idx is not None and idx in seen:
+            continue
+        merged.append(shot)
+        if idx is not None:
+            seen.add(idx)
+    try:
+        merged.sort(key=lambda s: int(s.get("idx")) if isinstance(s, dict) and s.get("idx") is not None else 0)
+    except Exception:
+        pass
+    sess["shots"] = merged
+    totals = sess.get("totals")
+    db_totals = db_payload.get("totals") if isinstance(db_payload.get("totals"), dict) else None
+    if db_totals:
+        if not isinstance(totals, dict):
+            sess["totals"] = dict(db_totals)
+        else:
+            for key in ("attempts", "made", "accuracy"):
+                if totals.get(key) is None and db_totals.get(key) is not None:
+                    totals[key] = db_totals.get(key)
+    return sess
+
+
 def _persist_coach_feedback_fs(sid: str, shot_idx: int, text: str, score_val: float | None) -> bool:
     try:
         sess = _read_session(sid)
@@ -1600,7 +1725,9 @@ def _load_fs_session_summaries() -> dict:
     return summaries
 
 
-def _db_list_session_items(current_uid, include_unowned: bool) -> dict:
+def _db_list_session_items(
+    current_uid, include_unowned: bool, include_archived: bool
+) -> dict:
     db = _db_get()
     if not db:
         return {}
@@ -1614,6 +1741,13 @@ def _db_list_session_items(current_uid, include_unowned: bool) -> dict:
             pass
     with db["Session"]() as s:
         query = select(db["SessionRow"])
+        if not include_archived:
+            query = query.where(
+                or_(
+                    db["SessionRow"].status.is_(None),
+                    db["SessionRow"].status.notin_(("archived", "deleted")),
+                )
+            )
         if current_uid_db is not None:
             if include_unowned:
                 query = query.where(
@@ -2998,11 +3132,14 @@ def api_session_end(sid):
 def api_sessions_list():
     current_uid = session.get("user_id")
     include_unowned = _truthy(request.args.get("include_unowned"), default=False)
+    include_archived = _truthy(request.args.get("include_archived"), default=False)
     db = _db_get()
     items_by_sid = {}
     if db:
         _maybe_backfill_db_sessions_from_fs()
-        items_by_sid = _db_list_session_items(current_uid, include_unowned)
+        items_by_sid = _db_list_session_items(
+            current_uid, include_unowned, include_archived
+        )
     else:
         fs_summaries = _load_fs_session_summaries()
         for sid, summary in fs_summaries.items():
@@ -3024,9 +3161,128 @@ def api_sessions_list():
 @app.get("/api/sessions/<sid>")
 def api_session_get(sid):
     sess = _read_session(sid)
+    if sess:
+        db_payload = _db_build_session_payload(sid)
+        if db_payload:
+            sess = _merge_session_payload(sess, db_payload)
+    else:
+        sess = _db_build_session_payload(sid)
     if not sess:
+        if _truthy(request.args.get("allow_empty"), default=False):
+            return (
+                jsonify(
+                    {
+                        "id": sid,
+                        "startedAt": None,
+                        "endedAt": None,
+                        "shots": [],
+                        "totals": {"attempts": 0, "made": 0, "accuracy": 0},
+                        "missing": True,
+                    }
+                ),
+                200,
+            )
         return jsonify({"error": "session not found"}), 404
     return jsonify(sess)
+
+
+def _session_user_can_edit(sid: str, user_id) -> bool:
+    if not user_id:
+        return False
+    db = _db_get()
+    if db:
+        try:
+            with db["Session"]() as s:
+                row = s.get(db["SessionRow"], sid)
+                if not row:
+                    return False
+                owner = row.user_id
+                if owner is None:
+                    return True
+                return str(owner) == str(user_id)
+        except Exception as exc:
+            _trace("session_edit: db lookup failed", exc)
+            if DB_REQUIRED:
+                raise
+            return False
+    sess = _read_session(sid)
+    owner = _session_owner_id(sess) if isinstance(sess, dict) else None
+    if owner in (None, "", "null"):
+        return True
+    return str(owner) == str(user_id)
+
+
+@app.post("/api/sessions/<sid>/archive")
+def api_session_archive(sid):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "auth required"}), 401
+    if not _session_user_can_edit(sid, user_id):
+        return jsonify({"error": "forbidden"}), 403
+    db = _db_get()
+    if db:
+        try:
+            with db["Session"]() as s:
+                row = s.get(db["SessionRow"], sid)
+                if not row:
+                    return jsonify({"error": "session not found"}), 404
+                row.status = "archived"
+                s.commit()
+        except Exception as exc:
+            _trace("session_archive db", exc)
+            return jsonify({"error": "archive failed"}), 500
+    sess = _read_session(sid)
+    if isinstance(sess, dict):
+        sess["archived"] = True
+        try:
+            _write_session(sid, sess)
+        except Exception:
+            pass
+    return jsonify({"ok": True, "archived": True})
+
+
+@app.delete("/api/sessions/<sid>")
+@app.post("/api/sessions/<sid>/delete")
+def api_session_delete(sid):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "auth required"}), 401
+    if not _session_user_can_edit(sid, user_id):
+        return jsonify({"error": "forbidden"}), 403
+    db = _db_get()
+    if db:
+        try:
+            with db["Session"]() as s:
+                ShotRow = db.get("ShotRow")
+                PoseRow = db.get("PoseSnapshotRow")
+                FBRow = db.get("CoachFeedbackRow")
+                PayloadRow = db.get("SessionPayloadRow")
+                CommunityRow = db.get("CommunityPostRow")
+                if ShotRow:
+                    s.query(ShotRow).filter(ShotRow.sid == sid).delete()
+                if PoseRow:
+                    s.query(PoseRow).filter(PoseRow.sid == sid).delete()
+                if FBRow:
+                    s.query(FBRow).filter(FBRow.sid == sid).delete()
+                if PayloadRow:
+                    s.query(PayloadRow).filter(PayloadRow.sid == sid).delete()
+                if CommunityRow:
+                    s.query(CommunityRow).filter(CommunityRow.sid == sid).delete()
+                row = s.get(db["SessionRow"], sid)
+                if row:
+                    s.delete(row)
+                s.commit()
+        except Exception as exc:
+            _trace("session_delete db", exc)
+            return jsonify({"error": "delete failed"}), 500
+    # Best-effort filesystem cleanup for dev or legacy data.
+    try:
+        session_dir = os.path.join(SESSIONS_DIR, sid)
+        if os.path.isdir(session_dir):
+            shutil.rmtree(session_dir, ignore_errors=True)
+    except Exception:
+        pass
+    return jsonify({"ok": True, "deleted": True})
 
 
 def _append_trial_email_request(payload: dict) -> bool:
@@ -4366,18 +4622,24 @@ def _db_add_shot(sid, idx, payload):
                     if hasattr(ShotRow, attr):
                         values[attr] = score_val
 
-            stmt = pg_insert(ShotRow).values(**values)
-            update_cols = {
-                col: getattr(stmt.excluded, col)
-                for col in values.keys()
-                if col not in ("sid", "idx")
-            }
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["sid", "idx"],
-                set_=update_cols,
+            existing = (
+                s.execute(
+                    select(ShotRow).where(ShotRow.sid == sid, ShotRow.idx == idx_int)
+                )
+                .scalars()
+                .first()
             )
-
-            s.execute(stmt)
+            if existing is None:
+                existing = ShotRow(**values)
+                s.add(existing)
+            else:
+                for key, val in values.items():
+                    if key in ("sid", "idx"):
+                        continue
+                    try:
+                        setattr(existing, key, val)
+                    except Exception:
+                        pass
 
             with s.no_autoflush:
                 _ensure_session_entry(s, sid)

@@ -280,6 +280,15 @@
             filter: none;
             background: var(--surface-soft);
         }
+        .btn-danger {
+            background: #d45d5d;
+            color: #fff;
+            border-color: rgba(212, 93, 93, 0.6);
+        }
+        .btn-danger:hover {
+            box-shadow: 0 12px 24px -18px rgba(212, 93, 93, 0.7);
+            filter: brightness(1.03);
+        }
 
 
 
@@ -1856,7 +1865,7 @@
 
                 if (SESSION_DETAIL_CACHE.has(sid)) return SESSION_DETAIL_CACHE.get(sid);
 
-                const res = await fetch(`/api/sessions/${encodeURIComponent(sid)}`);
+                const res = await fetch(`/api/sessions/${encodeURIComponent(sid)}?allow_empty=1`);
 
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -1930,6 +1939,44 @@
 
                 return null;
 
+            }
+
+            function isGolfSession(session) {
+                const parts = [
+                    session?.project,
+                    session?.projectName,
+                    session?.dataset
+                ].filter(Boolean).join(' ').toLowerCase();
+                return parts.includes('golf');
+            }
+
+            function expandShotsForGaps(shots) {
+                const byIdx = new Map();
+                let maxIdx = -1;
+                shots.forEach((shot, index) => {
+                    let idx = Number.isFinite(Number(shot?.idx)) ? Number(shot.idx) : null;
+                    if (!Number.isFinite(idx)) {
+                        const shotId = Number(shot?.shotId);
+                        if (Number.isFinite(shotId) && shotId > 0) {
+                            idx = shotId - 1;
+                        } else {
+                            idx = index;
+                        }
+                    }
+                    idx = Math.max(0, Math.trunc(idx));
+                    if (!byIdx.has(idx)) {
+                        byIdx.set(idx, shot);
+                    }
+                    if (idx > maxIdx) maxIdx = idx;
+                });
+                const MAX_PLACEHOLDER = 200;
+                if (maxIdx < 0 || maxIdx + 1 > MAX_PLACEHOLDER) return shots;
+                if (byIdx.size === maxIdx + 1) return shots;
+                const expanded = [];
+                for (let i = 0; i <= maxIdx; i++) {
+                    expanded.push(byIdx.get(i) || { idx: i, placeholder: true });
+                }
+                return expanded;
             }
 
 
@@ -2164,7 +2211,8 @@
 
             function buildShotViews(session) {
 
-                const shots = Array.isArray(session?.shots) ? session.shots.slice() : [];
+                let shots = Array.isArray(session?.shots) ? session.shots.slice() : [];
+                shots = expandShotsForGaps(shots);
 
                 shots.sort((a, b) => {
 
@@ -3223,11 +3271,11 @@
 
 
 
-            function createActionButton(label, act, sid) {
+            function createActionButton(label, act, sid, extraClass = '') {
 
                 const btn = document.createElement('button');
 
-                btn.className = 'btn btn-sm';
+                btn.className = `btn btn-sm ${extraClass}`.trim();
 
                 btn.dataset.act = act;
 
@@ -3339,17 +3387,21 @@
 
                 const avgArc = average(shotViews.map(s => s.arc));
 
+                
+                const golfMode = isGolfSession(session);
                 const metrics = [
 
                     { label: 'Makes', value: fmtNumber(summary.makes) },
 
-                    { label: 'Avg Entry Angle', value: Number.isFinite(avgEntry) ? `${fmtNumber(avgEntry, 1)}°` : '-' },
-
-                    { label: 'Avg Release Angle', value: Number.isFinite(avgRelease) ? `${fmtNumber(avgRelease, 1)}°` : '-' },
-
-                    { label: 'Avg Arc Height', value: Number.isFinite(avgArc) ? fmtNumber(avgArc, 1) : '-' },
-
                 ];
+                if (!golfMode) {
+                    metrics.push(
+                        { label: 'Avg Entry Angle', value: Number.isFinite(avgEntry) ? `${fmtNumber(avgEntry, 1)} deg` : '-' },
+                        { label: 'Avg Release Angle', value: Number.isFinite(avgRelease) ? `${fmtNumber(avgRelease, 1)} deg` : '-' },
+                        { label: 'Avg Arc Height', value: Number.isFinite(avgArc) ? fmtNumber(avgArc, 1) : '-' },
+                    );
+                }
+
 
                 metrics.forEach(item => {
 
@@ -3386,6 +3438,7 @@
                 const grid = document.createElement('div');
 
                 grid.className = 'shot-grid';
+                const golfMode = isGolfSession(session);
 
                 if (!shotViews.length) {
 
@@ -3455,14 +3508,13 @@
 
                     metrics.className = 'shot-metrics';
 
-                    metrics.appendChild(buildMetric('Entry Angle', view.entry, '°', 1));
-
-                    metrics.appendChild(buildMetric('Release Angle', view.release, '°', 1));
-
-                    metrics.appendChild(buildMetric('Arc Height', view.arc, '', 1));
+                    if (!golfMode) {
+                        metrics.appendChild(buildMetric('Entry Angle', view.entry, ' deg', 1));
+                        metrics.appendChild(buildMetric('Release Angle', view.release, ' deg', 1));
+                        metrics.appendChild(buildMetric('Arc Height', view.arc, '', 1));
+                    }
 
                     metrics.appendChild(buildMetric('Shot Score', view.score, '', 0));
-
                     content.appendChild(metrics);
 
 
@@ -3751,6 +3803,14 @@
 
                     actionsCell.appendChild(createActionButton('Print', 'print', meta.id));
 
+                    actionsCell.appendChild(document.createTextNode(' '));
+
+                    actionsCell.appendChild(createActionButton('Archive', 'archive', meta.id, 'btn-tonal'));
+
+                    actionsCell.appendChild(document.createTextNode(' '));
+
+                    actionsCell.appendChild(createActionButton('Delete', 'delete', meta.id, 'btn-danger'));
+
                     tr.appendChild(actionsCell);
 
 
@@ -3809,29 +3869,32 @@
 
                     const shotViews = buildShotViews(session);
 
-                    const rows = [['#', 'score', 'made', 'entryAngle', 'releaseAngle', 'arcHeight', 'coachNotes', 'missReason']];
+                    const isGolf = isGolfSession(session);
+
+                    const rows = [isGolf
+                        ? ['#', 'score', 'made', 'coachNotes', 'missReason']
+                        : ['#', 'score', 'made', 'entryAngle', 'releaseAngle', 'arcHeight', 'coachNotes', 'missReason']
+                    ];
 
                     shotViews.forEach(view => {
 
-                        rows.push([
-
+                        const row = [
                             view.number,
-
                             Number.isFinite(view.score) ? view.score : '',
-
                             view.made === true ? 'made' : view.made === false ? 'miss' : 'pending',
-
-                            Number.isFinite(view.entry) ? fmtNumber(view.entry, 1) : '',
-
-                            Number.isFinite(view.release) ? fmtNumber(view.release, 1) : '',
-
-                            Number.isFinite(view.arc) ? fmtNumber(view.arc, 1) : '',
-
+                        ];
+                        if (!isGolf) {
+                            row.push(
+                                Number.isFinite(view.entry) ? fmtNumber(view.entry, 1) : '',
+                                Number.isFinite(view.release) ? fmtNumber(view.release, 1) : '',
+                                Number.isFinite(view.arc) ? fmtNumber(view.arc, 1) : ''
+                            );
+                        }
+                        row.push(
                             sanitizeForCSV(view.coachNote),
-
                             sanitizeForCSV(view.missReason)
-
-                        ]);
+                        );
+                        rows.push(row);
 
                     });
 
@@ -3846,8 +3909,6 @@
                 }
 
             }
-
-
 
             function exportAllCSV() {
 
@@ -3891,8 +3952,6 @@
 
             }
 
-
-
             async function copyShare(sid) {
 
                 const url = `${location.origin}/static/my_sessions.html?sid=${encodeURIComponent(sid)}`;
@@ -3909,6 +3968,56 @@
 
                 }
 
+            }
+
+            function notifyUser(message, tone = 'success') {
+                if (typeof window.showToast === 'function') {
+                    window.showToast(message, tone, 4200);
+                    return;
+                }
+                alert(message);
+            }
+
+            async function runSessionAction(sid, action, confirmText) {
+                if (!sid) return;
+                if (confirmText && !confirm(confirmText)) return;
+                try {
+                    const res = await fetch(`/api/sessions/${encodeURIComponent(sid)}/${action}`, {
+                        method: 'POST',
+                        credentials: 'include'
+                    });
+                    if (res.status === 401) {
+                        window.location.href = '/static/login.html';
+                        return;
+                    }
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    SESSION_DETAIL_CACHE.delete(sid);
+                    SESSION_SUMMARY_CACHE.delete(sid);
+                    __SESSIONS = __SESSIONS.filter(s => s.id !== sid);
+                    if (__CURRENT_SESSION_ID === sid) {
+                        __CURRENT_SESSION_ID = null;
+                        const box = document.getElementById('detail');
+                        if (box) box.innerHTML = '<div class="empty">Select a session to view details.</div>';
+                    }
+                    renderTable();
+                    await updateDashboard();
+                    notifyUser(action === 'delete' ? 'Session deleted.' : 'Session archived.');
+                } catch (err) {
+                    console.error(`[my_sessions] ${action} failed`, err);
+                    notifyUser('Unable to update the session right now.', 'warn');
+                }
+            }
+
+            async function archiveSession(sid) {
+                await runSessionAction(sid, 'archive');
+            }
+
+            async function deleteSession(sid) {
+                await runSessionAction(
+                    sid,
+                    'delete',
+                    'Delete this session permanently? This cannot be undone.'
+                );
             }
 
             async function updateDashboard() {
@@ -4122,6 +4231,10 @@
                     else if (act === 'share') copyShare(sid);
 
                     else if (act === 'print') { showSession(sid).then(() => window.print()); }
+
+                    else if (act === 'archive') archiveSession(sid);
+
+                    else if (act === 'delete') deleteSession(sid);
 
                 });
 

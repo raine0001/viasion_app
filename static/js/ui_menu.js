@@ -59,6 +59,26 @@
         };
     }
 
+    async function performLogout(options = {}) {
+        const redirect = options.redirect !== false;
+        const statusEl = options.statusEl || null;
+        try { await fetch('/api/auth/logout', { method: 'POST' }); } catch { }
+        if (statusEl) statusEl.textContent = 'Signed out';
+        try { delete window.__USER_NAME; } catch { window.__USER_NAME = null; }
+        try { delete window.__USER_EMAIL; } catch { window.__USER_EMAIL = null; }
+        try { localStorage.removeItem('firstname'); } catch { }
+        try { localStorage.removeItem('visaionProfile'); } catch { }
+        try { sessionStorage.removeItem('visaion_guest_name'); } catch { }
+        try { sessionStorage.removeItem('visaion_login_greeting'); } catch { }
+        try { delete window.__GUEST_NAME; } catch { window.__GUEST_NAME = null; }
+        try { window.__challengeState = null; window.syncChallengeCTA?.(); } catch { }
+        markAuthState(false, null);
+        if (redirect) {
+            try { window.location.href = '/static/login.html'; }
+            catch { window.open('/static/login.html', '_self'); }
+        }
+    }
+
     function maybeMountMenu() {
         if (!AUTH_STATE.authed) return;
         if (document.getElementById('visaion-menu-mounted')) return;
@@ -1912,20 +1932,11 @@
             } catch (e) { alert('Create failed: ' + e.message); }
         };
         btnLogout.onclick = async () => {
-            try { await fetchJSON('/api/auth/logout', { method: 'POST' }); } catch { }
-            status.textContent = 'Signed out';
             btnLogout.style.display = 'none';
             nameRow.style.display = '';
-            try { delete window.__USER_NAME; } catch { window.__USER_NAME = null; }
-            try { delete window.__USER_EMAIL; } catch { window.__USER_EMAIL = null; }
-            try { localStorage.removeItem('firstname'); } catch { }
-            try { localStorage.removeItem('visaionProfile'); } catch { }
-            try { sessionStorage.removeItem('visaion_guest_name'); } catch { }
-            try { delete window.__GUEST_NAME; } catch { window.__GUEST_NAME = null; }
-            try { window.__challengeState = null; window.syncChallengeCTA?.(); } catch { }
             try { faceLockMgr()?.setUser?.(null); } catch { }
             try { await updateFaceStatus(); } catch { }
-            markAuthState(false, null);
+            await performLogout({ statusEl: status });
         };
         btnProfile.onclick = requireAuth(() => {
             try { sessionStorage.setItem('visaion_setup_return', '/static/my_sessions.html'); } catch { }
@@ -1983,11 +1994,8 @@
                 }, 'Preferences')),
                 el('li', {}, el('button', {
                     class: 'visaion-item',
-                    onclick: () => {
-                        try { window.location.href = '/static/login.html'; }
-                        catch { window.open('/static/login.html', '_self'); }
-                    }
-                }, 'Login / Setup')),
+                    onclick: () => { performLogout(); }
+                }, 'Logout')),
                 el('li', {}, el('button', { class: 'visaion-item', onclick: openAuthPanel }, 'Login / Account'))
             )
         );
