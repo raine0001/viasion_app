@@ -99,7 +99,7 @@ window.getSessionCap = getSessionCap; // let others read
  * a dedupe set of processed summary keys.
  */
 let __shotCounter = 0; // monotonic per session
-const __processedSummaries = new Set(); // keys: `${shotId}|${frameEnd||''}|${frame||''}`
+const __processedSummaries = new Set(); // keys: `sid|shotId` (or frame fallback)
 
 // Returns the next 1-based shot index owned by the session manager
 function nextShotIndex() {
@@ -311,6 +311,7 @@ async function persistShotFromSummary(detail) {
     console.debug('[persistShot] detail', detail);
 
     const shotId = Number(detail?.shotId);
+    const hasShotId = Number.isFinite(shotId) && shotId > 0;
     const releasePose = Number.isFinite(shotId)
         ? window.poseStore?.get(shotId) || null
         : null;
@@ -343,19 +344,28 @@ async function persistShotFromSummary(detail) {
 
     // Build a stable de-dupe key from what we actually have
     const sid = String(__sid || '');
-    const shot = shotId;
     const fEnd = Number(detail?.frameEnd ?? detail?.endFrame ?? NaN);
     const fAny = Number(detail?.frame ?? NaN);
-    const key = [sid, Number.isFinite(shot) ? shot : '', Number.isFinite(fEnd) ? fEnd : '', Number.isFinite(fAny) ? fAny : ''].join('|');
+    let key = null;
+    if (hasShotId) {
+        key = `${sid}|shot:${shotId}`;
+    } else if (Number.isFinite(fEnd) || Number.isFinite(fAny)) {
+        const fEndKey = Number.isFinite(fEnd) ? fEnd : '';
+        const fAnyKey = Number.isFinite(fAny) ? fAny : '';
+        key = `${sid}|frame:${fEndKey}|${fAnyKey}`;
+    } else {
+        key = `${sid}|anon:${Date.now()}|${Math.random().toString(36).slice(2, 8)}`;
+    }
 
-    if (__processedSummaries.has(key)) {
+    if (key && __processedSummaries.has(key)) {
         // we've already persisted this summary; ignore
         return;
     }
 
-    // Compute idx: prefer provided shotId; else allocate our own
-    let idx = shotId;
-    if (!Number.isFinite(idx) || idx <= 0) idx = nextShotIndex();
+    // Compute shot numbering (1-based) and server index (0-based)
+    let shotNumber = hasShotId ? shotId : nextShotIndex();
+    if (!Number.isFinite(shotNumber) || shotNumber <= 0) shotNumber = nextShotIndex();
+    const serverIdx = Math.max(0, shotNumber - 1);
 
     let weightedScoreRaw = Number(detail?.weightedScore);
     let poseScoreRaw = Number(detail?.poseScore);
@@ -493,13 +503,13 @@ async function persistShotFromSummary(detail) {
         coerceClip(detail?.clipPath) ||
         coerceClip(detail?.clipUrl) ||
         coerceClip(shotStoreEntry?.clip);
-    if (!clipInfo && Number.isFinite(idx)) {
-        const listEntry = Array.isArray(window.__shotList) ? window.__shotList[idx - 1] : null;
+    if (!clipInfo && Number.isFinite(shotNumber)) {
+        const listEntry = Array.isArray(window.__shotList) ? window.__shotList[shotNumber - 1] : null;
         clipInfo = coerceClip(listEntry?.clip);
     }
     if (!clipInfo) {
         const sidActive = window.__SESSION_ID || __sid || null;
-        const clipNumber = Number.isFinite(shotId) && shotId > 0 ? shotId : (Number.isFinite(idx) && idx > 0 ? idx : null);
+        const clipNumber = Number.isFinite(shotNumber) && shotNumber > 0 ? shotNumber : null;
         if (sidActive && clipNumber) {
             clipInfo = { path: `/sessions/${sidActive}/clips/shot-${clipNumber}.mp4`, source: `/sessions/${sidActive}/clips/shot-${clipNumber}.webm` };
         }
@@ -509,14 +519,16 @@ async function persistShotFromSummary(detail) {
     }
 
     const payload = {
-        idx,
+        idx: serverIdx,
         t: Date.now(),
+        shotId: Number.isFinite(shotNumber) ? shotNumber : null,
         made: Number.isFinite(detail?.made) ? Number(detail.made) : null,
         arcHeight: Number.isFinite(detail?.arcHeight) ? Number(detail.arcHeight) : null,
         entryAngle: Number.isFinite(detail?.entryAngle) ? Number(detail.entryAngle) : null,
         releaseAngle: Number.isFinite(detail?.releaseAngle) ? Number(detail.releaseAngle) : null,
         pose: poseSnapshot || null   // optional, server can ignore
     };
+    payload.replace = true;
     const coachLine = typeof detail?.visaion === 'string'
         ? detail.visaion.trim()
         : (typeof detail?.coachLine === 'string'
@@ -539,7 +551,8 @@ async function persistShotFromSummary(detail) {
 
     console.log('[score:persist:payload]', {
         shotId,
-        idx,
+        shotNumber,
+        idx: serverIdx,
         poseScore: payload.poseScore ?? null,
         weightedScore: payload.weightedScore ?? null,
         normalizedPoseScore,
@@ -550,13 +563,13 @@ async function persistShotFromSummary(detail) {
 
     try {
         await postJSON(`/api/sessions/${__sid}/shot`, payload);
-        __processedSummaries.add(key);
-        // bump our counter to at least idx
-        if (idx > __shotCounter) __shotCounter = idx;
+        if (key) __processedSummaries.add(key);
+        // bump our counter to at least shotNumber
+        if (shotNumber > __shotCounter) __shotCounter = shotNumber;
         window.__SESSION_SHOT_COUNT = __shotCounter;
-        console.debug('[persistShot]', { idx, ok: true });
+        console.debug('[persistShot]', { idx: serverIdx, ok: true });
     } catch (err) {
-        console.warn('[persistShot] failed', err, { idx, payload });
+        console.warn('[persistShot] failed', err, { idx: serverIdx, payload });
     }
 
     // Cap check owned here only

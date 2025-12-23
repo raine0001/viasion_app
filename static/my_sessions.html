@@ -2217,11 +2217,26 @@
             }
 
             function expandShotsForGaps(shots) {
+                const idxSamples = [];
+                shots.forEach((shot) => {
+                    const raw = Number(shot?.idx);
+                    if (Number.isFinite(raw)) idxSamples.push(Math.trunc(raw));
+                });
+                let minIdx = Infinity;
+                let hasZero = false;
+                idxSamples.forEach((val) => {
+                    if (val === 0) hasZero = true;
+                    if (val < minIdx) minIdx = val;
+                });
+                const shiftOneBased = idxSamples.length > 0 && !hasZero && minIdx === 1;
+
                 const byIdx = new Map();
                 let maxIdx = -1;
                 shots.forEach((shot, index) => {
-                    let idx = Number.isFinite(Number(shot?.idx)) ? Number(shot.idx) : null;
-                    if (!Number.isFinite(idx)) {
+                    let idx = Number.isFinite(Number(shot?.idx)) ? Math.trunc(Number(shot.idx)) : null;
+                    if (Number.isFinite(idx)) {
+                        if (shiftOneBased) idx = idx - 1;
+                    } else {
                         const shotId = Number(shot?.shotId);
                         if (Number.isFinite(shotId) && shotId > 0) {
                             idx = shotId - 1;
@@ -2490,9 +2505,24 @@
 
                 });
 
+                const idxSamples = shots
+                    .filter(shot => !shot?.placeholder)
+                    .map(shot => Number(shot?.idx))
+                    .filter(val => Number.isFinite(val));
+                let minIdx = Infinity;
+                let hasZero = false;
+                idxSamples.forEach((val) => {
+                    if (val === 0) hasZero = true;
+                    if (val < minIdx) minIdx = val;
+                });
+                const shiftOneBased = idxSamples.length > 0 && !hasZero && minIdx === 1;
+
                 return shots.map((shot, index) => {
 
-                    const number = Number.isFinite(Number(shot?.idx)) ? Number(shot.idx) + 1 : index + 1;
+                    const rawIdx = Number(shot?.idx);
+                    const number = Number.isFinite(rawIdx)
+                        ? (shiftOneBased ? rawIdx : rawIdx + 1)
+                        : index + 1;
 
                     const made = resolveMade(shot);
 
@@ -2506,7 +2536,7 @@
 
                         statusClass: made === true ? 'status-make' : made === false ? 'status-miss' : 'status-pending',
 
-                        clipUrl: resolveClipUrl(session.id, number, shot),
+                        clipUrl: shot?.placeholder ? null : resolveClipUrl(session.id, number, shot),
 
                         entry: resolveShotMetric(shot, 'entryAngle'),
 
@@ -2526,12 +2556,19 @@
 
                         timestamp: resolveTimestamp(shot),
 
+                        placeholder: !!shot?.placeholder,
+
                         raw: shot,
 
                     };
 
                 });
 
+            }
+
+            function countRealShots(shotViews) {
+                if (!Array.isArray(shotViews)) return 0;
+                return shotViews.reduce((acc, view) => acc + (view?.placeholder ? 0 : 1), 0);
             }
 
             function summarizeSessions(details) {
@@ -2624,7 +2661,7 @@
 
                     });
 
-                    const attempts = shotViews.length || Number(detail?.totals?.attempts || 0);
+                    const attempts = Number(detail?.totals?.attempts || 0) || countRealShots(shotViews);
 
                     const accuracy = attempts ? (sessionMakes / attempts) * 100 : NaN;
 
@@ -3611,7 +3648,7 @@
 
             function computeSessionSummary(session, shotViews) {
 
-                const attempts = shotViews.length || Number(session?.totals?.attempts || 0);
+                const attempts = Number(session?.totals?.attempts || 0) || countRealShots(shotViews);
 
                 const makes = shotViews.filter(s => s.made === true).length;
 
