@@ -1809,6 +1809,161 @@ def _find_community_post(posts: list[dict], sid: str):
     return None, None
 
 
+def _safe_count(value, default=0) -> int:
+    if value is None:
+        return default
+    try:
+        return max(0, int(value))
+    except Exception:
+        return default
+
+
+def _normalize_comment_entry(entry: dict | str | None) -> dict | None:
+    if not entry:
+        return None
+    if isinstance(entry, str):
+        text = entry.strip()
+        if not text:
+            return None
+        return {
+            "id": f"c{int(time.time() * 1000)}{random.randint(100, 999)}",
+            "author": "Community member",
+            "text": text[:180],
+            "ts": int(time.time() * 1000),
+        }
+    if not isinstance(entry, dict):
+        return None
+    text = str(entry.get("text") or entry.get("comment") or entry.get("body") or "").strip()
+    if not text:
+        return None
+    author = str(entry.get("author") or entry.get("user") or entry.get("name") or "Community member").strip()
+    if not author:
+        author = "Community member"
+    ts_raw = entry.get("ts") or entry.get("createdAt") or entry.get("created_at")
+    try:
+        ts_val = int(ts_raw)
+    except Exception:
+        ts_val = int(time.time() * 1000)
+    cid = entry.get("id") or entry.get("cid")
+    if not cid:
+        cid = f"c{ts_val}{random.randint(100, 999)}"
+    return {
+        "id": str(cid)[:32],
+        "author": author[:80],
+        "text": text[:180],
+        "ts": ts_val,
+    }
+
+
+def _sanitize_comment_list(entries) -> list[dict]:
+    out = []
+    for entry in entries or []:
+        normalized = _normalize_comment_entry(entry)
+        if normalized:
+            out.append(normalized)
+    return out[-200:]
+
+
+def _ensure_community_action_fields(summary: dict, detail: dict | None):
+    changed = False
+    summary = dict(summary or {})
+    detail_copy = dict(detail) if isinstance(detail, dict) else None
+
+    comments = []
+    if detail_copy is not None:
+        raw_comments = detail_copy.get("comments") if isinstance(detail_copy.get("comments"), list) else []
+        comments = _sanitize_comment_list(raw_comments)
+        if raw_comments != comments:
+            detail_copy["comments"] = comments
+            changed = True
+
+    like_count = _safe_count(summary.get("likeCount") or (detail_copy or {}).get("likeCount"), 0)
+    share_count = _safe_count(summary.get("shareCount") or (detail_copy or {}).get("shareCount"), 0)
+    subscriber_count = _safe_count(summary.get("subscriberCount") or (detail_copy or {}).get("subscriberCount"), 0)
+    comment_count = _safe_count(summary.get("commentCount") or (detail_copy or {}).get("commentCount"), 0)
+    if comments:
+        comment_count = max(comment_count, len(comments))
+
+    if summary.get("likeCount") != like_count:
+        summary["likeCount"] = like_count
+        changed = True
+    if summary.get("shareCount") != share_count:
+        summary["shareCount"] = share_count
+        changed = True
+    if summary.get("subscriberCount") != subscriber_count:
+        summary["subscriberCount"] = subscriber_count
+        changed = True
+    if summary.get("commentCount") != comment_count:
+        summary["commentCount"] = comment_count
+        changed = True
+
+    if detail_copy is not None:
+        if detail_copy.get("likeCount") != like_count:
+            detail_copy["likeCount"] = like_count
+            changed = True
+        if detail_copy.get("shareCount") != share_count:
+            detail_copy["shareCount"] = share_count
+            changed = True
+        if detail_copy.get("subscriberCount") != subscriber_count:
+            detail_copy["subscriberCount"] = subscriber_count
+            changed = True
+        if detail_copy.get("commentCount") != comment_count:
+            detail_copy["commentCount"] = comment_count
+            changed = True
+        if "comments" not in detail_copy:
+            detail_copy["comments"] = comments
+            changed = True
+
+    return summary, detail_copy, changed
+
+
+def _community_actions_payload(summary: dict, detail: dict | None) -> dict:
+    safe_summary = summary or {}
+    comments = []
+    if isinstance(detail, dict) and isinstance(detail.get("comments"), list):
+        comments = detail.get("comments")
+    return {
+        "likeCount": _safe_count(safe_summary.get("likeCount"), 0),
+        "commentCount": _safe_count(safe_summary.get("commentCount"), len(comments)),
+        "shareCount": _safe_count(safe_summary.get("shareCount"), 0),
+        "subscriberCount": _safe_count(safe_summary.get("subscriberCount"), 0),
+        "comments": comments,
+    }
+
+
+def _load_community_detail_payload(sid: str):
+    detail_path = _community_detail_path(sid)
+    if os.path.exists(detail_path):
+        try:
+            with open(detail_path, "r", encoding="utf-8") as f:
+                return json.load(f), detail_path
+        except Exception:
+            return None, detail_path
+    detail = _db_get_community_detail(sid)
+    return detail if isinstance(detail, dict) else None, detail_path
+
+
+def _init_community_detail_from_summary(sid: str, summary: dict) -> dict:
+    detail = {
+        "id": sid,
+        "title": summary.get("title"),
+        "summary": summary.get("summary"),
+        "author": summary.get("author"),
+        "tags": summary.get("tags"),
+        "createdAt": summary.get("createdAt"),
+        "project": summary.get("project"),
+        "projectName": summary.get("projectName"),
+        "dataset": summary.get("dataset"),
+        "stats": summary.get("stats"),
+        "shots": summary.get("shots") or [],
+        "comments": [],
+    }
+    for key in ("preview", "previewRev", "hidden", "hiddenAt", "hiddenBy", "hiddenReason"):
+        if key in summary:
+            detail[key] = summary.get(key)
+    return detail
+
+
 def _extract_preview_with_ffmpeg(src: Path, dest: Path) -> bool:
     cmd = [
         FFMPEG_BIN,
@@ -3035,6 +3190,7 @@ def api_community_publish():
         if key:
             post_map[key] = item
     existing = post_map.get(sid)
+    existing_detail, _ = _load_community_detail_payload(sid)
     created_at = existing.get("createdAt") if isinstance(existing, dict) else None
     if not created_at:
         created_at = now_ms
@@ -3058,6 +3214,30 @@ def api_community_publish():
         "highlights": highlights,
         "preview": f"/api/community/preview/{sid}.jpg" if preview_path else None,
         "previewRev": preview_rev,
+        "likeCount": _safe_count(
+            existing.get("likeCount")
+            if isinstance(existing, dict) and existing.get("likeCount") is not None
+            else (existing_detail or {}).get("likeCount"),
+            0,
+        ),
+        "commentCount": _safe_count(
+            existing.get("commentCount")
+            if isinstance(existing, dict) and existing.get("commentCount") is not None
+            else (existing_detail or {}).get("commentCount"),
+            0,
+        ),
+        "shareCount": _safe_count(
+            existing.get("shareCount")
+            if isinstance(existing, dict) and existing.get("shareCount") is not None
+            else (existing_detail or {}).get("shareCount"),
+            0,
+        ),
+        "subscriberCount": _safe_count(
+            existing.get("subscriberCount")
+            if isinstance(existing, dict) and existing.get("subscriberCount") is not None
+            else (existing_detail or {}).get("subscriberCount"),
+            0,
+        ),
     }
 
     if isinstance(existing, dict):
@@ -3078,7 +3258,18 @@ def api_community_publish():
         "dataset": sess.get("dataset"),
         "stats": summary_entry["stats"],
         "shots": detail_shots,
+        "likeCount": summary_entry.get("likeCount", 0),
+        "commentCount": summary_entry.get("commentCount", 0),
+        "shareCount": summary_entry.get("shareCount", 0),
+        "subscriberCount": summary_entry.get("subscriberCount", 0),
     }
+    existing_comments = []
+    if isinstance(existing_detail, dict) and isinstance(existing_detail.get("comments"), list):
+        existing_comments = _sanitize_comment_list(existing_detail.get("comments"))
+    detail_payload["comments"] = existing_comments
+    if existing_comments:
+        detail_payload["commentCount"] = max(detail_payload.get("commentCount", 0), len(existing_comments))
+        summary_entry["commentCount"] = detail_payload["commentCount"]
     if summary_entry["preview"]:
         detail_payload["preview"] = summary_entry["preview"]
         detail_payload["previewRev"] = preview_rev
@@ -3111,12 +3302,16 @@ def api_community_publish():
 def api_community_feed():
     posts = _load_community_feed()
     changed = False
-    for post in posts:
+    for idx, post in enumerate(posts):
         sid = _community_post_id(post)
         if not sid:
             continue
         shots = post.get("shots")
         if _ensure_shot_clip_urls(sid, shots):
+            changed = True
+        updated_summary, _, action_changed = _ensure_community_action_fields(post, None)
+        if action_changed:
+            posts[idx] = updated_summary
             changed = True
     if changed:
         try:
@@ -3150,6 +3345,25 @@ def api_community_session_detail(sid):
                 pass
     if not isinstance(detail, dict):
         return jsonify({"error": "session not published"}), 404
+    summary_updated, detail_updated, action_changed = _ensure_community_action_fields(post, detail)
+    detail = detail_updated or detail
+    if action_changed:
+        try:
+            idx, _ = _find_community_post(posts, sid)
+            if idx is not None:
+                posts[idx] = summary_updated
+            _write_community_feed(posts)
+        except Exception as exc:
+            _trace("community:action update failed", exc)
+        try:
+            with open(detail_path, "w", encoding="utf-8") as f:
+                json.dump(detail, f, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            _trace("community:detail update failed", exc)
+        try:
+            _db_upsert_community_post(sid, summary_updated, detail)
+        except Exception:
+            pass
     if _ensure_shot_clip_urls(sid, detail.get("shots") or []):
         try:
             with open(detail_path, "w", encoding="utf-8") as f:
@@ -3157,12 +3371,12 @@ def api_community_session_detail(sid):
         except Exception as exc:
             _trace("community:detail update failed", exc)
         try:
-            _db_upsert_community_post(sid, post, detail)
+            _db_upsert_community_post(sid, summary_updated if action_changed else post, detail)
         except Exception:
             pass
-    elif detail_from_db:
+    elif detail_from_db or action_changed:
         try:
-            _db_upsert_community_post(sid, post, detail)
+            _db_upsert_community_post(sid, summary_updated if action_changed else post, detail)
         except Exception:
             pass
     return jsonify(detail)
@@ -3178,6 +3392,125 @@ def api_community_preview(sid):
     if not preview_path or not os.path.exists(preview_path):
         abort(404)
     return send_file(preview_path, mimetype="image/jpeg")
+
+
+@app.get("/api/community/actions/<sid>")
+def api_community_actions(sid):
+    posts = _load_community_feed()
+    idx, post = _find_community_post(posts, sid)
+    if not post or post.get("hidden"):
+        return jsonify({"error": "session not published"}), 404
+    detail, detail_path = _load_community_detail_payload(sid)
+    if not isinstance(detail, dict):
+        detail = _init_community_detail_from_summary(sid, post)
+    summary_updated, detail_updated, changed = _ensure_community_action_fields(post, detail)
+    detail = detail_updated or detail
+    if changed:
+        try:
+            if idx is not None:
+                posts[idx] = summary_updated
+            _write_community_feed(posts)
+        except Exception as exc:
+            _trace("community:actions feed update failed", exc)
+        try:
+            with open(detail_path, "w", encoding="utf-8") as f:
+                json.dump(detail, f, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            _trace("community:actions detail update failed", exc)
+        try:
+            _db_upsert_community_post(sid, summary_updated, detail)
+        except Exception:
+            pass
+    payload = _community_actions_payload(summary_updated, detail)
+    return jsonify({"ok": True, "actions": payload})
+
+
+@app.post("/api/community/actions/<sid>")
+def api_community_actions_update(sid):
+    data = request.get_json(force=True) or {}
+    action = str(data.get("action") or data.get("type") or "").strip().lower()
+    if not action:
+        return jsonify({"error": "action required"}), 400
+    posts = _load_community_feed()
+    idx, post = _find_community_post(posts, sid)
+    if not post or post.get("hidden"):
+        return jsonify({"error": "session not published"}), 404
+    detail, detail_path = _load_community_detail_payload(sid)
+    if not isinstance(detail, dict):
+        detail = _init_community_detail_from_summary(sid, post)
+
+    summary_updated, detail_updated, _ = _ensure_community_action_fields(post, detail)
+    detail = detail_updated or detail
+
+    delta = data.get("delta")
+    try:
+        delta_val = int(delta) if delta is not None else 0
+    except Exception:
+        delta_val = 0
+
+    if action in ("unlike", "decrement", "remove_like"):
+        action = "like"
+        delta_val = -1
+    if action in ("unsubscribe", "alerts_off", "remove_subscribe"):
+        action = "subscribe"
+        delta_val = -1
+
+    now_ms = int(time.time() * 1000)
+
+    if action in ("like", "favorite"):
+        if delta_val == 0:
+            delta_val = 1
+        summary_updated["likeCount"] = _safe_count(summary_updated.get("likeCount"), 0) + delta_val
+        summary_updated["likeCount"] = max(0, summary_updated["likeCount"])
+        detail["likeCount"] = summary_updated["likeCount"]
+    elif action in ("share", "repost"):
+        summary_updated["shareCount"] = _safe_count(summary_updated.get("shareCount"), 0) + 1
+        detail["shareCount"] = summary_updated["shareCount"]
+    elif action in ("subscribe", "alerts"):
+        if delta_val == 0:
+            delta_val = 1
+        summary_updated["subscriberCount"] = _safe_count(summary_updated.get("subscriberCount"), 0) + delta_val
+        summary_updated["subscriberCount"] = max(0, summary_updated["subscriberCount"])
+        detail["subscriberCount"] = summary_updated["subscriberCount"]
+    elif action in ("comment", "reply"):
+        comment_payload = data.get("comment")
+        if not isinstance(comment_payload, dict):
+            comment_payload = {}
+        if "text" not in comment_payload:
+            comment_payload["text"] = data.get("text") or data.get("message") or ""
+        if "author" not in comment_payload:
+            comment_payload["author"] = data.get("author") or "Community member"
+        if "ts" not in comment_payload:
+            comment_payload["ts"] = data.get("ts") or now_ms
+        comment_entry = _normalize_comment_entry(comment_payload)
+        if not comment_entry:
+            return jsonify({"error": "comment text required"}), 400
+        comments = detail.get("comments") if isinstance(detail.get("comments"), list) else []
+        comments = _sanitize_comment_list(comments + [comment_entry])
+        detail["comments"] = comments
+        summary_updated["commentCount"] = max(_safe_count(summary_updated.get("commentCount"), 0), len(comments))
+        detail["commentCount"] = summary_updated["commentCount"]
+    else:
+        return jsonify({"error": "unsupported action"}), 400
+
+    if idx is not None:
+        posts[idx] = summary_updated
+    try:
+        _write_community_feed(posts)
+    except Exception as exc:
+        _trace("community:actions feed update failed", exc)
+    try:
+        with open(detail_path, "w", encoding="utf-8") as f:
+            json.dump(detail, f, ensure_ascii=False, indent=2)
+    except Exception as exc:
+        _trace("community:actions detail update failed", exc)
+    try:
+        _db_upsert_community_post(sid, summary_updated, detail)
+    except Exception:
+        pass
+
+    payload = _community_actions_payload(summary_updated, detail)
+    return jsonify({"ok": True, "actions": payload})
 
 
 # ---- Frontend release mark bridge ----------------------------------------

@@ -349,7 +349,7 @@
 
 <body>
     <div class="card">
-        <h2>Welcome to <span class="brand-mark">VIS<sup>ai</sup>ON</span></h2>
+        <h2>Welcome to <span class="brand-mark">VISᵃION</span></h2>
         <input id="name" placeholder="First name or User Name (optional)" autocomplete="name" />
         <input id="email" placeholder="Email" autocomplete="email" />
         <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
@@ -366,20 +366,19 @@
                 aria-controls="trySessionOptions">Try a Session</button>
         </div>
         <div id="trySessionOptions" class="try-session-options" hidden>
-            <a class="cta-link cta-option"
-                href="/start_session?trial=1&cap=3&project=basketball">Basketball (3 shots)</a>
+            <a class="cta-link cta-option" href="/start_session?trial=1&cap=3&project=basketball">Basketball (3
+                shots)</a>
             <a class="cta-link cta-option" href="/start_session?trial=1&cap=3&project=golf">Golf (3 swings)</a>
         </div>
     </div>
     <div class="faq-assistant" aria-live="polite">
         <h3>Need a quick answer?</h3>
-        <p>Ask <span class="brand-mark">VIS<sup>ai</sup>ON</span>.</p>
+        <p>Ask <span class="brand-mark">VISᵃION</span>.</p>
         <div id="faqThread" class="faq-thread"></div>
         <div class="faq-suggestions">
-            <button type="button" data-faq="What is VISᵃION?">What is <span
-                    class="brand-mark">VIS<sup>ai</sup>ON</span>?</button>
+            <button type="button" data-faq="What is VISᵃION?">What is <span class="brand-mark">VISᵃION</span>?</button>
             <button type="button" data-faq="How do I use VISᵃION?">How do I use <span
-                    class="brand-mark">VIS<sup>ai</sup>ON</span>?</button>
+                    class="brand-mark">VISᵃION</span>?</button>
             <button type="button" data-faq="Where do I set up my camera?">Camera setup tips</button>
             <button type="button" data-faq="What membership plans are available?">Membership options</button>
         </div>
@@ -461,7 +460,7 @@
                 try { delete window.__GUEST_NAME; } catch { window.__GUEST_NAME = null; }
                 if (name) rememberName(name);
                 else rememberName(j?.name || j?.profile?.name);
-                sessionStorage.setItem('visaion_login_greeting', `Welcome to <span class="brand-mark">VIS<sup>ai</sup>ON</span>${name ? ', ' + name.split(/\s+/)[0] : ''}!`);
+                sessionStorage.setItem('visaion_login_greeting', `Welcome to <span class="brand-mark">VISᵃION</span>${name ? ', ' + name.split(/\s+/)[0] : ''}!`);
                 if (j?.profile_complete) {
                     location.href = returnTo;
                 } else {

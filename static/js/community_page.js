@@ -5,8 +5,16 @@
 (() => {
     const FEED_ENDPOINT = '/api/community/feed';
     const DETAIL_ENDPOINT = sid => `/api/community/session/${encodeURIComponent(sid)}`;
+    const ACTIONS_ENDPOINT = sid => `/api/community/actions/${encodeURIComponent(sid)}`;
     const OVERLAY_HOLD_MS = 6000;
     const PLAYBACK_RATE = 0.3;
+    const ACTIONS_STORAGE_KEY = 'visaion.community.actions.v1';
+    const ACTION_ICONS = {
+        like: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6 4 4 6.5 4c1.74 0 3.41 1.01 4.5 2.09C12.09 5.01 13.76 4 15.5 4 18 4 20 6 20 8.5c0 3.78-3.4 6.86-8.55 11.54z',
+        comment: 'M21 6h-18c-1.1 0-2 .9-2 2v13l4-4h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z',
+        share: 'M18 16.08c-.76 0-1.44.3-1.96.77l-7.05-4.14a2.96 2.96 0 000-1.39l7-4.11A2.99 2.99 0 0018 7.91a3 3 0 10-3-3c0 .23.03.45.08.66l-7 4.11a3 3 0 10.02 4.68l7.05 4.14c-.05.2-.07.41-.07.63a3 3 0 103-3z',
+        alerts: 'M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6V11c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5S10.5 3.17 10.5 4v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z',
+    };
 
     const feedEl = document.querySelector('[data-community-feed]');
     const filterEl = document.querySelector('[data-community-filter]');
@@ -50,7 +58,11 @@
         loadingDetail: false,
         loadingClipToken: null,
         clipLoads: new Map(),
+        commentModal: null,
+        pendingShareSid: null,
     };
+
+    let actionStore = {};
 
     const clipCache = new Map();
     const CLIP_CACHE_LIMIT = 6;
@@ -187,6 +199,457 @@
         });
     }
 
+    function safeCount(value) {
+        const num = Number(value);
+        if (!Number.isFinite(num) || num <= 0) return 0;
+        return Math.round(num);
+    }
+
+    function loadActionStore() {
+        try {
+            const raw = localStorage.getItem(ACTIONS_STORAGE_KEY);
+            if (!raw) return {};
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') return parsed;
+        } catch { }
+        return {};
+    }
+
+    function persistActionStore() {
+        try {
+            localStorage.setItem(ACTIONS_STORAGE_KEY, JSON.stringify(actionStore || {}));
+        } catch { }
+    }
+
+    function getPostSessionId(post) {
+        const sid = post?.sessionId || post?.id || post?.sid;
+        return sid ? String(sid) : '';
+    }
+
+    function getActionKey(post) {
+        const sid = getPostSessionId(post);
+        if (sid) return sid;
+        const label = post?.title || post?.projectName || post?.project || 'session';
+        const created = post?.createdAt || '';
+        return `${slugify(label)}-${created || 'unknown'}`;
+    }
+
+    function normalizeComment(entry) {
+        if (!entry) return null;
+        if (typeof entry === 'string') {
+            const text = entry.trim();
+            if (!text) return null;
+            return { text, author: 'Community member', ts: Date.now() };
+        }
+        if (typeof entry === 'object') {
+            const text = String(entry.text || entry.comment || entry.body || '').trim();
+            if (!text) return null;
+            const author = String(entry.author || entry.user || entry.name || 'Community member').trim() || 'Community member';
+            const ts = Number(entry.ts || entry.createdAt || Date.now());
+            return { text, author, ts: Number.isFinite(ts) ? ts : Date.now() };
+        }
+        return null;
+    }
+
+    function seedActionState(post) {
+        const comments = [];
+        if (Array.isArray(post?.comments)) {
+            post.comments.forEach(entry => {
+                const normalized = normalizeComment(entry);
+                if (normalized) comments.push(normalized);
+            });
+        }
+        const likes = safeCount(post?.likeCount ?? post?.likes ?? post?.favorites ?? post?.reactions ?? 0);
+        const shares = safeCount(post?.shareCount ?? post?.shares ?? post?.reposts ?? 0);
+        const subscribers = safeCount(post?.subscriberCount ?? post?.subscribeCount ?? post?.alertsCount ?? 0);
+        const commentCount = safeCount(post?.commentCount ?? post?.commentsCount ?? comments.length);
+        return {
+            likes,
+            shares,
+            subscribers,
+            liked: !!post?.liked,
+            subscribed: !!post?.subscribed,
+            comments,
+            commentCount: Math.max(commentCount, comments.length),
+        };
+    }
+
+    function getActionState(post) {
+        const key = getActionKey(post);
+        const stored = (actionStore && key && actionStore[key]) || {};
+        const seed = seedActionState(post);
+        const comments = Array.isArray(stored.comments) ? stored.comments : seed.comments;
+        const commentCount = seed.commentCount;
+        const likes = seed.likes;
+        const shares = seed.shares;
+        const subscribers = seed.subscribers;
+        const liked = typeof stored.liked === 'boolean' ? stored.liked : seed.liked;
+        const subscribed = typeof stored.subscribed === 'boolean' ? stored.subscribed : seed.subscribed;
+        return {
+            key,
+            likes,
+            shares,
+            subscribers,
+            liked,
+            subscribed,
+            comments,
+            commentCount: Math.max(commentCount || 0, comments.length),
+        };
+    }
+
+    function saveActionState(actionState) {
+        if (!actionState?.key) return;
+        actionStore[actionState.key] = {
+            likes: actionState.likes,
+            shares: actionState.shares,
+            subscribers: actionState.subscribers,
+            liked: actionState.liked,
+            subscribed: actionState.subscribed,
+            comments: actionState.comments,
+            commentCount: actionState.commentCount,
+        };
+        persistActionStore();
+    }
+
+    function getCommentCount(actionState) {
+        if (!actionState) return 0;
+        const base = Number.isFinite(actionState.commentCount) ? actionState.commentCount : 0;
+        const list = Array.isArray(actionState.comments) ? actionState.comments.length : 0;
+        return Math.max(base, list);
+    }
+
+    function getCommentAuthor() {
+        const user = window.__AUTH_USER || {};
+        const name = user?.name || user?.displayName || user?.first_name || user?.firstName || user?.email;
+        if (name) return String(name);
+        const guest = window.__GUEST_NAME || sessionStorage.getItem('visaionGuestName');
+        if (guest) return String(guest);
+        return 'Community member';
+    }
+
+    function showPrompt(text, duration = 2400) {
+        if (typeof window.showPrompt === 'function') {
+            window.showPrompt(text, duration);
+        } else if (text) {
+            alert(text);
+        }
+    }
+
+    function getShareUrl(post) {
+        const sid = getPostSessionId(post);
+        if (!sid) return window.location.href;
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set('sid', sid);
+            return url.toString();
+        } catch {
+            return `${window.location.origin}${window.location.pathname}?sid=${encodeURIComponent(sid)}`;
+        }
+    }
+
+    async function copyToClipboard(text) {
+        if (!text) return false;
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch { }
+        }
+        try {
+            const input = document.createElement('input');
+            input.value = text;
+            input.setAttribute('readonly', 'readonly');
+            input.style.position = 'fixed';
+            input.style.left = '-9999px';
+            document.body.appendChild(input);
+            input.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(input);
+            return !!ok;
+        } catch { }
+        return false;
+    }
+
+    function createIcon(pathD) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('aria-hidden', 'true');
+        svg.setAttribute('focusable', 'false');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', pathD);
+        svg.appendChild(path);
+        return svg;
+    }
+
+    function buildActionButton(type, label, iconPath, countText) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `post-action ${type}`;
+        btn.setAttribute('aria-label', label);
+        btn.title = label;
+        const icon = createIcon(iconPath);
+        const count = document.createElement('span');
+        count.className = 'count';
+        count.textContent = String(countText ?? 0);
+        btn.append(icon, count);
+        return btn;
+    }
+
+    function setActionCount(btn, value) {
+        const count = btn?.querySelector?.('.count');
+        if (!count) return;
+        count.textContent = String(value ?? 0);
+    }
+
+    function ensureCommentModal() {
+        if (state.commentModal) return state.commentModal;
+        const modal = document.createElement('div');
+        modal.className = 'comment-modal';
+        modal.innerHTML = `
+            <div class="comment-panel">
+                <div class="comment-head">
+                    <div class="comment-title">Comments</div>
+                    <button type="button" class="comment-close">Close</button>
+                </div>
+                <div class="comment-list"></div>
+                <form class="comment-form">
+                    <input type="text" maxlength="180" placeholder="Add a comment..." />
+                    <button type="submit">Post</button>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        const listEl = modal.querySelector('.comment-list');
+        const titleEl = modal.querySelector('.comment-title');
+        const closeBtn = modal.querySelector('.comment-close');
+        const form = modal.querySelector('.comment-form');
+        const input = modal.querySelector('.comment-form input');
+        const modalState = {
+            el: modal,
+            listEl,
+            titleEl,
+            form,
+            input,
+            context: null,
+        };
+        const close = () => {
+            modal.classList.remove('open');
+            modalState.context = null;
+            if (!modalEl?.classList.contains('open')) {
+                document.body.classList.remove('modal-open');
+            }
+        };
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        modal.addEventListener('click', ev => {
+            if (ev.target === modal) close();
+        });
+        document.addEventListener('keydown', ev => {
+            if (ev.key === 'Escape' && modal.classList.contains('open')) {
+                close();
+            }
+        });
+        if (form) {
+            form.addEventListener('submit', async ev => {
+                ev.preventDefault();
+                if (!modalState.context) return;
+                const text = input?.value?.trim();
+                if (!text) return;
+                const actionState = modalState.context.actionState;
+                const payload = await updateCommunityAction(modalState.context.post, {
+                    action: 'comment',
+                    comment: {
+                        text,
+                        author: getCommentAuthor(),
+                        ts: Date.now(),
+                    },
+                });
+                if (payload) {
+                    applyActionPayload(actionState, payload);
+                    renderCommentList(listEl, actionState);
+                } else {
+                    showPrompt('Unable to post comment right now.');
+                    renderCommentList(listEl, actionState);
+                }
+                if (modalState.titleEl) {
+                    const title = modalState.context?.post?.title || modalState.context?.post?.projectName || 'Session comments';
+                    const count = getCommentCount(actionState);
+                    modalState.titleEl.textContent = `${title} (${count})`;
+                }
+                if (typeof modalState.context.onUpdate === 'function') {
+                    modalState.context.onUpdate(actionState);
+                }
+                if (input) {
+                    input.value = '';
+                    input.focus();
+                }
+            });
+        }
+        state.commentModal = modalState;
+        return modalState;
+    }
+
+    function renderCommentList(listEl, actionState) {
+        if (!listEl) return;
+        listEl.textContent = '';
+        const comments = Array.isArray(actionState?.comments) ? actionState.comments : [];
+        if (!comments.length) {
+            const empty = document.createElement('div');
+            empty.className = 'comment-item';
+            empty.textContent = 'No comments yet.';
+            listEl.appendChild(empty);
+            return;
+        }
+        comments.slice(-80).forEach(comment => {
+            const item = document.createElement('div');
+            item.className = 'comment-item';
+            const meta = document.createElement('div');
+            meta.className = 'comment-meta';
+            const author = comment?.author || 'Community member';
+            const time = formatRelativeTime(comment?.ts);
+            meta.textContent = `${author}${time ? ` - ${time}` : ''}`;
+            const body = document.createElement('div');
+            body.textContent = comment?.text || '';
+            item.append(meta, body);
+            listEl.appendChild(item);
+        });
+    }
+
+    function openCommentModal(post, actionState, onUpdate) {
+        const modal = ensureCommentModal();
+        if (modal.titleEl) {
+            const title = post?.title || post?.projectName || 'Session comments';
+            const count = getCommentCount(actionState);
+            modal.titleEl.textContent = `${title} (${count})`;
+        }
+        modal.context = { post, actionState, onUpdate };
+        renderCommentLoading(modal.listEl);
+        modal.el.classList.add('open');
+        document.body.classList.add('modal-open');
+        if (modal.input) {
+            modal.input.value = '';
+            modal.input.focus();
+        }
+        fetchActionPayload(post).then(payload => {
+            if (payload) {
+                applyActionPayload(actionState, payload);
+                renderCommentList(modal.listEl, actionState);
+                if (modal.titleEl) {
+                    const title = post?.title || post?.projectName || 'Session comments';
+                    const count = getCommentCount(actionState);
+                    modal.titleEl.textContent = `${title} (${count})`;
+                }
+                if (typeof onUpdate === 'function') onUpdate(actionState);
+            } else {
+                renderCommentList(modal.listEl, actionState);
+            }
+        });
+    }
+
+    function renderCommentLoading(listEl) {
+        if (!listEl) return;
+        listEl.textContent = '';
+        const item = document.createElement('div');
+        item.className = 'comment-item';
+        item.textContent = 'Loading comments...';
+        listEl.appendChild(item);
+    }
+
+    function normalizeActionPayload(payload) {
+        if (!payload || typeof payload !== 'object') return null;
+        const comments = Array.isArray(payload.comments) ? payload.comments.map(normalizeComment).filter(Boolean) : null;
+        return {
+            likeCount: safeCount(payload.likeCount ?? payload.likes),
+            commentCount: safeCount(payload.commentCount ?? payload.commentsCount),
+            shareCount: safeCount(payload.shareCount ?? payload.shares),
+            subscriberCount: safeCount(payload.subscriberCount ?? payload.subscribeCount ?? payload.alertsCount),
+            comments,
+        };
+    }
+
+    function applyActionPayload(actionState, payload) {
+        const normalized = normalizeActionPayload(payload);
+        if (!normalized || !actionState) return;
+        if (Number.isFinite(normalized.likeCount)) actionState.likes = normalized.likeCount;
+        if (Number.isFinite(normalized.shareCount)) actionState.shares = normalized.shareCount;
+        if (Number.isFinite(normalized.subscriberCount)) actionState.subscribers = normalized.subscriberCount;
+        if (Array.isArray(normalized.comments)) {
+            actionState.comments = normalized.comments;
+        }
+        if (Number.isFinite(normalized.commentCount)) {
+            actionState.commentCount = normalized.commentCount;
+        }
+        if (Array.isArray(actionState.comments)) {
+            actionState.commentCount = Math.max(actionState.commentCount || 0, actionState.comments.length);
+        }
+        saveActionState(actionState);
+    }
+
+    async function fetchActionPayload(post) {
+        const sid = getPostSessionId(post);
+        if (!sid) return null;
+        try {
+            const res = await fetch(ACTIONS_ENDPOINT(sid), { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            return data?.actions || data;
+        } catch (err) {
+            console.warn('[community] actions fetch failed', err);
+            return null;
+        }
+    }
+
+    async function updateCommunityAction(post, payload) {
+        const sid = getPostSessionId(post);
+        if (!sid) return null;
+        try {
+            const res = await fetch(ACTIONS_ENDPOINT(sid), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload || {}),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            return data?.actions || data;
+        } catch (err) {
+            console.warn('[community] action update failed', err);
+            return null;
+        }
+    }
+
+    async function handleShare(post, actionState, shareBtn) {
+        const url = getShareUrl(post);
+        const title = post?.title || 'visaion session recap';
+        const shareData = { title, text: 'Check out this session recap.', url };
+        const finalize = async (message) => {
+            const payload = await updateCommunityAction(post, { action: 'share' });
+            if (payload) {
+                applyActionPayload(actionState, payload);
+                setActionCount(shareBtn, actionState.shares);
+            }
+            if (message) {
+                const notice = payload ? message : `${message} (count not updated)`;
+                showPrompt(notice);
+            } else if (!payload) {
+                showPrompt('Shared, but count not updated.');
+            }
+        };
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData);
+                await finalize('Shared.');
+                return;
+            } catch (err) {
+                if (err?.name === 'AbortError') return;
+            }
+        }
+        const copied = await copyToClipboard(url);
+        if (copied) {
+            await finalize('Link copied.');
+        } else {
+            showPrompt('Unable to share right now.');
+        }
+    }
+
     function isGolfSession(meta = {}) {
         const tags = Array.isArray(meta?.tags) ? meta.tags : [];
         if (tags.some(tag => String(tag).toLowerCase() === 'golf')) return true;
@@ -305,6 +768,18 @@
         posts.forEach(post => feedEl.appendChild(createPostCard(post)));
     }
 
+    function maybeOpenSharedSession() {
+        if (!state.pendingShareSid) return;
+        const sid = String(state.pendingShareSid);
+        state.pendingShareSid = null;
+        const target = state.posts.find(post => getPostSessionId(post) === sid);
+        if (target) {
+            openPostDetail(target);
+        } else {
+            showPrompt('Shared session not found.');
+        }
+    }
+
     function createPostCard(post) {
         const card = document.createElement('article');
         card.className = 'post';
@@ -366,21 +841,97 @@
             tagsBar.appendChild(chip);
         });
 
+        const actionState = getActionState(post);
+        const actions = document.createElement('div');
+        actions.className = 'post-actions';
+
+        const likeBtn = buildActionButton('like', 'Like', ACTION_ICONS.like, actionState.likes);
+        if (actionState.liked) likeBtn.classList.add('is-active');
+        likeBtn.addEventListener('click', async ev => {
+            ev.stopPropagation();
+            const prevLiked = actionState.liked;
+            const prevLikes = actionState.likes;
+            const nextLiked = !actionState.liked;
+            const delta = nextLiked ? 1 : -1;
+            actionState.liked = nextLiked;
+            actionState.likes = Math.max(0, (Number(actionState.likes) || 0) + delta);
+            saveActionState(actionState);
+            likeBtn.classList.toggle('is-active', actionState.liked);
+            setActionCount(likeBtn, actionState.likes);
+            const payload = await updateCommunityAction(post, { action: 'like', delta });
+            if (payload) {
+                applyActionPayload(actionState, payload);
+                setActionCount(likeBtn, actionState.likes);
+            } else {
+                actionState.liked = prevLiked;
+                actionState.likes = prevLikes;
+                saveActionState(actionState);
+                likeBtn.classList.toggle('is-active', actionState.liked);
+                setActionCount(likeBtn, actionState.likes);
+                showPrompt('Unable to update like right now.');
+            }
+        });
+
+        const commentBtn = buildActionButton('comment', 'Comment', ACTION_ICONS.comment, getCommentCount(actionState));
+        commentBtn.addEventListener('click', ev => {
+            ev.stopPropagation();
+            openCommentModal(post, actionState, updated => {
+                setActionCount(commentBtn, getCommentCount(updated));
+            });
+        });
+
+        const shareBtn = buildActionButton('share', 'Share', ACTION_ICONS.share, actionState.shares);
+        shareBtn.addEventListener('click', ev => {
+            ev.stopPropagation();
+            handleShare(post, actionState, shareBtn);
+        });
+
+        const alertsBtn = buildActionButton('alerts', 'Subscribe', ACTION_ICONS.alerts, actionState.subscribers ?? 0);
+        alertsBtn.classList.toggle('is-active', actionState.subscribed);
+        alertsBtn.addEventListener('click', async ev => {
+            ev.stopPropagation();
+            const prevSubscribed = actionState.subscribed;
+            const prevSubscribers = actionState.subscribers;
+            const nextSubscribed = !actionState.subscribed;
+            const delta = nextSubscribed ? 1 : -1;
+            actionState.subscribed = nextSubscribed;
+            actionState.subscribers = Math.max(0, (Number(actionState.subscribers) || 0) + delta);
+            saveActionState(actionState);
+            alertsBtn.classList.toggle('is-active', actionState.subscribed);
+            setActionCount(alertsBtn, actionState.subscribers);
+            const payload = await updateCommunityAction(post, { action: 'subscribe', delta });
+            if (payload) {
+                applyActionPayload(actionState, payload);
+                setActionCount(alertsBtn, actionState.subscribers);
+            } else {
+                actionState.subscribed = prevSubscribed;
+                actionState.subscribers = prevSubscribers;
+                saveActionState(actionState);
+                alertsBtn.classList.toggle('is-active', actionState.subscribed);
+                setActionCount(alertsBtn, actionState.subscribers);
+                showPrompt('Unable to update alerts right now.');
+                return;
+            }
+            showPrompt(actionState.subscribed ? 'Alerts enabled.' : 'Alerts paused.');
+        });
+
+        actions.append(likeBtn, commentBtn, shareBtn, alertsBtn);
+
         const footer = document.createElement('div');
         footer.className = 'post-footer';
-        const viewBtn = document.createElement('button');
-        viewBtn.type = 'button';
-        viewBtn.className = 'cta';
-        viewBtn.textContent = 'View recap';
-        viewBtn.addEventListener('click', ev => {
-            ev.stopPropagation();
-            openPostDetail(post);
-        });
-        footer.appendChild(viewBtn);
+        footer.append(actions);
 
         body.append(meta, title, summary, stats, tagsBar, footer);
         card.append(media, body);
+        card.setAttribute('role', 'button');
+        card.tabIndex = 0;
         card.addEventListener('click', () => openPostDetail(post));
+        card.addEventListener('keydown', ev => {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                openPostDetail(post);
+            }
+        });
         return card;
     }
 
@@ -409,6 +960,7 @@
             renderFilters();
             renderTagFilters(tagFilters);
             renderFeed();
+            maybeOpenSharedSession();
         } catch (err) {
             console.error('[community] load feed failed', err);
             if (emptyStateEl) {
@@ -880,6 +1432,12 @@
 
     function init() {
         if (!feedEl) return;
+        actionStore = loadActionStore();
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const sid = params.get('sid');
+            if (sid) state.pendingShareSid = sid;
+        } catch { }
         bindModalEvents();
         loadFeed();
     }

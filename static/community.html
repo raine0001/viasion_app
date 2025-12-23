@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>visaion Community</title>
+    <title>vis<sup>a</sup>ion Community</title>
     <script>
         (function preloadDetectorConfig() {
             try {
@@ -212,6 +212,11 @@
             box-shadow: 0 14px 32px rgba(250, 204, 21, .15);
         }
 
+        article.post:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 3px;
+        }
+
         .post-media {
             position: relative;
             padding-top: 56%;
@@ -312,7 +317,158 @@
 
         .post-footer {
             display: flex;
-            justify-content: flex-end;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .post-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .post-action {
+            border: 0;
+            background: transparent;
+            color: var(--text-soft);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font: 600 12px/1.1 "Inter", system-ui, sans-serif;
+            cursor: pointer;
+            transition: background .18s ease, color .18s ease, transform .18s ease;
+        }
+
+        .post-action:hover {
+            background: rgba(255, 255, 255, .08);
+            color: var(--text);
+            transform: translateY(-1px);
+        }
+
+        .post-action svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+        }
+
+        .post-action .count {
+            min-width: 14px;
+            text-align: left;
+            font-weight: 600;
+            opacity: .85;
+        }
+
+        .post-action.like.is-active {
+            color: #f87171;
+        }
+
+        .post-action.comment:hover {
+            color: #38bdf8;
+        }
+
+        .post-action.share:hover {
+            color: #34d399;
+        }
+
+        .post-action.alerts.is-active {
+            color: var(--accent);
+        }
+
+        .comment-modal {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, .6);
+            z-index: 1010;
+        }
+
+        .comment-modal.open {
+            display: flex;
+        }
+
+        .comment-panel {
+            width: min(520px, 92vw);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, .4);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .comment-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .comment-title {
+            font: 700 15px/1.2 "Inter", system-ui, sans-serif;
+        }
+
+        .comment-close {
+            border: 0;
+            background: rgba(255, 255, 255, .08);
+            color: var(--text);
+            border-radius: 999px;
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+
+        .comment-list {
+            max-height: 240px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .comment-item {
+            background: var(--surface-soft);
+            border: 1px solid var(--border-soft);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 13px;
+        }
+
+        .comment-meta {
+            font-size: 11px;
+            color: var(--text-soft);
+            margin-bottom: 6px;
+        }
+
+        .comment-form {
+            display: flex;
+            gap: 8px;
+        }
+
+        .comment-form input {
+            flex: 1;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, .12);
+            background: rgba(8, 10, 16, .85);
+            color: var(--text);
+            padding: 10px 12px;
+            font: 500 13px/1.2 "Inter", system-ui, sans-serif;
+        }
+
+        .comment-form button {
+            border: 0;
+            background: var(--accent);
+            color: #1c1a05;
+            padding: 10px 14px;
+            border-radius: 999px;
+            font-weight: 700;
+            cursor: pointer;
         }
 
         .cta {
@@ -699,9 +855,8 @@
     <header>
         <div class="header-shell">
             <div class="header-intro">
-                <h1>VIS<sup>ai</sup>ON community</h1>
-                <p class="subtitle">Every completed session drops here. Review clips, pose callouts, and highlights from
-                    training bays, ranges, and industrial cells.</p>
+                <h1>VISᵃION community</h1>
+                <p class="subtitle">Shared completed sessions drop here.</p>
             </div>
             <div class="header-actions">
                 <a class="header-login-btn" id="communityBackToLogin" href="/static/login.html">Back to Login</a>
