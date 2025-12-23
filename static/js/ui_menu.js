@@ -9,9 +9,14 @@
 
     const AUTH_STATE = { authed: false, loaded: false };
 
-    function markAuthState(value) {
+    function markAuthState(value, user = null) {
         AUTH_STATE.authed = !!value;
         AUTH_STATE.loaded = true;
+        try { window.__AUTHED = AUTH_STATE.authed; } catch { }
+        try { window.__AUTH_USER = user || null; } catch { }
+        if (AUTH_STATE.authed) {
+            try { maybeMountMenu(); } catch { }
+        }
     }
 
     async function ensureAuthStatus(force = false) {
@@ -20,15 +25,25 @@
             const res = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' });
             if (res.ok) {
                 const data = await res.json();
-                markAuthState(!!data?.user);
+                markAuthState(!!data?.user, data?.user || null);
             } else {
-                markAuthState(false);
+                markAuthState(false, null);
             }
         } catch {
-            markAuthState(false);
+            markAuthState(false, null);
         }
         return AUTH_STATE;
     }
+
+    try {
+        window.visaionRefreshAuth = async function (force = true) {
+            const status = await ensureAuthStatus(force);
+            if (status.authed) {
+                try { maybeMountMenu(); } catch { }
+            }
+            return status;
+        };
+    } catch { }
 
     function requireAuth(handler, options = {}) {
         return async () => {
@@ -42,6 +57,17 @@
             }
             handler();
         };
+    }
+
+    function maybeMountMenu() {
+        if (!AUTH_STATE.authed) return;
+        if (document.getElementById('visaion-menu-mounted')) return;
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => { maybeMountMenu(); }, { once: true });
+            return;
+        }
+        mountHamburgerMenu();
+        prefetchChallengeState();
     }
 
     // Minimal global prompt fallback for early pages (top-center banner)
@@ -1815,14 +1841,14 @@
                     try { sessionStorage.removeItem('visaion_login_greeting'); } catch { }
                     btnLogout.style.display = '';
                     nameRow.style.display = 'none';
-                    markAuthState(true);
+                    markAuthState(true, u.user);
                     try { faceLockMgr()?.setUser?.(u.user); } catch { }
                     await updateFaceStatus();
                 } else {
                     status.textContent = 'Not signed in';
                     btnLogout.style.display = 'none';
                     nameRow.style.display = '';
-                    markAuthState(false);
+                    markAuthState(false, null);
                     try { faceLockMgr()?.setUser?.(null); } catch { }
                     await updateFaceStatus();
                 }
@@ -1833,7 +1859,7 @@
                 try { delete window.__USER_NAME; } catch { window.__USER_NAME = null; }
                 try { faceLockMgr()?.setUser?.(null); } catch { }
                 await updateFaceStatus();
-                markAuthState(false);
+                markAuthState(false, null);
             }
         }
 
@@ -1844,7 +1870,9 @@
                 status.textContent = message;
                 btnLogout.style.display = '';
                 nameRow.style.display = 'none';
-                markAuthState(true);
+                markAuthState(true, j.user || j);
+                try { sessionStorage.removeItem('visaion_guest_name'); } catch { }
+                try { delete window.__GUEST_NAME; } catch { window.__GUEST_NAME = null; }
                 try { window.enableHoopPickOnce?.(); } catch { }
                 try { await window.prefetchChallengeState?.(); } catch { }
                 try { faceLockMgr()?.setUser?.(j.user || j); } catch { }
@@ -1866,7 +1894,9 @@
                 status.textContent = message;
                 btnLogout.style.display = '';
                 nameRow.style.display = 'none';
-                markAuthState(true);
+                markAuthState(true, j.user || j);
+                try { sessionStorage.removeItem('visaion_guest_name'); } catch { }
+                try { delete window.__GUEST_NAME; } catch { window.__GUEST_NAME = null; }
                 try { window.enableHoopPickOnce?.(); } catch { }
                 try { await window.prefetchChallengeState?.(); } catch { }
                 try { faceLockMgr()?.setUser?.(j.user || j); } catch { }
@@ -1887,10 +1917,15 @@
             btnLogout.style.display = 'none';
             nameRow.style.display = '';
             try { delete window.__USER_NAME; } catch { window.__USER_NAME = null; }
+            try { delete window.__USER_EMAIL; } catch { window.__USER_EMAIL = null; }
+            try { localStorage.removeItem('firstname'); } catch { }
+            try { localStorage.removeItem('visaionProfile'); } catch { }
+            try { sessionStorage.removeItem('visaion_guest_name'); } catch { }
+            try { delete window.__GUEST_NAME; } catch { window.__GUEST_NAME = null; }
             try { window.__challengeState = null; window.syncChallengeCTA?.(); } catch { }
             try { faceLockMgr()?.setUser?.(null); } catch { }
             try { await updateFaceStatus(); } catch { }
-            markAuthState(false);
+            markAuthState(false, null);
         };
         btnProfile.onclick = requireAuth(() => {
             try { sessionStorage.setItem('visaion_setup_return', '/static/my_sessions.html'); } catch { }
@@ -1946,6 +1981,13 @@
                     class: 'visaion-item',
                     onclick: requireAuth(() => window.openPreferencesPanel?.())
                 }, 'Preferences')),
+                el('li', {}, el('button', {
+                    class: 'visaion-item',
+                    onclick: () => {
+                        try { window.location.href = '/static/login.html'; }
+                        catch { window.open('/static/login.html', '_self'); }
+                    }
+                }, 'Login / Setup')),
                 el('li', {}, el('button', { class: 'visaion-item', onclick: openAuthPanel }, 'Login / Account'))
             )
         );
@@ -1967,12 +2009,17 @@
     window.mountHamburgerMenu = mountHamburgerMenu;
     try { if (typeof module !== 'undefined') module.exports = { mountHamburgerMenu }; } catch { }
     // Auto-mount after DOM ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => { mountHamburgerMenu(); prefetchChallengeState(); ensureAuthStatus().catch(() => { }); });
-    } else {
+    async function bootMenu() {
+        const status = await ensureAuthStatus();
+        if (!status.authed) return;
         mountHamburgerMenu();
         prefetchChallengeState();
-        ensureAuthStatus().catch(() => { });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => { bootMenu().catch(() => { }); });
+    } else {
+        bootMenu().catch(() => { });
     }
 })();
 

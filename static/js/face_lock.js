@@ -703,7 +703,15 @@ class FaceLockManager {
         if (ts - this._lastWarnAt < 4000) return;
         this._lastWarnAt = ts;
         const name = (() => {
-            try { return window.__USER_NAME || localStorage.getItem('firstname') || 'Player'; } catch { return window.__USER_NAME || 'Player'; }
+            try {
+                if (typeof window.getVisaionDisplayName === 'function') {
+                    return window.getVisaionDisplayName();
+                }
+                const authed = window.__AUTHED === true;
+                if (authed) return window.__USER_NAME || localStorage.getItem('firstname') || 'Player';
+                const guest = window.__GUEST_NAME || sessionStorage.getItem('visaion_guest_name');
+                return guest || 'Player';
+            } catch { return window.__USER_NAME || 'Player'; }
         })();
         const hint = this._hintFromSample(this._lastSample);
         let message;

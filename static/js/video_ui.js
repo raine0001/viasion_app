@@ -1307,6 +1307,12 @@ function showStartSessionOverlay() {
 
 function getPlayerDisplayNameForPrompt() {
     try {
+        if (typeof window.getVisaionDisplayName === 'function') {
+            const name = window.getVisaionDisplayName();
+            if (name) return name;
+        }
+    } catch { }
+    try {
         const nameLike = [
             window.__USER_NAME,
             window.__USER_DISPLAY_NAME,
@@ -1315,15 +1321,25 @@ function getPlayerDisplayNameForPrompt() {
         if (nameLike) return nameLike.trim();
     } catch { }
     try {
-        const lsName = localStorage.getItem('firstname');
-        if (typeof lsName === 'string' && lsName.trim()) return lsName.trim();
+        if (window.__AUTHED !== true) {
+            const guest = window.__GUEST_NAME || sessionStorage.getItem('visaion_guest_name');
+            if (typeof guest === 'string' && guest.trim()) return guest.trim();
+        }
     } catch { }
     try {
-        const raw = localStorage.getItem('visaionProfile');
-        if (raw) {
-            const profile = JSON.parse(raw);
-            const name = profile?.name || profile?.firstName;
-            if (typeof name === 'string' && name.trim()) return name.trim();
+        if (window.__AUTHED === true) {
+            const lsName = localStorage.getItem('firstname');
+            if (typeof lsName === 'string' && lsName.trim()) return lsName.trim();
+        }
+    } catch { }
+    try {
+        if (window.__AUTHED === true) {
+            const raw = localStorage.getItem('visaionProfile');
+            if (raw) {
+                const profile = JSON.parse(raw);
+                const name = profile?.name || profile?.firstName;
+                if (typeof name === 'string' && name.trim()) return name.trim();
+            }
         }
     } catch { }
     return 'Player';

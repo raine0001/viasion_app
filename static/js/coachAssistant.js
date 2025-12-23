@@ -762,8 +762,19 @@ window.addEventListener('hud:start-session', () => {
         let __nameShots = [];  // recent shotIds where we used the name
 
         function getDisplayName() {
-            try { return window.__USER_NAME || localStorage.getItem('firstname') || 'Player'; }
-            catch { return window.__USER_NAME || 'Player'; }
+            try {
+                if (typeof window.getVisaionDisplayName === 'function') {
+                    return window.getVisaionDisplayName();
+                }
+            } catch { }
+            try {
+                const authed = window.__AUTHED === true;
+                if (authed) return window.__USER_NAME || localStorage.getItem('firstname') || 'Player';
+                const guest = window.__GUEST_NAME || sessionStorage.getItem('visaion_guest_name');
+                return guest || 'Player';
+            } catch {
+                return window.__USER_NAME || 'Player';
+            }
         }
 
         function shouldPersonalize(shotId) {
@@ -2401,13 +2412,19 @@ window.addEventListener('shot:feedback:request', (e) => {
     // Get the display name for addressing the user
     function getDisplayName() {
         try {
-            return window.__USER_NAME || localStorage.getItem('firstname') || 'Player';
+            if (typeof window.getVisaionDisplayName === 'function') {
+                return window.getVisaionDisplayName();
+            }
+        } catch { }
+        try {
+            const authed = window.__AUTHED === true;
+            if (authed) return window.__USER_NAME || localStorage.getItem('firstname') || 'Player';
+            const guest = window.__GUEST_NAME || sessionStorage.getItem('visaion_guest_name');
+            return guest || 'Player';
         } catch {
             return window.__USER_NAME || 'Player';
         }
     }
-
-    const name = getDisplayName();
 
 
     // ---- Session end summary (aggregate pose notes + per‑metric trends) ----
@@ -2619,10 +2636,16 @@ window.addEventListener('shot:feedback:request', (e) => {
             if (trends.length) linesOut.push('Improvements: ' + trends.slice(0, 3).join(' '));
             if (lim.length) linesOut.push('Focus next: ' + lim.slice(0, 3).join(' '));
             if (!linesOut.length) {
+                const name = getDisplayName();
+                const hasName = window.__AUTHED === true || !!(window.__GUEST_NAME || sessionStorage.getItem('visaion_guest_name'));
                 if (slug === 'golf') {
-                    linesOut.push(`${name}, tempo and balance stayed steady - keep rehearsing that motion.`);
+                    linesOut.push(hasName
+                        ? `${name}, tempo and balance stayed steady - keep rehearsing that motion.`
+                        : 'Tempo and balance stayed steady - keep rehearsing that motion.');
                 } else {
-                    linesOut.push(`${name}, your form is consistent - keep the rhythm and balance.`);
+                    linesOut.push(hasName
+                        ? `${name}, your form is consistent - keep the rhythm and balance.`
+                        : 'Your form is consistent - keep the rhythm and balance.');
                 }
             }
             if (patternBullets.length) linesOut.push('Notable patterns: ' + patternBullets.slice(0, 3).join(' '));

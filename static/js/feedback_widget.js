@@ -4,12 +4,25 @@ const SUPPORT_QUICK_ACTIONS = [
     { label: 'Missed shot', message: "That last shot didn't log.", autosend: true },
     {
         label: 'Call me…', message: () => {
-            const guess = (
-                window.__USER_NAME ||
-                window.__USER_DISPLAY_NAME ||
-                localStorage.getItem('firstname') ||
-                'Player'
-            );
+            let guess = null;
+            try {
+                if (typeof window.getVisaionDisplayName === 'function') {
+                    guess = window.getVisaionDisplayName();
+                }
+            } catch { }
+            if (!guess) {
+                const authed = window.__AUTHED === true;
+                if (authed) {
+                    guess = (
+                        window.__USER_NAME ||
+                        window.__USER_DISPLAY_NAME ||
+                        localStorage.getItem('firstname') ||
+                        'Player'
+                    );
+                } else {
+                    guess = window.__GUEST_NAME || sessionStorage.getItem('visaion_guest_name') || 'Player';
+                }
+            }
             return `Please call me ${guess}.`;
         }, autosend: true
     },

@@ -340,10 +340,24 @@
         background: rgba(0,0,0,.78); color:#fff; cursor:pointer; box-shadow:0 10px 40px rgba(0,0,0,.35);">Start
                 Session</button>
 
+            <div id="guestNameWrap" style="
+        display:none; flex-direction:column; align-items:center; gap:6px;">
+                <label for="guestNameInput" style="font:600 13px system-ui; color:#f6d365;">What's your name
+                    (optional)</label>
+                <input id="guestNameInput" type="text" autocomplete="name" placeholder="First name"
+                    style="padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.18);
+        background: rgba(0,0,0,.65); color:#fff; text-align:center; width:min(260px, 70vw);" />
+            </div>
+
             <button id="btnMySessions" style="
         font:600 16px system-ui, -apple-system, Segoe UI, Arial; padding:10px 18px; border-radius:12px; border:1px solid rgba(255,255,255,.18);
         background: rgba(0,0,0,.65); color:#fff; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.28);"
                 onclick="window.open('/static/my_sessions.html','_blank')">My Sessions</button>
+
+            <button id="btnBackToLogin" style="
+        display:none; font:600 16px system-ui, -apple-system, Segoe UI, Arial; padding:10px 18px; border-radius:12px; border:1px solid rgba(255,255,255,.18);
+        background: rgba(17,28,46,.78); color:#fff; cursor:pointer; box-shadow:0 6px 20px rgba(0,0,0,.28);">Back
+                to Login</button>
 
             <p> </p>
 
@@ -529,6 +543,30 @@
             const hideAuth = () => { try { document.getElementById('authOverlay').style.display = 'none'; } catch { } };
             const setAuthBody = (html) => { try { document.getElementById('authBody').innerHTML = html; } catch { } };
             const setAuthTitle = (txt) => { try { document.getElementById('authTitle').textContent = txt; } catch { } };
+            const guestWrap = document.getElementById('guestNameWrap');
+            const guestInput = document.getElementById('guestNameInput');
+            const backBtn = document.getElementById('btnBackToLogin');
+            const sessionsBtn = document.getElementById('btnMySessions');
+
+            function setAuthUI(isAuthed) {
+                try { window.__AUTHED = !!isAuthed; } catch { }
+                if (guestWrap) guestWrap.style.display = isAuthed ? 'none' : 'flex';
+                if (backBtn) backBtn.style.display = isAuthed ? 'none' : 'inline-flex';
+                if (sessionsBtn) sessionsBtn.style.display = isAuthed ? 'inline-flex' : 'none';
+            }
+
+            try {
+                const cachedGuest = sessionStorage.getItem('visaion_guest_name');
+                if (guestInput && cachedGuest) guestInput.value = cachedGuest;
+                if (cachedGuest) window.__GUEST_NAME = cachedGuest;
+            } catch { }
+
+            if (backBtn) {
+                backBtn.onclick = () => {
+                    try { window.location.href = '/static/login.html'; }
+                    catch { window.open('/static/login.html', '_self'); }
+                };
+            }
 
             // Login form
             function renderLogin() {
@@ -548,7 +586,11 @@
                     try {
                         const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
                         const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Login failed');
+                        try { sessionStorage.removeItem('visaion_guest_name'); } catch { }
+                        try { delete window.__GUEST_NAME; } catch { window.__GUEST_NAME = null; }
                         localStorage.setItem('firstname', j.name || 'player'); hideAuth(); showStart();
+                        setAuthUI(true);
+                        try { window.visaionRefreshAuth?.(); } catch { }
                     } catch (e) { document.getElementById('authMsg').textContent = e.message || 'Login failed'; }
                 };
             }
@@ -606,7 +648,11 @@
                         const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Register failed');
                         localStorage.setItem('visaionProfile', JSON.stringify(profile));
                         localStorage.setItem('firstname', profile.name || 'player');
+                        try { sessionStorage.removeItem('visaion_guest_name'); } catch { }
+                        try { delete window.__GUEST_NAME; } catch { window.__GUEST_NAME = null; }
                         hideAuth(); showStart();
+                        setAuthUI(true);
+                        try { window.visaionRefreshAuth?.(); } catch { }
                     } catch (e) { document.getElementById('authMsg').textContent = e.message || 'Register failed'; }
                     try { await window.prefetchChallengeState?.(); } catch { }
                 };
@@ -618,17 +664,27 @@
                 const trialFlag = (params.get('trial') || params.get('demo') || params.get('public') || '').toLowerCase();
                 const trialEnabled = ['1', 'true', 'yes', 'on'].includes(trialFlag);
                 if (trialEnabled) {
+                    try { window.__SESSION_TRIAL = true; } catch { }
+                    setAuthUI(false);
                     try { splash.style.display = 'none'; } catch { }
                     hideAuth();
                     showStart();
                     return;
                 }
+                try { window.__SESSION_TRIAL = false; } catch { }
                 fetch('/api/auth/me').then(r => r.json()).then(j => {
                     try { splash.style.display = 'none'; } catch { }
                     const user = j && j.user;
-                    if (user) { showStart(); try { window.prefetchChallengeState?.(); } catch { } }
-                    else { showAuth(); renderLogin(); }
-                }).catch(() => { try { splash.style.display = 'none'; } catch { }; showAuth(); renderLogin(); });
+                    if (user) {
+                        setAuthUI(true);
+                        showStart();
+                        try { window.prefetchChallengeState?.(); } catch { }
+                    } else {
+                        setAuthUI(false);
+                        showAuth();
+                        renderLogin();
+                    }
+                }).catch(() => { try { splash.style.display = 'none'; } catch { }; setAuthUI(false); showAuth(); renderLogin(); });
             }
             setTimeout(afterSplash, 3000);
 
@@ -662,6 +718,15 @@
                     try { window.__SESSION_EVENT_FIRED = false; } catch { }
 
                     try { hideStart(); } catch { }
+                    try {
+                        if (window.__AUTHED !== true && guestInput) {
+                            const guestName = (guestInput.value || '').trim();
+                            if (guestName) {
+                                window.__GUEST_NAME = guestName;
+                                sessionStorage.setItem('visaion_guest_name', guestName);
+                            }
+                        }
+                    } catch { }
                     try { window.dispatchEvent(new CustomEvent('visaion:new-session-requested', { detail })); } catch { }
 
                     try {

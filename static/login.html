@@ -434,6 +434,8 @@
                 const email = document.getElementById('email').value.trim();
                 const password = document.getElementById('password').value;
                 const j = await post('/api/auth/login', { email, password });
+                try { sessionStorage.removeItem('visaion_guest_name'); } catch { }
+                try { delete window.__GUEST_NAME; } catch { window.__GUEST_NAME = null; }
                 if (name) rememberName(name);
                 else rememberName(j?.name || j?.profile?.name);
                 if (j?.name) sessionStorage.setItem('visaion_login_greeting', `Welcome back, ${j.name.split(/\s+/)[0] || j.name}!`);
@@ -455,6 +457,8 @@
                 const email = document.getElementById('email').value.trim();
                 const password = document.getElementById('password').value;
                 const j = await post('/api/auth/register', { name, email, password });
+                try { sessionStorage.removeItem('visaion_guest_name'); } catch { }
+                try { delete window.__GUEST_NAME; } catch { window.__GUEST_NAME = null; }
                 if (name) rememberName(name);
                 else rememberName(j?.name || j?.profile?.name);
                 sessionStorage.setItem('visaion_login_greeting', `Welcome to <span class="brand-mark">VIS<sup>ai</sup>ON</span>${name ? ', ' + name.split(/\s+/)[0] : ''}!`);

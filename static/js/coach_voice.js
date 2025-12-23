@@ -141,14 +141,20 @@ function sanitizeName(n) {
 // Display name for voice (fallbacks)
 function getDisplayName() {
     try {
-        const raw = window.__USER_NAME || localStorage.getItem('firstname') || 'Player';
-        return sanitizeName(raw);
+        if (typeof window.getVisaionDisplayName === 'function') {
+            return sanitizeName(window.getVisaionDisplayName());
+        }
+        const authed = window.__AUTHED === true;
+        if (authed) {
+            const raw = window.__USER_NAME || localStorage.getItem('firstname') || 'Player';
+            return sanitizeName(raw);
+        }
+        const guest = window.__GUEST_NAME || sessionStorage.getItem('visaion_guest_name') || 'Player';
+        return sanitizeName(guest);
     } catch {
         return sanitizeName(window.__USER_NAME || 'Player');
     }
 }
-const name = getDisplayName();
-
 // ===== Shared one-time greeter (iOS-safe) =====
 (function initCoachGreeter() {
     if (window.coachGreetingOnce) return;
@@ -166,13 +172,15 @@ const name = getDisplayName();
         try { greeted = false; } catch { }
     };
 
-    window.coachGreetingOnce = async function coachGreetingOnce(text = `Hi ${name}, I'm listening and ready.`) {
+    window.coachGreetingOnce = async function coachGreetingOnce(text) {
         if (greeted) return false;
         if (window.__coachMuted) return false;
 
+        const hasName = window.__AUTHED === true || !!(window.__GUEST_NAME || sessionStorage.getItem('visaion_guest_name'));
+        const line = text || (hasName ? `Hi ${getDisplayName()}, I'm listening and ready.` : "Hi, I'm listening and ready.");
         try { await window.CoachAudio?.unlock(); } catch { }
 
-        const ok = await (window.visaionSpeak?.(text, { engine: isIOS() ? 'openai' : undefined }) || Promise.resolve(false));
+        const ok = await (window.visaionSpeak?.(line, { engine: isIOS() ? 'openai' : undefined }) || Promise.resolve(false));
         if (ok !== false) {
             greeted = true;
             return true;

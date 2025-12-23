@@ -61,10 +61,14 @@ import subprocess
 import json
 import glob
 import time
+import smtplib
+import ssl
+import html
 from pathlib import Path
 import io
 import wave
 import mimetypes
+from email.message import EmailMessage
 from datetime import date, datetime, timezone
 from collections import defaultdict
 import random
@@ -1364,13 +1368,72 @@ def _read_session(sid: str):
     if os.path.exists(p):
         with open(p, "r", encoding="utf-8") as f:
             return json.load(f)
-    return None
+    return _db_read_session_payload(sid)
 
 
 def _write_session(sid: str, data: dict):
     p = _session_json_path(sid)
     with open(p, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+    try:
+        _db_write_session_payload(sid, data)
+    except Exception:
+        pass
+
+
+def _db_read_session_payload(sid: str):
+    db = _db_get()
+    if not db:
+        return None
+    Row = db.get("SessionPayloadRow")
+    if not Row:
+        return None
+    try:
+        with db["Session"]() as s:
+            row = s.get(Row, sid)
+            if not row:
+                return None
+            data = row.data
+            if isinstance(data, dict):
+                return data
+            if isinstance(data, str):
+                try:
+                    return json.loads(data)
+                except Exception:
+                    return None
+    except Exception as exc:
+        _trace("db_read_session_payload", exc)
+    return None
+
+
+def _db_write_session_payload(sid: str, data: dict) -> bool:
+    db = _db_get()
+    if not db:
+        return False
+    Row = db.get("SessionPayloadRow")
+    if not Row:
+        return False
+    try:
+        with db["Session"]() as s:
+            values = {
+                "sid": sid,
+                "data": data,
+                "updated_at": datetime.utcnow(),
+            }
+            stmt = pg_insert(Row).values(**values)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["sid"],
+                set_={
+                    "data": values["data"],
+                    "updated_at": values["updated_at"],
+                },
+            )
+            s.execute(stmt)
+            s.commit()
+        return True
+    except Exception as exc:
+        _trace("db_write_session_payload", exc)
+        return False
 
 
 def _persist_coach_feedback_fs(sid: str, shot_idx: int, text: str, score_val: float | None) -> bool:
@@ -1525,6 +1588,9 @@ def _community_detail_path(sid: str) -> str:
 
 
 def _load_community_feed() -> list[dict]:
+    db_posts = _db_load_community_feed()
+    if db_posts:
+        return db_posts
     try:
         with open(COMMUNITY_FEED_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -1540,6 +1606,11 @@ def _load_community_feed() -> list[dict]:
     if not isinstance(posts, list):
         return []
     posts.sort(key=lambda x: x.get("createdAt") or 0, reverse=True)
+    if posts:
+        try:
+            _db_backfill_community_from_fs(posts)
+        except Exception:
+            pass
     return posts
 
 
@@ -1549,6 +1620,180 @@ def _write_community_feed(posts: list[dict]):
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     os.replace(tmp_path, COMMUNITY_FEED_PATH)
+    try:
+        _db_upsert_community_summary(posts)
+    except Exception:
+        pass
+
+
+def _db_load_community_feed() -> list[dict]:
+    db = _db_get()
+    if not db:
+        return []
+    Row = db.get("CommunityPostRow")
+    if not Row:
+        return []
+    try:
+        from sqlalchemy import select
+
+        with db["Session"]() as s:
+            rows = s.execute(select(Row)).scalars().all()
+        posts: list[dict] = []
+        for row in rows:
+            summary = row.summary
+            if isinstance(summary, str):
+                try:
+                    summary = json.loads(summary)
+                except Exception:
+                    summary = None
+            if isinstance(summary, dict):
+                if not summary.get("id"):
+                    summary["id"] = row.sid
+                if not summary.get("sessionId"):
+                    summary["sessionId"] = row.sid
+                posts.append(summary)
+        posts.sort(key=lambda x: x.get("createdAt") or 0, reverse=True)
+        return posts
+    except Exception as exc:
+        _trace("community:db feed load error", exc)
+        return []
+
+
+def _db_get_community_detail(sid: str):
+    db = _db_get()
+    if not db:
+        return None
+    Row = db.get("CommunityPostRow")
+    if not Row:
+        return None
+    try:
+        with db["Session"]() as s:
+            row = s.get(Row, sid)
+            if not row:
+                return None
+            detail = row.detail
+            if isinstance(detail, dict):
+                return detail
+            if isinstance(detail, str):
+                try:
+                    return json.loads(detail)
+                except Exception:
+                    return None
+    except Exception as exc:
+        _trace("community:db detail load error", exc)
+    return None
+
+
+def _db_upsert_community_post(sid: str, summary: dict, detail: dict | None) -> bool:
+    db = _db_get()
+    if not db:
+        return False
+    Row = db.get("CommunityPostRow")
+    if not Row:
+        return False
+    try:
+        with db["Session"]() as s:
+            values = {
+                "sid": sid,
+                "summary": summary,
+                "detail": detail,
+                "updated_at": datetime.utcnow(),
+            }
+            stmt = pg_insert(Row).values(**values)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["sid"],
+                set_={
+                    "summary": values["summary"],
+                    "detail": values["detail"],
+                    "updated_at": values["updated_at"],
+                },
+            )
+            s.execute(stmt)
+            s.commit()
+        return True
+    except Exception as exc:
+        _trace("community:db upsert error", exc)
+        return False
+
+
+def _db_upsert_community_summary(posts: list[dict]) -> bool:
+    db = _db_get()
+    if not db:
+        return False
+    Row = db.get("CommunityPostRow")
+    if not Row:
+        return False
+    try:
+        with db["Session"]() as s:
+            for post in posts:
+                sid = _community_post_id(post)
+                if not sid:
+                    continue
+                values = {
+                    "sid": sid,
+                    "summary": post,
+                    "updated_at": datetime.utcnow(),
+                }
+                stmt = pg_insert(Row).values(**values)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["sid"],
+                    set_={
+                        "summary": values["summary"],
+                        "updated_at": values["updated_at"],
+                    },
+                )
+                s.execute(stmt)
+            s.commit()
+        return True
+    except Exception as exc:
+        _trace("community:db feed sync error", exc)
+        return False
+
+
+def _db_delete_community_post(sid: str) -> bool:
+    db = _db_get()
+    if not db:
+        return False
+    Row = db.get("CommunityPostRow")
+    if not Row:
+        return False
+    try:
+        with db["Session"]() as s:
+            row = s.get(Row, sid)
+            if row:
+                s.delete(row)
+                s.commit()
+        return True
+    except Exception as exc:
+        _trace("community:db delete error", exc)
+        return False
+
+
+def _db_backfill_community_from_fs(posts: list[dict]) -> None:
+    if not posts:
+        return
+    db = _db_get()
+    if not db:
+        return
+    Row = db.get("CommunityPostRow")
+    if not Row:
+        return
+    existing = _db_load_community_feed()
+    if existing:
+        return
+    for post in posts:
+        sid = _community_post_id(post)
+        if not sid:
+            continue
+        detail = None
+        detail_path = _community_detail_path(sid)
+        if os.path.exists(detail_path):
+            try:
+                with open(detail_path, "r", encoding="utf-8") as f:
+                    detail = json.load(f)
+            except Exception:
+                detail = None
+        _db_upsert_community_post(sid, post, detail)
 
 
 def _community_post_id(post: dict) -> str | None:
@@ -2383,6 +2628,172 @@ def api_session_get(sid):
     return jsonify(sess)
 
 
+def _append_trial_email_request(payload: dict) -> bool:
+    try:
+        path = os.path.join(SESSIONS_DIR, "trial_email_requests.jsonl")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        return True
+    except Exception as exc:
+        _trace("trial_email_request_fs", exc)
+        return False
+
+
+def _clean_env_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    val = str(value).strip()
+    if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+        val = val[1:-1].strip()
+    return val or None
+
+
+def _get_smtp_config() -> dict:
+    host = _clean_env_value(os.getenv("SMTP_HOST") or os.getenv("SMTP_SERVER"))
+    port_raw = _clean_env_value(os.getenv("SMTP_PORT")) or "587"
+    try:
+        port = int(port_raw)
+    except Exception:
+        port = 587
+    username = _clean_env_value(os.getenv("SMTP_USERNAME"))
+    password = _clean_env_value(os.getenv("SMTP_PASSWORD"))
+    sender = _clean_env_value(os.getenv("SMTP_SENDER")) or username
+    use_tls = _truthy(os.getenv("SMTP_USE_TLS"), default=True)
+    return {
+        "host": host,
+        "port": port,
+        "username": username,
+        "password": password,
+        "sender": sender,
+        "use_tls": use_tls,
+    }
+
+
+def _build_summary_email(payload: dict) -> tuple[str, str, str | None]:
+    project = payload.get("projectName") or payload.get("project") or "Visaion"
+    project = str(project).strip()
+    sid = payload.get("sid") or "unknown"
+    summary = (payload.get("summary") or "").strip()
+    lines = payload.get("lines") if isinstance(payload.get("lines"), list) else []
+    subject = f"{project} session summary"
+    safe_project = html.escape(project)
+    safe_sid = html.escape(str(sid))
+    safe_summary = html.escape(summary) if summary else ""
+    text_lines = [
+        "Thanks for training with Visaion.",
+        "",
+        f"Session ID: {sid}",
+        f"Project: {project}",
+    ]
+    if summary:
+        text_lines.extend(["", "Summary:", summary])
+    if lines:
+        text_lines.append("")
+        text_lines.append("Highlights:")
+        for line in lines[:5]:
+            if not isinstance(line, str):
+                continue
+            text_lines.append(f"- {line.strip()}")
+    text_lines.append("")
+    text_lines.append("Log in to view more sessions at https://www.visaion.app/static/login.html")
+    text_body = "\n".join(text_lines)
+
+    html_lines = [
+        "<p>Thanks for training with Visaion.</p>",
+        f"<p><strong>Session ID:</strong> {safe_sid}<br><strong>Project:</strong> {safe_project}</p>",
+    ]
+    if summary:
+        html_lines.append(f"<p><strong>Summary:</strong> {safe_summary}</p>")
+    if lines:
+        items = "".join(
+            f"<li>{html.escape(line.strip())}</li>"
+            for line in lines[:5]
+            if isinstance(line, str) and line.strip()
+        )
+        if items:
+            html_lines.append(f"<p><strong>Highlights:</strong></p><ul>{items}</ul>")
+    html_lines.append(
+        '<p>Log in to view more sessions at <a href="https://www.visaion.app/static/login.html">visaion.app</a></p>'
+    )
+    html_body = "\n".join(html_lines)
+    return subject, text_body, html_body
+
+
+def _send_summary_email(to_addr: str, payload: dict) -> tuple[bool, str | None]:
+    cfg = _get_smtp_config()
+    if not cfg.get("host") or not cfg.get("sender"):
+        return False, "smtp_not_configured"
+    if not cfg.get("username") or not cfg.get("password"):
+        return False, "smtp_credentials_missing"
+    subject, text_body, html_body = _build_summary_email(payload)
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = cfg["sender"]
+    msg["To"] = to_addr
+    msg.set_content(text_body)
+    if html_body:
+        msg.add_alternative(html_body, subtype="html")
+    try:
+        with smtplib.SMTP(cfg["host"], cfg["port"], timeout=20) as server:
+            server.ehlo()
+            if cfg.get("use_tls"):
+                server.starttls(context=ssl.create_default_context())
+                server.ehlo()
+            if cfg.get("username") and cfg.get("password"):
+                server.login(cfg["username"], cfg["password"])
+            server.send_message(msg)
+        return True, None
+    except Exception as exc:
+        _trace("smtp_send_error", exc)
+        return False, "smtp_send_failed"
+
+
+@app.post("/api/sessions/<sid>/email_summary")
+def api_session_email_summary(sid):
+    data = request.get_json(force=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        return jsonify({"error": "valid email required"}), 400
+    payload = {
+        "sid": sid,
+        "email": email,
+        "summary": (data.get("summary") or "").strip(),
+        "lines": data.get("lines") if isinstance(data.get("lines"), list) else [],
+        "project": data.get("project") or None,
+        "projectName": data.get("projectName") or None,
+        "cap": data.get("cap"),
+        "trial": bool(data.get("trial")),
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    db_saved = False
+    db = _db_get()
+    if db and "TrialEmailRequestRow" in db:
+        try:
+            with db["Session"]() as s:
+                row = db["TrialEmailRequestRow"](
+                    sid=sid, email=email, data=payload, created_at=datetime.utcnow()
+                )
+                s.add(row)
+                s.commit()
+                db_saved = True
+        except Exception as exc:
+            _trace("trial_email_request_db", exc)
+            db_saved = False
+    fs_saved = False
+    if not db_saved:
+        fs_saved = _append_trial_email_request(payload)
+    sent, send_error = _send_summary_email(email, payload)
+    response = {
+        "ok": sent,
+        "sent": sent,
+        "stored": {"db": db_saved, "fs": fs_saved},
+    }
+    if send_error:
+        response["error"] = send_error
+    status = 200 if sent else 502
+    return jsonify(response), status
+
+
 def _range_aware_send(path=None, mimetype=None, *, sid=None, filename=None):
     """Return a response that honours Range headers for large media files.
 
@@ -2688,6 +3099,10 @@ def api_community_publish():
 
     with open(_community_detail_path(sid), "w", encoding="utf-8") as f:
         json.dump(detail_payload, f, ensure_ascii=False, indent=2)
+    try:
+        _db_upsert_community_post(sid, summary_entry, detail_payload)
+    except Exception:
+        pass
 
     return jsonify({"ok": True, "post": summary_entry})
 
@@ -2719,16 +3134,37 @@ def api_community_session_detail(sid):
     if not post or post.get("hidden"):
         return jsonify({"error": "session not published"}), 404
     detail_path = _community_detail_path(sid)
-    if not os.path.exists(detail_path):
+    detail = None
+    detail_from_db = False
+    if os.path.exists(detail_path):
+        with open(detail_path, "r", encoding="utf-8") as f:
+            detail = json.load(f)
+    else:
+        detail = _db_get_community_detail(sid)
+        detail_from_db = isinstance(detail, dict)
+        if detail_from_db:
+            try:
+                with open(detail_path, "w", encoding="utf-8") as f:
+                    json.dump(detail, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+    if not isinstance(detail, dict):
         return jsonify({"error": "session not published"}), 404
-    with open(detail_path, "r", encoding="utf-8") as f:
-        detail = json.load(f)
     if _ensure_shot_clip_urls(sid, detail.get("shots") or []):
         try:
             with open(detail_path, "w", encoding="utf-8") as f:
                 json.dump(detail, f, ensure_ascii=False, indent=2)
         except Exception as exc:
             _trace("community:detail update failed", exc)
+        try:
+            _db_upsert_community_post(sid, post, detail)
+        except Exception:
+            pass
+    elif detail_from_db:
+        try:
+            _db_upsert_community_post(sid, post, detail)
+        except Exception:
+            pass
     return jsonify(detail)
 
 
@@ -2904,6 +3340,21 @@ def _try_init_db():
             status = Column(String(16), default="private")
             video_url = Column(String(512))
             user = relationship("User", lazy="joined")
+
+        class SessionPayloadRow(Base):
+            __tablename__ = "session_payloads"
+            sid = Column(String(64), primary_key=True)
+            created_at = Column(DateTime, default=datetime.utcnow)
+            updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+            data = Column(MyJSON)
+
+        class CommunityPostRow(Base):
+            __tablename__ = "community_posts"
+            sid = Column(String(64), primary_key=True)
+            created_at = Column(DateTime, default=datetime.utcnow)
+            updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+            summary = Column(MyJSON)
+            detail = Column(MyJSON)
 
         class ShotRow(Base):
             __tablename__ = "shots"
@@ -3127,6 +3578,14 @@ def _try_init_db():
                     else None,
                 }
 
+        class TrialEmailRequestRow(Base):
+            __tablename__ = "trial_email_requests"
+            id = Column(Integer, primary_key=True, autoincrement=True)
+            sid = Column(String(64))
+            email = Column(String(255))
+            created_at = Column(DateTime, default=datetime.utcnow)
+            data = Column(MyJSON)
+
         Base.metadata.create_all(engine)
         DBSessionLocal = sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
@@ -3137,6 +3596,8 @@ def _try_init_db():
             "User": User,
             "UserFaceLock": UserFaceLock,
             "SessionRow": SessionRow,
+            "SessionPayloadRow": SessionPayloadRow,
+            "CommunityPostRow": CommunityPostRow,
             "ShotRow": ShotRow,
             "PoseSnapshotRow": PoseSnapshotRow,
             "CoachFeedbackRow": CoachFeedbackRow,
@@ -3146,6 +3607,7 @@ def _try_init_db():
             "EventUserStats": EventUserStats,
             "SupportTicket": SupportTicket,
             "SupportInteraction": SupportInteraction,
+            "TrialEmailRequestRow": TrialEmailRequestRow,
         }
         print("✅ SQLAlchemy connected")
         return app.db
@@ -4789,16 +5251,43 @@ def admin_community_posts():
 @app.get("/admin/community/session/<sid>")
 def admin_community_session_detail(sid):
     detail_path = _community_detail_path(sid)
-    if not os.path.exists(detail_path):
+    detail = None
+    detail_from_db = False
+    if os.path.exists(detail_path):
+        with open(detail_path, "r", encoding="utf-8") as f:
+            detail = json.load(f)
+    else:
+        detail = _db_get_community_detail(sid)
+        detail_from_db = isinstance(detail, dict)
+        if detail_from_db:
+            try:
+                with open(detail_path, "w", encoding="utf-8") as f:
+                    json.dump(detail, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+    if not isinstance(detail, dict):
         return jsonify({"error": "session not published"}), 404
-    with open(detail_path, "r", encoding="utf-8") as f:
-        detail = json.load(f)
     if _ensure_shot_clip_urls(sid, detail.get("shots") or []):
         try:
             with open(detail_path, "w", encoding="utf-8") as f:
                 json.dump(detail, f, ensure_ascii=False, indent=2)
         except Exception as exc:
             _trace("community:detail update failed", exc)
+        try:
+            posts = _load_community_feed()
+            _, post = _find_community_post(posts, sid)
+            if post:
+                _db_upsert_community_post(sid, post, detail)
+        except Exception:
+            pass
+    elif detail_from_db:
+        try:
+            posts = _load_community_feed()
+            _, post = _find_community_post(posts, sid)
+            if post:
+                _db_upsert_community_post(sid, post, detail)
+        except Exception:
+            pass
     return jsonify(detail)
 
 
@@ -4827,6 +5316,10 @@ def admin_community_post_update(sid):
                 os.remove(detail_path)
         except OSError:
             pass
+        try:
+            _db_delete_community_post(sid)
+        except Exception:
+            pass
         return jsonify({"ok": True, "deleted": True})
 
     if "hidden" in payload:
@@ -4850,29 +5343,41 @@ def admin_community_post_update(sid):
         _write_community_feed(posts)
 
         detail_path = _community_detail_path(sid)
+        detail = None
         if os.path.exists(detail_path):
             try:
                 with open(detail_path, "r", encoding="utf-8") as f:
                     detail = json.load(f)
             except Exception:
                 detail = None
-            if isinstance(detail, dict):
-                if hide_flag:
-                    detail["hidden"] = True
-                    detail["hiddenAt"] = updated.get("hiddenAt")
-                    detail["hiddenBy"] = updated.get("hiddenBy")
-                    if updated.get("hiddenReason"):
-                        detail["hiddenReason"] = updated.get("hiddenReason")
-                else:
-                    detail.pop("hidden", None)
-                    detail.pop("hiddenAt", None)
-                    detail.pop("hiddenBy", None)
-                    detail.pop("hiddenReason", None)
-                try:
-                    with open(detail_path, "w", encoding="utf-8") as f:
-                        json.dump(detail, f, ensure_ascii=False, indent=2)
-                except Exception:
-                    pass
+        else:
+            detail = _db_get_community_detail(sid)
+        if isinstance(detail, dict):
+            if hide_flag:
+                detail["hidden"] = True
+                detail["hiddenAt"] = updated.get("hiddenAt")
+                detail["hiddenBy"] = updated.get("hiddenBy")
+                if updated.get("hiddenReason"):
+                    detail["hiddenReason"] = updated.get("hiddenReason")
+            else:
+                detail.pop("hidden", None)
+                detail.pop("hiddenAt", None)
+                detail.pop("hiddenBy", None)
+                detail.pop("hiddenReason", None)
+            try:
+                with open(detail_path, "w", encoding="utf-8") as f:
+                    json.dump(detail, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+            try:
+                _db_upsert_community_post(sid, updated, detail)
+            except Exception:
+                pass
+        else:
+            try:
+                _db_upsert_community_summary([updated])
+            except Exception:
+                pass
 
         return jsonify({"ok": True, "post": updated})
 

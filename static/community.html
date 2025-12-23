@@ -78,6 +78,31 @@
             gap: 8px;
         }
 
+        .header-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .header-login-btn {
+            display: none;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(17, 24, 39, .9);
+            color: var(--text);
+            transition: .18s ease;
+        }
+
+        .header-login-btn:hover {
+            background: var(--accent);
+            color: #1c1a05;
+            border-color: transparent;
+        }
+
         .filter-bar {
             display: flex;
             flex-direction: column;
@@ -678,6 +703,9 @@
                 <p class="subtitle">Every completed session drops here. Review clips, pose callouts, and highlights from
                     training bays, ranges, and industrial cells.</p>
             </div>
+            <div class="header-actions">
+                <a class="header-login-btn" id="communityBackToLogin" href="/static/login.html">Back to Login</a>
+            </div>
             <div class="filter-bar">
                 <div class="chip-row chip-row--primary" data-community-filter></div>
                 <div class="chip-row chip-row--tags" data-community-tag-filter></div>
@@ -730,6 +758,24 @@
 
     <script src="/static/js/community_page.js?v=20251030"></script>
     <script src="/static/js/ui_menu.js"></script>
+    <script>
+        (function () {
+            const backBtn = document.getElementById('communityBackToLogin');
+            if (!backBtn) return;
+            backBtn.style.display = 'none';
+            fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' })
+                .then(res => res.ok ? res.json() : null)
+                .then(payload => {
+                    const authed = !!payload?.user;
+                    try { window.__AUTHED = authed; } catch { }
+                    backBtn.style.display = authed ? 'none' : 'inline-flex';
+                })
+                .catch(() => {
+                    try { window.__AUTHED = false; } catch { }
+                    backBtn.style.display = 'inline-flex';
+                });
+        })();
+    </script>
 </body>
 
 </html>

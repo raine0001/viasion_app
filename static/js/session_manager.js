@@ -134,12 +134,18 @@ let __communityPublishing = false;
 // Display name for voice (fallbacks)
 function getDisplayName() {
     try {
-        return window.__USER_NAME || localStorage.getItem('firstname') || 'Player';
+        const authed = window.__AUTHED === true;
+        if (authed) {
+            return window.__USER_NAME || localStorage.getItem('firstname') || 'Player';
+        }
+        const guest = window.__GUEST_NAME || sessionStorage.getItem('visaion_guest_name');
+        if (guest) return guest;
+        return 'Player';
     } catch {
         return window.__USER_NAME || 'Player';
     }
 }
-const name = getDisplayName();
+try { window.getVisaionDisplayName = getDisplayName; } catch { }
 
 /* ------------------------ core actions ------------------------ */
 async function startSession() {
@@ -247,9 +253,12 @@ async function startSession() {
         if (shouldGreet) {
             const noun = attemptLabel || 'shot';
             const fallbackPrompt = readyPrompt || 'Get into position when you are ready.';
+            const displayName = getDisplayName();
+            const hasName = window.__AUTHED === true || !!(window.__GUEST_NAME || sessionStorage.getItem('visaion_guest_name'));
+            const startLine = hasName ? `${displayName}, let's get started.` : `Let's get started.`;
             const greeting = requiresTarget
-                ? `${name}, let's get started. Tap the target area, then get into position for your first ${noun}.`
-                : `${name}, let's get started. ${fallbackPrompt}`;
+                ? `${startLine} Tap the target area, then get into position for your first ${noun}.`
+                : `${startLine} ${fallbackPrompt}`;
             try { await primeCoachAudio?.(); } catch { }
             try {
                 if (typeof visaionSpeak === 'function') {
@@ -698,7 +707,7 @@ async function publishCommunityRecap(detail) {
         title: detail?.title || (project?.name ? `${project.name} recap` : 'Session recap'),
         summary: detail?.summary || '',
         highlights: Array.isArray(detail?.lines) ? detail.lines.slice(0, 3) : [],
-        author: name,
+        author: getDisplayName(),
         tags: Array.from(tags).filter(Boolean),
         project: project?.slug || null,
         projectName: project?.name || null,
@@ -739,7 +748,158 @@ function publishCommunityRecapIfReady() {
     });
 }
 
+function isTrialSession() {
+    try {
+        if (window.__SESSION_TRIAL === false) return false;
+        if (window.__SESSION_TRIAL === true) return true;
+    } catch { }
+    try {
+        const params = new URLSearchParams(location.search || '');
+        const flag = (params.get('trial') || params.get('demo') || params.get('public') || '').toLowerCase();
+        if (['1', 'true', 'yes', 'on'].includes(flag)) return true;
+    } catch { }
+    const cap = getSessionCap();
+    return Number.isFinite(cap) && cap <= 3;
+}
+
+function shouldPromptTrialEmail() {
+    if (window.__AUTHED === true) return false;
+    if (!isTrialSession()) return false;
+    if (!window.__SESSION_ID) return false;
+    if (window.__TRIAL_EMAIL_PROMPTED) return false;
+    return true;
+}
+
+function showTrialEmailPrompt(detail) {
+    if (!shouldPromptTrialEmail()) return;
+    window.__TRIAL_EMAIL_PROMPTED = true;
+    const existing = document.getElementById('trialEmailPrompt');
+    if (existing) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'trialEmailPrompt';
+    Object.assign(overlay.style, {
+        position: 'fixed',
+        inset: '0',
+        zIndex: 10095,
+        background: 'rgba(0,0,0,0.6)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+    });
+
+    const panel = document.createElement('div');
+    Object.assign(panel.style, {
+        width: 'min(420px, 92vw)',
+        background: 'rgba(16,18,24,0.96)',
+        color: '#fff',
+        borderRadius: '16px',
+        border: '1px solid rgba(255,255,255,0.12)',
+        padding: '18px 18px 16px',
+        boxShadow: '0 18px 46px rgba(0,0,0,0.45)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        font: '500 14px system-ui'
+    });
+
+    const title = document.createElement('div');
+    title.textContent = 'Email your session summary?';
+    title.style.cssText = 'font:700 16px system-ui;';
+
+    const body = document.createElement('div');
+    body.textContent = 'Want a copy of this free assessment? Drop your email and we will send the recap.';
+    body.style.opacity = '0.85';
+
+    const input = document.createElement('input');
+    input.type = 'email';
+    input.placeholder = 'you@example.com';
+    input.autocomplete = 'email';
+    Object.assign(input.style, {
+        padding: '10px 12px',
+        borderRadius: '10px',
+        border: '1px solid rgba(255,255,255,0.18)',
+        background: 'rgba(10,12,16,0.95)',
+        color: '#fff',
+        font: '500 14px system-ui'
+    });
+
+    const status = document.createElement('div');
+    status.style.cssText = 'min-height:16px; font:600 12px system-ui; opacity:0.75;';
+
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;';
+
+    const btnSkip = document.createElement('button');
+    btnSkip.textContent = 'No thanks';
+    btnSkip.style.cssText = 'border:1px solid rgba(255,255,255,0.18); background:transparent; color:#fff; padding:8px 14px; border-radius:999px; font:600 13px system-ui; cursor:pointer;';
+
+    const btnSend = document.createElement('button');
+    btnSend.textContent = 'Send me the recap';
+    btnSend.style.cssText = 'border:0; background:#facc15; color:#1c1a05; padding:8px 16px; border-radius:999px; font:700 13px system-ui; cursor:pointer;';
+
+    actions.append(btnSkip, btnSend);
+    panel.append(title, body, input, status, actions);
+    overlay.append(panel);
+    document.body.appendChild(overlay);
+
+    const close = () => { try { overlay.remove(); } catch { } };
+    btnSkip.onclick = close;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+    btnSend.onclick = async () => {
+        const email = (input.value || '').trim().toLowerCase();
+        if (!email || !email.includes('@')) {
+            status.textContent = 'Enter a valid email address.';
+            return;
+        }
+        btnSend.disabled = true;
+        btnSkip.disabled = true;
+        status.textContent = 'Sending...';
+        const sid = window.__SESSION_ID;
+        const payload = {
+            email,
+            summary: detail?.summary || '',
+            lines: Array.isArray(detail?.lines) ? detail.lines : [],
+            project: window.visaionProjectManager?.getActiveProject?.()?.slug || null,
+            projectName: window.visaionProjectManager?.getActiveProject?.()?.name || null,
+            cap: getSessionCap(),
+            trial: true
+        };
+        try {
+            const res = await fetch(`/api/sessions/${encodeURIComponent(sid)}/email_summary`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                credentials: 'include'
+            });
+            if (!res.ok) {
+                let msg = null;
+                try {
+                    const data = await res.json();
+                    msg = data?.error || data?.message || null;
+                } catch { }
+                if (!msg) {
+                    msg = await res.text().catch(() => res.statusText || 'Request failed');
+                }
+                throw new Error(msg || `HTTP ${res.status}`);
+            }
+            status.textContent = 'Thanks! We will email it shortly.';
+            setTimeout(close, 1400);
+        } catch (err) {
+            status.textContent = err?.message || 'Unable to send right now.';
+            btnSend.disabled = false;
+            btnSkip.disabled = false;
+        }
+    };
+}
+
 window.addEventListener('visaion:session-review', (e) => {
     __communityPendingSummary = e?.detail || null;
     publishCommunityRecapIfReady();
+    try { showTrialEmailPrompt(e?.detail); } catch { }
+});
+
+window.addEventListener('hud:start-session', () => {
+    try { window.__TRIAL_EMAIL_PROMPTED = false; } catch { }
 });
