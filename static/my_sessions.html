@@ -1859,6 +1859,8 @@
 
             let SESSION_SUMMARY_CACHE = new Map();
 
+            const SESSION_PRIVACY_CACHE = new Map();
+
             let DASHBOARD_STATS = null;
 
             const INITIAL_SESSION_ID = (() => {
@@ -2124,8 +2126,21 @@
 
                 SESSION_DETAIL_CACHE.set(sid, data);
 
+                const privacy = resolveSessionPrivacy(sid, data);
+                if (privacy !== null) SESSION_PRIVACY_CACHE.set(sid, privacy);
+
                 return data;
 
+            }
+
+            function resolveSessionPrivacy(sid, session) {
+                if (session && typeof session === 'object') {
+                    if (typeof session.communityHidden === 'boolean') return session.communityHidden;
+                    if (typeof session.hidden === 'boolean') return session.hidden;
+                    if (typeof session.shareToCommunity === 'boolean') return !session.shareToCommunity;
+                }
+                if (SESSION_PRIVACY_CACHE.has(sid)) return SESSION_PRIVACY_CACHE.get(sid);
+                return false;
             }
 
 
@@ -3699,7 +3714,10 @@
 
                 const meta = document.createElement('div');
                 meta.className = 'detail-meta';
-                meta.textContent = `Started ${fmtDate(session.startedAt)} | Attempts ${fmtNumber(summary.attempts)} | Makes ${fmtNumber(summary.makes)} | Accuracy ${fmtPct(summary.accuracy)}`;
+                const privacyHidden = resolveSessionPrivacy(session.id, session);
+                SESSION_PRIVACY_CACHE.set(session.id, privacyHidden);
+                const communityLabel = privacyHidden ? 'Private' : 'Public';
+                meta.textContent = `Started ${fmtDate(session.startedAt)} | Attempts ${fmtNumber(summary.attempts)} | Makes ${fmtNumber(summary.makes)} | Accuracy ${fmtPct(summary.accuracy)} | Community ${communityLabel}`;
 
                 title.append(titleText, meta);
 
@@ -3715,6 +3733,11 @@
                 exportBtn.className = 'btn btn-tonal';
                 exportBtn.textContent = 'Export CSV';
                 exportBtn.onclick = () => exportSessionCSV(session.id);
+
+                const privacyBtn = document.createElement('button');
+                privacyBtn.className = 'btn btn-tonal';
+                privacyBtn.textContent = privacyHidden ? 'Share to Community' : 'Make Private';
+                privacyBtn.onclick = () => setSessionPrivacy(session.id, !privacyHidden);
 
                 const menu = document.createElement('details');
                 menu.className = 'session-menu';
@@ -3740,7 +3763,7 @@
                 });
 
                 menu.append(menuSummary, menuBody);
-                actions.append(shareBtn, exportBtn, menu);
+                actions.append(shareBtn, privacyBtn, exportBtn, menu);
 
                 top.append(title, actions);
                 header.appendChild(top);
@@ -3811,7 +3834,7 @@
                     if (view.timestamp) metaBits.push(view.timestamp);
                     if (view.made === true) metaBits.push('Make');
                     else if (view.made === false) metaBits.push('Miss');
-                    meta.textContent = metaBits.length ? metaBits.join(' · ') : 'Awaiting details';
+                    meta.textContent = metaBits.length ? metaBits.join(' | ') : 'Awaiting details';
                     left.appendChild(meta);
 
                     const clip = resolveClipStatus(view);
@@ -4064,16 +4087,18 @@
                         : Number(meta.totals?.accuracy);
 
                     const shotLabel = attempts ? `${attempts} swing${attempts === 1 ? '' : 's'}` : 'No swings yet';
+                    const hiddenFlag = resolveSessionPrivacy(meta.id, null);
 
-                    const titleText = `Session ${meta.id} · ${shotLabel}`;
+                    const titleText = `Session ${meta.id} - ${shotLabel}`;
 
                     const metaBits = [];
 
                     if (Number.isFinite(accuracy)) metaBits.push(`Accuracy ${fmtPct(accuracy)}`);
+                    if (hiddenFlag) metaBits.push('Private');
 
                     if (meta.startedAt) metaBits.push(`Started ${fmtTimeShort(meta.startedAt)}`);
 
-                    const metaText = metaBits.length ? metaBits.join(' · ') : 'No stats available yet.';
+                    const metaText = metaBits.length ? metaBits.join(' | ') : 'No stats available yet.';
 
                     const card = document.createElement('article');
 
@@ -4102,13 +4127,21 @@
                     const menuBody = document.createElement('div');
                     menuBody.className = 'menu-popover';
 
+                    const privacyBtn = createActionButton(
+                        hiddenFlag ? 'Share to Community' : 'Make Private',
+                        'privacy',
+                        meta.id,
+                        'btn-tonal'
+                    );
+                    privacyBtn.dataset.hidden = hiddenFlag ? '0' : '1';
+
                     const csvBtn = createActionButton('Export CSV', 'csv', meta.id, 'btn-tonal');
                     const shareBtn = createActionButton('Share', 'share', meta.id, 'btn-tonal');
                     const printBtn = createActionButton('Print', 'print', meta.id, 'btn-tonal');
                     const archiveBtn = createActionButton('Archive', 'archive', meta.id, 'btn-tonal');
                     const deleteBtn = createActionButton('Delete', 'delete', meta.id, 'btn-danger');
 
-                    [csvBtn, shareBtn, printBtn, archiveBtn, deleteBtn].forEach(btn => {
+                    [privacyBtn, csvBtn, shareBtn, printBtn, archiveBtn, deleteBtn].forEach(btn => {
                         btn.addEventListener('click', () => { menu.open = false; });
                         menuBody.appendChild(btn);
                     });
@@ -4298,6 +4331,28 @@
                 await copyShare(sid);
             }
 
+            async function setSessionPrivacy(sid, hideFlag) {
+                try {
+                    const res = await fetch(`/api/sessions/${encodeURIComponent(sid)}/privacy`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ hidden: !!hideFlag })
+                    });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const data = await res.json();
+                    const hidden = !!data.hidden;
+                    SESSION_PRIVACY_CACHE.set(sid, hidden);
+                    const cached = SESSION_DETAIL_CACHE.get(sid);
+                    if (cached && typeof cached === 'object') cached.communityHidden = hidden;
+                    renderSessionsList();
+                    if (__CURRENT_SESSION_ID === sid) showSession(sid);
+                    notifyUser(hidden ? 'Session hidden from community.' : 'Session shared to community.');
+                } catch (err) {
+                    console.error('[my_sessions] privacy update failed', err);
+                    notifyUser('Unable to update session privacy.', 'error');
+                }
+            }
+
             function notifyUser(message, tone = 'success') {
                 if (typeof window.showToast === 'function') {
                     window.showToast(message, tone, 4200);
@@ -4321,6 +4376,7 @@
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     SESSION_DETAIL_CACHE.delete(sid);
                     SESSION_SUMMARY_CACHE.delete(sid);
+                    SESSION_PRIVACY_CACHE.delete(sid);
                     __SESSIONS = __SESSIONS.filter(s => s.id !== sid);
                     if (__CURRENT_SESSION_ID === sid) {
                         __CURRENT_SESSION_ID = null;
@@ -4569,6 +4625,10 @@
                     if (!sid) return;
 
                     if (act === 'open') showSession(sid);
+                    else if (act === 'privacy') {
+                        const shouldHide = b.dataset.hidden === '1';
+                        setSessionPrivacy(sid, shouldHide);
+                    }
                     else if (act === 'csv') exportSessionCSV(sid);
                     else if (act === 'share') shareSession(sid);
                     else if (act === 'print') { showSession(sid).then(() => window.print()); }

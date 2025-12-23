@@ -2175,6 +2175,62 @@ def _find_community_post(posts: list[dict], sid: str):
     return None, None
 
 
+def _set_community_post_visibility(
+    sid: str, hide_flag: bool, actor: str | None = None, reason: str | None = None
+):
+    posts = _load_community_feed()
+    idx, post = _find_community_post(posts, sid)
+    if post is None:
+        return None
+    updated = dict(post)
+    if hide_flag:
+        updated["hidden"] = True
+        updated["hiddenAt"] = int(time.time() * 1000)
+        updated["hiddenBy"] = str(actor or "user")
+        if reason:
+            updated["hiddenReason"] = reason
+    else:
+        updated.pop("hidden", None)
+        updated.pop("hiddenAt", None)
+        updated.pop("hiddenBy", None)
+        updated.pop("hiddenReason", None)
+    posts[idx] = updated
+    _write_community_feed(posts)
+
+    detail, detail_path = _load_community_detail_payload(sid)
+    db = _db_get()
+    if isinstance(detail, dict):
+        if hide_flag:
+            detail["hidden"] = True
+            detail["hiddenAt"] = updated.get("hiddenAt")
+            detail["hiddenBy"] = updated.get("hiddenBy")
+            if updated.get("hiddenReason"):
+                detail["hiddenReason"] = updated.get("hiddenReason")
+        else:
+            detail.pop("hidden", None)
+            detail.pop("hiddenAt", None)
+            detail.pop("hiddenBy", None)
+            detail.pop("hiddenReason", None)
+        if not db and detail_path:
+            try:
+                with open(detail_path, "w", encoding="utf-8") as f:
+                    json.dump(detail, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+        if db:
+            try:
+                _db_upsert_community_post(sid, updated, detail)
+            except Exception:
+                pass
+    elif db:
+        try:
+            _db_upsert_community_summary([updated])
+        except Exception:
+            pass
+
+    return updated
+
+
 def _safe_count(value, default=0) -> int:
     if value is None:
         return default
@@ -3183,6 +3239,14 @@ def api_session_get(sid):
                 200,
             )
         return jsonify({"error": "session not found"}), 404
+    if isinstance(sess, dict) and "communityHidden" not in sess:
+        try:
+            posts = _load_community_feed()
+            _, post = _find_community_post(posts, sid)
+            if post is not None:
+                sess["communityHidden"] = bool(post.get("hidden"))
+        except Exception:
+            pass
     return jsonify(sess)
 
 
@@ -3283,6 +3347,36 @@ def api_session_delete(sid):
     except Exception:
         pass
     return jsonify({"ok": True, "deleted": True})
+
+
+@app.post("/api/sessions/<sid>/privacy")
+def api_session_privacy(sid):
+    user_id = session.get("user_id")
+    if not _session_user_can_edit(sid, user_id):
+        return jsonify({"error": "forbidden"}), 403
+    payload = request.get_json(silent=True) or {}
+    if "hidden" in payload:
+        hide_flag = bool(payload.get("hidden"))
+    elif "share" in payload:
+        hide_flag = not bool(payload.get("share"))
+    elif "private" in payload:
+        hide_flag = bool(payload.get("private"))
+    else:
+        return jsonify({"error": "missing privacy flag"}), 400
+
+    sess = _read_session(sid)
+    if not isinstance(sess, dict):
+        sess = _db_build_session_payload(sid) or {"id": sid}
+    sess["communityHidden"] = bool(hide_flag)
+    try:
+        _write_session(sid, sess)
+    except Exception as exc:
+        _trace("session privacy write failed", exc)
+        if DB_REQUIRED:
+            raise
+
+    updated = _set_community_post_visibility(sid, hide_flag, actor=user_id)
+    return jsonify({"ok": True, "hidden": bool(hide_flag), "post": updated})
 
 
 def _append_trial_email_request(payload: dict) -> bool:
@@ -3746,6 +3840,10 @@ def api_community_publish():
         for key in ("hidden", "hiddenAt", "hiddenBy", "hiddenReason"):
             if key in existing:
                 summary_entry[key] = existing.get(key)
+    if sess.get("communityHidden") is True and not summary_entry.get("hidden"):
+        summary_entry["hidden"] = True
+        summary_entry["hiddenAt"] = now_ms
+        summary_entry["hiddenBy"] = "user"
 
     detail_payload = {
         "id": sid,
