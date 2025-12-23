@@ -73,9 +73,11 @@ window.addEventListener('hud:end-session', async () => {
     } catch { }
     try { await window.__landscapeRecController?.stop(); } catch { }
     window.__landscapeRecController = null;
+    try { window.__landscapeRecPrimed = false; } catch { }
 });
 window.addEventListener('beforeunload', () => {
     try { window.__landscapeRecController?.stop(); } catch { }
+    try { window.__landscapeRecPrimed = false; } catch { }
 });
 
 /* ----------------------- iOS viewport + basics ----------------------- */
@@ -1574,8 +1576,9 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
         }
         let blobData = e.data;
         const now = performance.now();
-        const duration = Math.max(1, now - lastChunkTime);
+        let duration = Math.max(1, now - lastChunkTime);
         lastChunkTime = now;
+        let headerJustCaptured = false;
 
         if (!headerCaptured) {
             headerChunks.push(blobData);
@@ -1595,6 +1598,7 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
                     return;
                 }
                 headerCaptured = true;
+                headerJustCaptured = true;
                 resolveInitWaiters();
                 headerChunks.length = 0;
                 blobData = payload;
@@ -1603,6 +1607,18 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
                     console.warn('[landscapeRecorder] header parse pending', err);
                 }
                 return;
+            }
+        }
+        if (headerJustCaptured) {
+            const capMs = Math.max(120, sliceMs * 3);
+            if (duration > capMs) {
+                if (window.DEBUG_MICROCLIP === true) {
+                    console.log('[landscapeRecorder] header duration clamp', {
+                        duration: Math.round(duration),
+                        capMs
+                    });
+                }
+                duration = capMs;
             }
         }
 
@@ -1941,7 +1957,10 @@ function warmLandscapeRecorder() {
         if (window.__landscapeRecController) return;
         try {
             const comp = await window.startLandscapeRecorder(videoEl, { width: 1280, height: 720, fps: 30 });
-            if (comp) window.__landscapeRecController = comp;
+            if (comp) {
+                window.__landscapeRecController = comp;
+                try { primeLandscapeRecorder(); } catch { }
+            }
         } catch (err) {
             console.warn('[hud] landscape recorder warm failed', err);
         }
@@ -1952,6 +1971,26 @@ function warmLandscapeRecorder() {
     } else {
         videoEl.addEventListener('loadedmetadata', start, { once: true });
     }
+}
+
+function primeLandscapeRecorder() {
+    if (window.__landscapeRecPrimed) return;
+    if (window.USE_MICROCLIP === false || window.__CLIPS_AVAILABLE === false) return;
+    const comp = window.__landscapeRecController;
+    if (!comp || typeof comp.captureClip !== 'function') return;
+    window.__landscapeRecPrimed = true;
+    const preMs = 0;
+    const baseMs = Number(window.__MICROCLIP_PRE_MS);
+    const primeMs = Math.max(360, Math.min(900, Math.round(Number.isFinite(baseMs) ? baseMs * 0.4 : 500)));
+    comp.captureClip({ preMs, totalMs: primeMs, key: 'prime' })
+        .then(() => {
+            if (window.DEBUG_MICROCLIP === true) {
+                console.log('[landscapeRecorder] primed', { ms: primeMs });
+            }
+        })
+        .catch(() => {
+            window.__landscapeRecPrimed = false;
+        });
 }
 
 // Reset to start overlay state
