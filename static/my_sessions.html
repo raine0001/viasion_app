@@ -178,6 +178,17 @@
 
         }
 
+        .toolbar-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--gap-sm);
+            align-items: center;
+        }
+
+        .toolbar-toggle {
+            display: none;
+        }
+
         input,
         select,
         button {
@@ -1073,24 +1084,30 @@
 
         }
 
-        .panel>h2 {
-
-            font-size: 14px;
-
-            margin: 0;
-
+        .panel-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--gap-sm);
             padding: 14px 18px;
-
             background: var(--surface-alt);
-
             border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
 
+        .panel-head h2 {
+            font-size: 14px;
+            margin: 0;
             text-transform: uppercase;
-
             letter-spacing: .08em;
-
             color: var(--text-soft);
+        }
 
+        .panel-sub {
+            font-size: 11px;
+            color: var(--text-muted);
         }
 
         .panel-body {
@@ -1108,7 +1125,7 @@
         }
 
         .sessions-panel .panel-body {
-            padding: 0;
+            padding: var(--gap-sm);
         }
 
         .detail-panel .panel-body {
@@ -1127,63 +1144,6 @@
             opacity: 0.6;
         }
 
-
-
-        table {
-
-            border-collapse: collapse;
-
-            width: 100%;
-
-            min-width: 660px;
-
-            background: var(--surface-bg);
-
-        }
-
-        thead th {
-
-            background: var(--surface-alt);
-
-            color: var(--text-muted);
-
-            position: sticky;
-
-            top: 0;
-
-            z-index: 1;
-
-            text-transform: uppercase;
-
-            letter-spacing: .05em;
-
-            font-size: 11px;
-
-        }
-
-        th,
-        td {
-
-            border-bottom: 1px solid #1f2330;
-
-            padding: 12px 14px;
-
-            font-size: 13px;
-
-        }
-
-        tbody tr:hover {
-            background: rgba(250, 204, 21, .06);
-        }
-
-        tbody tr.row-active {
-            background: rgba(250, 204, 21, .12);
-        }
-
-        tbody tr.row-active td {
-            color: var(--text-primary);
-        }
-
         .muted {
             opacity: .8;
             font-size: 12px;
@@ -1195,6 +1155,157 @@
             color: var(--text-muted);
             font-size: 13px;
             text-align: center;
+        }
+
+        .session-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap-sm);
+        }
+
+        .session-card {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--surface-alt);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            cursor: pointer;
+            transition: border-color .2s ease, box-shadow .2s ease;
+        }
+
+        .session-card.is-active {
+            border-color: rgba(250, 204, 21, .4);
+            box-shadow: 0 18px 36px -30px rgba(250, 204, 21, .4);
+        }
+
+        .session-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: var(--gap-sm);
+        }
+
+        .session-info {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .session-title {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .session-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .session-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .session-menu {
+            position: relative;
+        }
+
+        .session-menu summary {
+            list-style: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .session-menu summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .menu-popover {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 8px);
+            background: var(--surface-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 160px;
+            z-index: 6;
+            box-shadow: 0 20px 38px -28px rgba(0, 0, 0, .8);
+        }
+
+        .menu-popover .btn {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .detail-sticky {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap-sm);
+            background: var(--surface-bg);
+            padding-bottom: var(--gap-sm);
+        }
+
+        .detail-header-card {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap-sm);
+            background: var(--surface-alt);
+        }
+
+        .detail-header-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: var(--gap-sm);
+        }
+
+        .detail-title {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .detail-title h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .detail-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .detail-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .detail-actions .btn {
+            padding: 8px 14px;
+        }
+
+        .detail-close {
+            display: none;
         }
 
 
@@ -1221,10 +1332,10 @@
             color: var(--text-muted);
         }
 
-        .shot-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: var(--gap-md);
+        .shot-list {
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap-sm);
         }
 
         .shot-card {
@@ -1235,11 +1346,32 @@
             overflow: hidden;
         }
 
-        .shot-card .shot-content {
+        .shot-card summary {
+            list-style: none;
+        }
+
+        .shot-card summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .shot-card[open] {
+            border-color: rgba(250, 204, 21, .35);
+            box-shadow: 0 20px 40px -30px rgba(250, 204, 21, .28);
+        }
+
+        .shot-summary {
             display: flex;
             flex-direction: column;
+            gap: var(--gap-xs);
+            padding: 16px;
+            cursor: pointer;
+        }
+
+        .shot-summary-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
             gap: var(--gap-sm);
-            padding: 18px;
         }
 
         .shot-title {
@@ -1250,12 +1382,12 @@
         .shot-meta {
             display: flex;
             flex-wrap: wrap;
-            gap: var(--gap-sm);
+            gap: var(--gap-xs);
             font-size: 12px;
             color: var(--text-muted);
         }
 
-        .status {
+        .clip-status {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -1267,22 +1399,67 @@
             border: 1px solid transparent;
         }
 
-        .status-make {
+        .clip-status[data-state='ready'] {
             background: rgba(34, 197, 94, 0.18);
             color: #4ade80;
             border-color: rgba(34, 197, 94, 0.35);
         }
 
-        .status-miss {
+        .clip-status[data-state='pending'] {
+            background: rgba(59, 130, 246, 0.18);
+            color: #93c5fd;
+            border-color: rgba(59, 130, 246, 0.35);
+        }
+
+        .clip-status[data-state='missing'] {
             background: rgba(248, 113, 113, 0.18);
             color: #f87171;
             border-color: rgba(248, 113, 113, 0.35);
         }
 
-        .status-pending {
-            background: rgba(59, 130, 246, 0.18);
-            color: #93c5fd;
-            border-color: rgba(59, 130, 246, 0.35);
+        .shot-summary-metrics {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .metric-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: var(--surface-soft);
+            border: 1px solid var(--border-color);
+            font-size: 12px;
+        }
+
+        .metric-chip span {
+            font-size: 10px;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            color: var(--text-soft);
+        }
+
+        .metric-chip strong {
+            font-size: 12px;
+        }
+
+        .shot-summary-note {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .shot-details {
+            display: flex;
+            flex-direction: column;
+            gap: var(--gap-sm);
+            padding: 0 16px 16px;
         }
 
         .shot-metrics {
@@ -1356,6 +1533,21 @@
             background: var(--surface-soft);
         }
 
+        .detail-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .55);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .2s ease;
+            z-index: 40;
+        }
+
+        body.detail-open .detail-overlay {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
 
 
         @media (min-width:1080px) {
@@ -1382,7 +1574,13 @@
         @media (min-width:980px) {
 
             .recent-layout {
-                grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
+                grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+                align-items: stretch;
+            }
+
+            .sessions-panel,
+            .detail-panel {
+                height: min(72vh, 760px);
             }
 
         }
@@ -1413,6 +1611,22 @@
             .toolbar {
                 width: 100%;
                 justify-content: flex-start;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .toolbar-toggle {
+                display: inline-flex;
+                justify-content: center;
+            }
+
+            .toolbar-controls {
+                display: none;
+                width: 100%;
+            }
+
+            body.filters-open .toolbar-controls {
+                display: flex;
             }
 
         }
@@ -1452,6 +1666,35 @@
 
         }
 
+        @media (max-width:960px) {
+            body.detail-open {
+                overflow: hidden;
+            }
+
+            .detail-panel {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                top: 12vh;
+                transform: translateY(105%);
+                transition: transform .25s ease;
+                border-radius: 18px 18px 0 0;
+                z-index: 50;
+                pointer-events: none;
+                box-shadow: 0 -20px 40px rgba(0, 0, 0, .45);
+            }
+
+            body.detail-open .detail-panel {
+                transform: translateY(0);
+                pointer-events: auto;
+            }
+
+            .detail-close {
+                display: inline-flex;
+            }
+        }
+
         @media print {
 
             header,
@@ -1484,7 +1727,7 @@
                 box-shadow: none;
             }
 
-            .panel>h2 {
+            .panel-head {
                 background: #fff;
                 color: #000;
                 border-bottom: 0;
@@ -1685,6 +1928,14 @@
 
                 try { return ts ? new Date(ts).toLocaleString() : '-'; } catch { return '-'; }
 
+            }
+
+            function fmtTimeShort(ts) {
+                try {
+                    return ts ? new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '-';
+                } catch {
+                    return '-';
+                }
             }
 
 
@@ -3363,7 +3614,7 @@
 
                 const card = document.createElement('div');
 
-                card.className = 'card';
+                card.className = 'card detail-summary';
 
                 const body = document.createElement('div');
 
@@ -3433,11 +3684,93 @@
 
             }
 
-            function buildShotGrid(session, shotViews) {
+            function buildDetailHeader(session, summary) {
+                const header = document.createElement('div');
+                header.className = 'detail-header-card';
 
-                const grid = document.createElement('div');
+                const top = document.createElement('div');
+                top.className = 'detail-header-top';
 
-                grid.className = 'shot-grid';
+                const title = document.createElement('div');
+                title.className = 'detail-title';
+
+                const titleText = document.createElement('h3');
+                titleText.textContent = `Session ${session.id}`;
+
+                const meta = document.createElement('div');
+                meta.className = 'detail-meta';
+                meta.textContent = `Started ${fmtDate(session.startedAt)} | Attempts ${fmtNumber(summary.attempts)} | Makes ${fmtNumber(summary.makes)} | Accuracy ${fmtPct(summary.accuracy)}`;
+
+                title.append(titleText, meta);
+
+                const actions = document.createElement('div');
+                actions.className = 'detail-actions';
+
+                const shareBtn = document.createElement('button');
+                shareBtn.className = 'btn';
+                shareBtn.textContent = 'Share';
+                shareBtn.onclick = () => shareSession(session.id);
+
+                const exportBtn = document.createElement('button');
+                exportBtn.className = 'btn btn-tonal';
+                exportBtn.textContent = 'Export CSV';
+                exportBtn.onclick = () => exportSessionCSV(session.id);
+
+                const menu = document.createElement('details');
+                menu.className = 'session-menu';
+                const menuSummary = document.createElement('summary');
+                menuSummary.className = 'btn btn-sm btn-tonal';
+                menuSummary.textContent = 'More';
+                const menuBody = document.createElement('div');
+                menuBody.className = 'menu-popover';
+
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'btn btn-sm btn-tonal';
+                copyBtn.textContent = 'Copy Link';
+                copyBtn.onclick = () => shareSession(session.id);
+
+                const printBtn = document.createElement('button');
+                printBtn.className = 'btn btn-sm btn-tonal';
+                printBtn.textContent = 'Print';
+                printBtn.onclick = () => window.print();
+
+                [copyBtn, printBtn].forEach(btn => {
+                    btn.addEventListener('click', () => { menu.open = false; });
+                    menuBody.appendChild(btn);
+                });
+
+                menu.append(menuSummary, menuBody);
+                actions.append(shareBtn, exportBtn, menu);
+
+                top.append(title, actions);
+                header.appendChild(top);
+
+                return header;
+            }
+
+            function resolveClipStatus(view) {
+                if (view.clipUrl) return { label: 'Ready', state: 'ready' };
+                const status = String(view.analysisStatus || '').toLowerCase();
+                if (status && status !== 'complete') return { label: 'Pending', state: 'pending' };
+                return { label: 'Missing Clip', state: 'missing' };
+            }
+
+            function buildMetricChip(label, value, suffix = '', decimals = 0) {
+                const chip = document.createElement('div');
+                chip.className = 'metric-chip';
+                const tag = document.createElement('span');
+                tag.textContent = label;
+                const strong = document.createElement('strong');
+                strong.textContent = Number.isFinite(value) ? `${fmtNumber(value, decimals)}${suffix}` : '-';
+                chip.append(tag, strong);
+                return chip;
+            }
+
+            function buildShotList(session, shotViews) {
+
+                const list = document.createElement('div');
+
+                list.className = 'shot-list';
                 const golfMode = isGolfSession(session);
 
                 if (!shotViews.length) {
@@ -3448,64 +3781,78 @@
 
                     empty.textContent = 'No shots recorded yet.';
 
-                    grid.appendChild(empty);
+                    list.appendChild(empty);
 
-                    return grid;
+                    return list;
 
                 }
 
                 shotViews.forEach(view => {
 
-                    const card = document.createElement('div');
+                    const card = document.createElement('details');
 
-                    card.className = 'card shot-card';
+                    card.className = 'shot-card';
 
-                    const content = document.createElement('div');
+                    const summary = document.createElement('summary');
+                    summary.className = 'shot-summary';
 
-                    content.className = 'shot-content';
-
-                    const header = document.createElement('div');
-
-                    header.className = 'detail-header shot-head';
+                    const top = document.createElement('div');
+                    top.className = 'shot-summary-top';
 
                     const left = document.createElement('div');
-
                     const title = document.createElement('div');
-
                     title.className = 'shot-title';
-
                     title.textContent = `Shot ${view.number}`;
-
                     left.appendChild(title);
 
-                    if (view.timestamp) {
+                    const meta = document.createElement('div');
+                    meta.className = 'shot-meta';
+                    const metaBits = [];
+                    if (view.timestamp) metaBits.push(view.timestamp);
+                    if (view.made === true) metaBits.push('Make');
+                    else if (view.made === false) metaBits.push('Miss');
+                    meta.textContent = metaBits.length ? metaBits.join(' · ') : 'Awaiting details';
+                    left.appendChild(meta);
 
-                        const meta = document.createElement('div');
+                    const clip = resolveClipStatus(view);
+                    const status = document.createElement('span');
+                    status.className = 'clip-status';
+                    status.dataset.state = clip.state;
+                    status.textContent = clip.label;
 
-                        meta.className = 'shot-meta';
+                    top.append(left, status);
+                    summary.appendChild(top);
 
-                        meta.textContent = view.timestamp;
+                    const summaryMetrics = document.createElement('div');
+                    summaryMetrics.className = 'shot-summary-metrics';
+                    if (Number.isFinite(view.score)) {
+                        summaryMetrics.appendChild(buildMetricChip('Score', view.score, '', 0));
+                    }
+                    if (!golfMode) {
+                        if (Number.isFinite(view.entry)) {
+                            summaryMetrics.appendChild(buildMetricChip('Entry', view.entry, ' deg', 1));
+                        }
+                        if (Number.isFinite(view.release)) {
+                            summaryMetrics.appendChild(buildMetricChip('Release', view.release, ' deg', 1));
+                        }
+                        if (Number.isFinite(view.arc)) {
+                            summaryMetrics.appendChild(buildMetricChip('Arc', view.arc, '', 1));
+                        }
+                    }
+                    summary.appendChild(summaryMetrics);
 
-                        left.appendChild(meta);
-
+                    const noteText = view.coachNote || view.missReason;
+                    if (noteText) {
+                        const notePreview = document.createElement('div');
+                        notePreview.className = 'shot-summary-note';
+                        notePreview.textContent = noteText;
+                        summary.appendChild(notePreview);
                     }
 
-                    header.appendChild(left);
-
-                    const status = document.createElement('span');
-
-                    status.className = `status ${view.statusClass}`;
-
-                    status.textContent = view.statusLabel;
-
-                    header.appendChild(status);
-
-                    content.appendChild(header);
-
-
+                    const details = document.createElement('div');
+                    details.className = 'shot-details';
 
                     const metrics = document.createElement('div');
-
                     metrics.className = 'shot-metrics';
 
                     if (!golfMode) {
@@ -3513,87 +3860,48 @@
                         metrics.appendChild(buildMetric('Release Angle', view.release, ' deg', 1));
                         metrics.appendChild(buildMetric('Arc Height', view.arc, '', 1));
                     }
-
                     metrics.appendChild(buildMetric('Shot Score', view.score, '', 0));
-                    content.appendChild(metrics);
-
-
-
-                    const noteText = view.coachNote || view.missReason;
+                    details.appendChild(metrics);
 
                     if (noteText) {
-
                         const note = document.createElement('div');
-
                         note.className = 'coach-note';
-
                         const titleNote = document.createElement('strong');
-
                         titleNote.textContent = view.coachNote ? 'Coach Notes' : 'Arc Insight';
-
                         const bodyNote = document.createElement('p');
-
                         bodyNote.textContent = noteText;
-
                         note.appendChild(titleNote);
-
                         note.appendChild(bodyNote);
-
-                        content.appendChild(note);
-
+                        details.appendChild(note);
                     }
-
-
 
                     if (view.analysisMessage && view.analysisStatus && view.analysisStatus.toLowerCase() !== 'complete') {
-
                         const statusNote = document.createElement('div');
-
                         statusNote.className = 'analysis-status';
-
                         statusNote.textContent = `Auto analysis: ${view.analysisMessage}`;
-
-                        content.appendChild(statusNote);
-
+                        details.appendChild(statusNote);
                     }
-
-
 
                     if (view.clipUrl) {
-
                         const video = document.createElement('video');
-
                         video.className = 'shot-video';
-
                         video.controls = true;
-
                         video.preload = 'metadata';
-
                         video.src = view.clipUrl;
-
                         video.onerror = () => {
-
                             video.replaceWith(createVideoPlaceholder());
-
                         };
-
-                        content.appendChild(video);
-
+                        details.appendChild(video);
                     } else {
-
-                        content.appendChild(createVideoPlaceholder());
-
+                        details.appendChild(createVideoPlaceholder());
                     }
 
-
-
-                    card.appendChild(content);
-
-                    grid.appendChild(card);
+                    card.append(summary, details);
+                    list.appendChild(card);
 
                 });
 
-                return grid;
+                return list;
 
             }
 
@@ -3601,12 +3909,67 @@
 
             function markActiveRows() {
 
-                document.querySelectorAll('#rows tr').forEach(row => {
-
-                    row.classList.toggle('row-active', row.dataset.sid === __CURRENT_SESSION_ID);
-
+                document.querySelectorAll('.session-card').forEach(card => {
+                    card.classList.toggle('is-active', card.dataset.sid === __CURRENT_SESSION_ID);
                 });
 
+            }
+
+            function isNarrowView() {
+                return window.matchMedia('(max-width: 960px)').matches;
+            }
+
+            function openDetailSheet() {
+                if (!isNarrowView()) return;
+                document.body.classList.add('detail-open');
+            }
+
+            function closeDetailSheet() {
+                document.body.classList.remove('detail-open');
+            }
+
+            function bindDetailSheetGestures() {
+                const overlay = document.getElementById('detailOverlay');
+                const closeBtn = document.getElementById('detailCloseBtn');
+                overlay?.addEventListener('click', closeDetailSheet);
+                closeBtn?.addEventListener('click', closeDetailSheet);
+
+                const panel = document.getElementById('detailPanel');
+                if (!panel) return;
+                const body = panel.querySelector('.panel-body');
+                let startY = null;
+                let startScroll = 0;
+
+                panel.addEventListener('touchstart', (e) => {
+                    if (!isNarrowView()) return;
+                    startY = e.touches[0].clientY;
+                    startScroll = body?.scrollTop || 0;
+                }, { passive: true });
+
+                panel.addEventListener('touchmove', (e) => {
+                    if (!isNarrowView() || startY === null) return;
+                    const dy = e.touches[0].clientY - startY;
+                    const scrollTop = body?.scrollTop || 0;
+                    if (dy > 90 && scrollTop <= 0 && startScroll <= 0) {
+                        closeDetailSheet();
+                        startY = null;
+                    }
+                }, { passive: true });
+
+                panel.addEventListener('touchend', () => {
+                    startY = null;
+                }, { passive: true });
+
+                document.addEventListener('keydown', (e) => {
+                    if ((e.key || '').toLowerCase() === 'escape') closeDetailSheet();
+                });
+
+                window.addEventListener('resize', () => {
+                    if (!isNarrowView()) {
+                        closeDetailSheet();
+                        document.body.classList.remove('filters-open');
+                    }
+                });
             }
 
 
@@ -3635,37 +3998,17 @@
 
                     const summary = computeSessionSummary(session, shotViews);
 
-                    const header = createEl('div', { class: 'card' }, [
-
-                        createEl('div', { class: 'detail-header' }, [
-
-                            createEl('div', {}, [
-
-                                createEl('h3', { text: `Session ${sid}` }),
-
-                                createEl('small', { text: `Started ${fmtDate(session.startedAt)} | Attempts ${fmtNumber(summary.attempts)} | Accuracy ${fmtPct(summary.accuracy)}` })
-
-                            ]),
-
-                            createEl('div', { class: 'actions' }, [
-
-                                buildActionButton('Export CSV', () => exportSessionCSV(sid)),
-
-                                buildActionButton('Copy Share Link', () => copyShare(sid)),
-
-                                buildActionButton('Print', () => { showSession(sid).then(() => window.print()); })
-
-                            ])
-
-                        ])
-
-                    ]);
+                    const header = buildDetailHeader(session, summary);
 
                     const summaryCard = buildSessionSummaryCard(session, shotViews, summary);
 
-                    const shotGrid = buildShotGrid(session, shotViews);
+                    const sticky = createEl('div', { class: 'detail-sticky' }, [header, summaryCard]);
 
-                    box.replaceChildren(header, summaryCard, shotGrid);
+                    const shotList = buildShotList(session, shotViews);
+
+                    box.replaceChildren(sticky, shotList);
+
+                    openDetailSheet();
 
                 } catch (err) {
 
@@ -3685,13 +4028,13 @@
 
             }
 
-            function renderTable() {
+            function renderSessionsList() {
 
-                const tbody = document.getElementById('rows');
+                const list = document.getElementById('sessionsList');
 
-                if (!tbody) return;
+                if (!list) return;
 
-                tbody.innerHTML = '';
+                list.innerHTML = '';
 
                 const filter = (document.getElementById('filterTxt')?.value || '').toLowerCase();
 
@@ -3699,19 +4042,10 @@
 
                 if (!data.length) {
 
-                    const tr = document.createElement('tr');
-
-                    const td = document.createElement('td');
-
-                    td.colSpan = 8;
-
-                    td.className = 'empty';
-
-                    td.textContent = __SESSIONS.length ? 'No sessions match filter.' : 'No sessions found.';
-
-                    tr.appendChild(td);
-
-                    tbody.appendChild(tr);
+                    list.appendChild(createEl('div', {
+                        class: 'empty',
+                        text: __SESSIONS.length ? 'No sessions match filter.' : 'No sessions found.'
+                    }));
 
                     return;
 
@@ -3721,103 +4055,86 @@
 
                     const summary = SESSION_SUMMARY_CACHE.get(meta.id);
 
-                    const tr = document.createElement('tr');
+                    const attempts = Number.isFinite(summary?.attempts)
+                        ? summary.attempts
+                        : Number(meta.totals?.attempts ?? meta.shots ?? 0);
 
-                    tr.dataset.sid = meta.id;
+                    const accuracy = Number.isFinite(summary?.accuracy)
+                        ? summary.accuracy
+                        : Number(meta.totals?.accuracy);
 
-                    if (meta.id === __CURRENT_SESSION_ID) tr.classList.add('row-active');
+                    const shotLabel = attempts ? `${attempts} swing${attempts === 1 ? '' : 's'}` : 'No swings yet';
 
+                    const titleText = `Session ${meta.id} · ${shotLabel}`;
 
+                    const metaBits = [];
 
-                    const openCell = document.createElement('td');
+                    if (Number.isFinite(accuracy)) metaBits.push(`Accuracy ${fmtPct(accuracy)}`);
 
-                    openCell.appendChild(createActionButton('Open', 'open', meta.id));
+                    if (meta.startedAt) metaBits.push(`Started ${fmtTimeShort(meta.startedAt)}`);
 
-                    tr.appendChild(openCell);
+                    const metaText = metaBits.length ? metaBits.join(' · ') : 'No stats available yet.';
 
+                    const card = document.createElement('article');
 
+                    card.className = 'session-card';
 
-                    const idCell = document.createElement('td');
+                    card.dataset.sid = meta.id;
 
-                    idCell.className = 'muted';
+                    if (meta.id === __CURRENT_SESSION_ID) card.classList.add('is-active');
 
-                    idCell.textContent = meta.id;
+                    const info = createEl('div', { class: 'session-info' }, [
+                        createEl('div', { class: 'session-title', text: titleText }),
+                        createEl('div', { class: 'session-meta', text: metaText })
+                    ]);
 
-                    tr.appendChild(idCell);
+                    const actions = document.createElement('div');
+                    actions.className = 'session-actions';
 
+                    const viewBtn = createActionButton('View', 'open', meta.id);
+                    actions.appendChild(viewBtn);
 
+                    const menu = document.createElement('details');
+                    menu.className = 'session-menu';
+                    const menuSummary = document.createElement('summary');
+                    menuSummary.className = 'btn btn-sm btn-tonal';
+                    menuSummary.textContent = 'More';
+                    const menuBody = document.createElement('div');
+                    menuBody.className = 'menu-popover';
 
-                    const startCell = document.createElement('td');
+                    const csvBtn = createActionButton('Export CSV', 'csv', meta.id, 'btn-tonal');
+                    const shareBtn = createActionButton('Share', 'share', meta.id, 'btn-tonal');
+                    const printBtn = createActionButton('Print', 'print', meta.id, 'btn-tonal');
+                    const archiveBtn = createActionButton('Archive', 'archive', meta.id, 'btn-tonal');
+                    const deleteBtn = createActionButton('Delete', 'delete', meta.id, 'btn-danger');
 
-                    startCell.textContent = fmtDate(meta.startedAt);
+                    [csvBtn, shareBtn, printBtn, archiveBtn, deleteBtn].forEach(btn => {
+                        btn.addEventListener('click', () => { menu.open = false; });
+                        menuBody.appendChild(btn);
+                    });
 
-                    tr.appendChild(startCell);
+                    menu.append(menuSummary, menuBody);
+                    actions.appendChild(menu);
 
+                    const header = document.createElement('div');
+                    header.className = 'session-card-header';
+                    header.append(info, actions);
 
+                    card.appendChild(header);
 
-                    const scoreCell = document.createElement('td');
+                    card.addEventListener('click', (event) => {
+                        if (event.target.closest('button')) return;
+                        if (event.target.closest('summary')) return;
+                        if (event.target.closest('details')) return;
+                        if (event.target.closest('.session-actions')) return;
+                        showSession(meta.id);
+                    });
 
-                    const score = summary?.score;
-
-                    scoreCell.textContent = Number.isFinite(score) ? fmtNumber(score) : '-';
-
-                    tr.appendChild(scoreCell);
-
-
-
-                    const attemptsCell = document.createElement('td');
-
-                    attemptsCell.textContent = fmtNumber(summary?.attempts ?? meta.totals?.attempts);
-
-                    tr.appendChild(attemptsCell);
-
-
-
-                    const madeCell = document.createElement('td');
-
-                    madeCell.textContent = fmtNumber(summary?.makes ?? meta.totals?.made);
-
-                    tr.appendChild(madeCell);
-
-
-
-                    const accCell = document.createElement('td');
-
-                    const accuracy = Number.isFinite(summary?.accuracy) ? summary.accuracy : Number(meta.totals?.accuracy);
-
-                    accCell.textContent = fmtPct(accuracy);
-
-                    tr.appendChild(accCell);
-
-
-
-                    const actionsCell = document.createElement('td');
-
-                    actionsCell.appendChild(createActionButton('CSV', 'csv', meta.id));
-
-                    actionsCell.appendChild(document.createTextNode(' '));
-
-                    actionsCell.appendChild(createActionButton('Share', 'share', meta.id));
-
-                    actionsCell.appendChild(document.createTextNode(' '));
-
-                    actionsCell.appendChild(createActionButton('Print', 'print', meta.id));
-
-                    actionsCell.appendChild(document.createTextNode(' '));
-
-                    actionsCell.appendChild(createActionButton('Archive', 'archive', meta.id, 'btn-tonal'));
-
-                    actionsCell.appendChild(document.createTextNode(' '));
-
-                    actionsCell.appendChild(createActionButton('Delete', 'delete', meta.id, 'btn-danger'));
-
-                    tr.appendChild(actionsCell);
-
-
-
-                    tbody.appendChild(tr);
+                    list.appendChild(card);
 
                 });
+
+                markActiveRows();
 
             }
 
@@ -3970,6 +4287,17 @@
 
             }
 
+            async function shareSession(sid) {
+                const url = `${location.origin}/static/my_sessions.html?sid=${encodeURIComponent(sid)}`;
+                if (navigator.share) {
+                    try {
+                        await navigator.share({ title: 'visaion session', url });
+                        return;
+                    } catch { }
+                }
+                await copyShare(sid);
+            }
+
             function notifyUser(message, tone = 'success') {
                 if (typeof window.showToast === 'function') {
                     window.showToast(message, tone, 4200);
@@ -3999,7 +4327,7 @@
                         const box = document.getElementById('detail');
                         if (box) box.innerHTML = '<div class="empty">Select a session to view details.</div>';
                     }
-                    renderTable();
+                    renderSessionsList();
                     await updateDashboard();
                     notifyUser(action === 'delete' ? 'Session deleted.' : 'Session archived.');
                 } catch (err) {
@@ -4028,7 +4356,7 @@
 
                     applyDashboard(summarizeSessions([]));
 
-                    renderTable();
+                    renderSessionsList();
 
                     return;
 
@@ -4058,7 +4386,7 @@
 
                 applyDashboard(stats);
 
-                renderTable();
+                renderSessionsList();
 
             }
 
@@ -4096,9 +4424,11 @@
 
                 }
 
-                renderTable();
+                renderSessionsList();
 
                 await updateDashboard();
+
+                const preferOpen = !isNarrowView() || __INITIAL_SESSION;
 
                 if (__INITIAL_SESSION && __SESSIONS.some(s => s.id === __INITIAL_SESSION)) {
 
@@ -4106,11 +4436,11 @@
 
                     __INITIAL_SESSION = null;
 
-                } else if (__CURRENT_SESSION_ID && __SESSIONS.some(s => s.id === __CURRENT_SESSION_ID)) {
+                } else if (preferOpen && __CURRENT_SESSION_ID && __SESSIONS.some(s => s.id === __CURRENT_SESSION_ID)) {
 
                     showSession(__CURRENT_SESSION_ID);
 
-                } else if (__SESSIONS.length) {
+                } else if (preferOpen && __SESSIONS.length) {
 
                     showSession(__SESSIONS[0].id);
 
@@ -4206,15 +4536,29 @@
 
                 };
 
-                document.getElementById('filterTxt').oninput = () => renderTable();
+                const filterToggle = document.getElementById('filterToggle');
+                if (filterToggle) {
+                    filterToggle.onclick = () => {
+                        document.body.classList.toggle('filters-open');
+                    };
+                }
 
-                document.getElementById('sortKey').onchange = (e) => { __SORT.key = e.target.value; renderTable(); };
+                document.getElementById('filterTxt').oninput = () => renderSessionsList();
 
-                document.getElementById('sortDir').onchange = (e) => { __SORT.dir = e.target.value; renderTable(); };
+                document.getElementById('sortKey').onchange = (e) => {
+                    __SORT.key = e.target.value;
+                    renderSessionsList();
+                };
+
+                document.getElementById('sortDir').onchange = (e) => {
+                    __SORT.dir = e.target.value;
+                    renderSessionsList();
+                };
 
                 document.getElementById('exportAll').onclick = exportAllCSV;
 
-                document.getElementById('rows').addEventListener('click', (e) => {
+                const sessionsList = document.getElementById('sessionsList');
+                sessionsList?.addEventListener('click', (e) => {
 
                     const b = e.target.closest('button'); if (!b) return;
 
@@ -4225,18 +4569,15 @@
                     if (!sid) return;
 
                     if (act === 'open') showSession(sid);
-
                     else if (act === 'csv') exportSessionCSV(sid);
-
-                    else if (act === 'share') copyShare(sid);
-
+                    else if (act === 'share') shareSession(sid);
                     else if (act === 'print') { showSession(sid).then(() => window.print()); }
-
                     else if (act === 'archive') archiveSession(sid);
-
                     else if (act === 'delete') deleteSession(sid);
 
                 });
+
+                bindDetailSheetGestures();
 
 
 
@@ -4330,23 +4671,26 @@
             </div>
 
             <div class="toolbar">
+                <button class="btn btn-tonal toolbar-toggle" id="filterToggle" type="button">Filters</button>
 
-                <input id="filterTxt" type="text" placeholder="Filter by ID..." />
+                <div class="toolbar-controls" id="toolbarControls">
+                    <input id="filterTxt" type="text" placeholder="Filter by ID..." />
 
-                <select id="sortKey">
-                    <option value="startedAt">Sort: Date</option>
-                    <option value="attempts">Sort: Attempts</option>
-                    <option value="accuracy">Sort: Accuracy</option>
-                </select>
+                    <select id="sortKey">
+                        <option value="startedAt">Sort: Date</option>
+                        <option value="attempts">Sort: Attempts</option>
+                        <option value="accuracy">Sort: Accuracy</option>
+                    </select>
 
-                <select id="sortDir">
-                    <option value="desc">Desc</option>
-                    <option value="asc">Asc</option>
-                </select>
+                    <select id="sortDir">
+                        <option value="desc">Desc</option>
+                        <option value="asc">Asc</option>
+                    </select>
 
-                <button class="btn btn-tonal" id="exportAll">Export All</button>
+                    <button class="btn btn-tonal" id="exportAll">Export All</button>
 
-                <button class="btn btn-tonal" id="btnRefresh">Refresh</button>
+                    <button class="btn btn-tonal" id="btnRefresh">Refresh</button>
+                </div>
 
             </div>
 
@@ -4498,38 +4842,27 @@
 
                 <section class="panel sessions-panel">
 
-                    <h2>Sessions</h2>
+                    <div class="panel-head">
+                        <h2>Sessions</h2>
+                        <span class="panel-sub">Tap a session to view details</span>
+                    </div>
 
                     <div class="panel-body">
-
-                        <table>
-
-                            <thead>
-
-                                <tr>
-                                    <th></th>
-                                    <th>ID</th>
-                                    <th>Started</th>
-                                    <th>Score</th>
-                                    <th>Attempts</th>
-                                    <th>Made</th>
-                                    <th>Accuracy</th>
-                                    <th>Actions</th>
-                                </tr>
-
-                            </thead>
-
-                            <tbody id="rows"></tbody>
-
-                        </table>
+                        <div id="sessionsList" class="session-list">
+                            <div class="empty">Loading sessions...</div>
+                        </div>
 
                     </div>
 
                 </section>
 
-                <section class="panel detail-panel">
+                <section class="panel detail-panel" id="detailPanel">
 
-                    <h2>Details</h2>
+                    <div class="panel-head">
+                        <h2>Session Detail</h2>
+                        <button class="btn btn-tonal btn-sm detail-close" id="detailCloseBtn"
+                            type="button">Back to Sessions</button>
+                    </div>
 
                     <div class="panel-body">
 
@@ -4548,6 +4881,8 @@
         </section>
 
     </main>
+
+    <div class="detail-overlay" id="detailOverlay"></div>
 
     <div id="toastBar" role="status" aria-live="polite" aria-atomic="true"></div>
     <script src="/static/js/ui_menu.js"></script>
