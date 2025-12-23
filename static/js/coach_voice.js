@@ -880,10 +880,20 @@ export function listenForEndSession(wakePhrase = 'hey visaion, end the session',
                 const t = raw.replace(/\s+/g, ' ').trim();
                 const wakePhrases = ['hey visaion', 'hey coach'];
                 const hasWake = wakePhrases.some((phrase) => t.includes(phrase));
+                const endSessionPhrases = [
+                    'end session',
+                    'end the session',
+                    'stop session',
+                    'stop the session',
+                ];
+                const wantsEndSession = matchesPhrase(t, endSessionPhrases);
                 const awaiting = (() => { try { return window.__AWAITING_NEW_SESSION_CONFIRM === true; } catch { return false; } })();
                 const isAffirmative = matchesPhrase(t, affirmativePhrases);
                 const wantsStart = matchesPhrase(t, startSessionPhrases);
                 const startOverlayVisible = isStartSessionOverlayVisible();
+                const sessionActive = (() => {
+                    try { return window.__SESSION_ACTIVE === true || !!window.__SESSION_ID; } catch { return false; }
+                })();
 
                 if ((awaiting || startOverlayVisible) && (isAffirmative || wantsStart)) {
                     if (typeof window.beginLiveSession === 'function') {
@@ -894,7 +904,8 @@ export function listenForEndSession(wakePhrase = 'hey visaion, end the session',
                     return;
                 }
 
-                if (hasWake && t.includes('end') && t.includes('session')) {
+                if ((hasWake && t.includes('end') && t.includes('session')) || wantsEndSession) {
+                    if (!sessionActive) return;
                     try { onEnd?.(); } catch { }
                     return;
                 }

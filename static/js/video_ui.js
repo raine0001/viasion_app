@@ -372,11 +372,26 @@ export function mountSessionHUD() {
       </div>
       <div class="hud-metric" id="mShots"><div class="num">0/${formatCapDisplay(window.SESSION_SIZE)}</div><div class="label">${attemptsLabel}</div></div>
       <div class="hud-metric" id="mTime"><div class="num">0:00</div><div class="label">Time Elapsed</div></div>
+      <button id="hudEndSession" class="hud-end-btn" type="button" aria-label="End session">End Session</button>
     `;
         root.appendChild(bar);
 
 
         const camBtn = bar.querySelector('#hudCamFlip');
+        const endBtn = bar.querySelector('#hudEndSession');
+        if (endBtn && !endBtn.__endWired) {
+            endBtn.__endWired = true;
+            endBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                try {
+                    if (typeof window.visaionSession?.end === 'function') {
+                        window.visaionSession.end('manual');
+                    } else {
+                        window.dispatchEvent(new CustomEvent('hud:end-session', { detail: { reason: 'manual' } }));
+                    }
+                } catch { }
+            });
+        }
 
         // ===== Voice toggle (no innerHTML stomping + iOS-safe) =====
         (() => {
