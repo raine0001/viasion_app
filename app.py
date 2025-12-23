@@ -116,6 +116,14 @@ try:
 except Exception:
     app.secret_key = os.urandom(24)
 
+_env_app = (os.getenv("APP_ENV") or "").strip().lower()
+_env_flask = (os.getenv("FLASK_ENV") or "").strip().lower()
+DEV_MODE = _truthy(os.getenv("DEV_MODE", "0")) or _env_flask in (
+    "development",
+    "dev",
+) or _env_app in ("development", "dev")
+DB_REQUIRED = _truthy(os.getenv("REQUIRE_DATABASE"), default=not DEV_MODE)
+
 # Stub auth fallback is disabled by default when a DB URI is present.
 _has_db_uri = any(
     os.getenv(key)
@@ -1363,22 +1371,48 @@ def _session_json_path(sid: str):
     return os.path.join(_session_path(sid), "session.json")
 
 
-def _read_session(sid: str):
+def _read_session_file(sid: str):
     p = _session_json_path(sid)
     if os.path.exists(p):
         with open(p, "r", encoding="utf-8") as f:
             return json.load(f)
-    return _db_read_session_payload(sid)
+    return None
 
 
-def _write_session(sid: str, data: dict):
+def _write_session_file(sid: str, data: dict):
     p = _session_json_path(sid)
     with open(p, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-    try:
-        _db_write_session_payload(sid, data)
-    except Exception:
-        pass
+
+
+def _read_session(sid: str):
+    db = _db_get()
+    if db:
+        data = _db_read_session_payload(sid)
+        if data is not None:
+            return data
+        fs_data = _read_session_file(sid)
+        if isinstance(fs_data, dict):
+            try:
+                _db_write_session_payload(sid, fs_data)
+            except Exception:
+                if DB_REQUIRED:
+                    raise
+            return fs_data
+        return None
+    return _read_session_file(sid)
+
+
+def _write_session(sid: str, data: dict):
+    db = _db_get()
+    if db:
+        ok = _db_write_session_payload(sid, data)
+        if ok:
+            return
+        if DB_REQUIRED:
+            raise RuntimeError("Failed to write session payload to database.")
+        return
+    _write_session_file(sid, data)
 
 
 def _db_read_session_payload(sid: str):
@@ -1403,6 +1437,8 @@ def _db_read_session_payload(sid: str):
                     return None
     except Exception as exc:
         _trace("db_read_session_payload", exc)
+        if DB_REQUIRED:
+            raise
     return None
 
 
@@ -1433,6 +1469,8 @@ def _db_write_session_payload(sid: str, data: dict) -> bool:
         return True
     except Exception as exc:
         _trace("db_write_session_payload", exc)
+        if DB_REQUIRED:
+            raise
         return False
 
 
@@ -1562,6 +1600,182 @@ def _load_fs_session_summaries() -> dict:
     return summaries
 
 
+def _db_list_session_items(current_uid, include_unowned: bool) -> dict:
+    db = _db_get()
+    if not db:
+        return {}
+    from sqlalchemy import select, or_
+
+    current_uid_db = current_uid
+    if current_uid_db is not None:
+        try:
+            current_uid_db = int(current_uid_db)
+        except Exception:
+            pass
+    with db["Session"]() as s:
+        query = select(db["SessionRow"])
+        if current_uid_db is not None:
+            if include_unowned:
+                query = query.where(
+                    or_(
+                        db["SessionRow"].user_id == current_uid_db,
+                        db["SessionRow"].user_id.is_(None),
+                    )
+                )
+            else:
+                query = query.where(db["SessionRow"].user_id == current_uid_db)
+        rows = s.execute(query).scalars().all()
+        items_by_sid = {}
+        for row in rows:
+            shots_count = int(row.shots_count or 0)
+            makes = int(row.makes or 0)
+            accuracy = int(row.accuracy or 0)
+            items_by_sid[row.sid] = {
+                "id": row.sid,
+                "startedAt": _to_epoch_ms(row.created_at),
+                "endedAt": _to_epoch_ms(row.ended_at),
+                "totals": {
+                    "attempts": shots_count,
+                    "made": makes,
+                    "accuracy": accuracy,
+                },
+                "shots": shots_count,
+            }
+        return items_by_sid
+
+
+def _db_import_session_from_fs(sid: str, sess: dict) -> bool:
+    if not isinstance(sess, dict):
+        return False
+    db = _db_get()
+    if not db:
+        return False
+    try:
+        _db_write_session_payload(sid, sess)
+    except Exception as exc:
+        _trace("db_import_session_payload", exc)
+        if DB_REQUIRED:
+            raise
+        return False
+
+    shots = list(sess.get("shots") or [])
+    totals = sess.get("totals") if isinstance(sess.get("totals"), dict) else {}
+    attempts = totals.get("attempts")
+    if attempts is None:
+        attempts = len(shots)
+    try:
+        attempts = int(attempts)
+    except Exception:
+        attempts = len(shots)
+
+    def _is_made(value):
+        if value is True:
+            return True
+        if isinstance(value, (int, float)):
+            return value >= 1
+        if isinstance(value, str):
+            return value.strip().lower() in ("1", "true", "made", "yes", "y")
+        return False
+
+    makes = totals.get("made")
+    if makes is None:
+        makes = sum(1 for shot in shots if _is_made(shot.get("made")))
+    try:
+        makes = int(makes)
+    except Exception:
+        makes = 0
+
+    accuracy = totals.get("accuracy")
+    if accuracy is None:
+        accuracy = int(round((makes / max(1, attempts)) * 100)) if attempts else 0
+    else:
+        try:
+            accuracy = int(accuracy)
+        except Exception:
+            accuracy = None
+
+    start_ms = sess.get("startedAt") or sess.get("started_at")
+    end_ms = sess.get("endedAt") or sess.get("ended_at")
+    user_id = sess.get("userId") or sess.get("user_id")
+    try:
+        user_id = int(user_id) if user_id is not None else None
+    except Exception:
+        user_id = None
+
+    try:
+        with db["Session"]() as s:
+            SessionRow = db["SessionRow"]
+            row = s.get(SessionRow, sid)
+            if not row:
+                row = SessionRow(sid=sid)
+                s.add(row)
+            if isinstance(start_ms, (int, float)):
+                start_dt = datetime.utcfromtimestamp(start_ms / 1000.0)
+                if row.created_at is None or row.created_at > start_dt:
+                    row.created_at = start_dt
+            if isinstance(end_ms, (int, float)):
+                end_dt = datetime.utcfromtimestamp(end_ms / 1000.0)
+                if row.ended_at is None or row.ended_at < end_dt:
+                    row.ended_at = end_dt
+            if user_id is not None and row.user_id is None:
+                row.user_id = user_id
+            try:
+                current_attempts = int(row.shots_count or 0)
+            except Exception:
+                current_attempts = 0
+            row.shots_count = max(current_attempts, attempts or 0)
+            try:
+                current_makes = int(row.makes or 0)
+            except Exception:
+                current_makes = 0
+            row.makes = max(current_makes, makes or 0)
+            if accuracy is not None:
+                row.accuracy = accuracy
+            s.commit()
+    except Exception as exc:
+        _trace("db_import_session_row", exc)
+        if DB_REQUIRED:
+            raise
+        return False
+
+    try:
+        _db_backfill_session_shots(sid)
+    except Exception as exc:
+        _trace("db_import_session_shots", exc)
+
+    return True
+
+
+def _maybe_backfill_db_sessions_from_fs() -> None:
+    if app.config.get("FS_DB_MIGRATED"):
+        return
+    db = _db_get()
+    if not db:
+        return
+    fs_summaries = _load_fs_session_summaries()
+    if not fs_summaries:
+        app.config["FS_DB_MIGRATED"] = True
+        return
+    try:
+        from sqlalchemy import select
+
+        with db["Session"]() as s:
+            existing = set(
+                s.execute(select(db["SessionRow"].sid)).scalars().all()
+            )
+    except Exception as exc:
+        _trace("db session list error", exc)
+        if DB_REQUIRED:
+            raise
+        return
+    missing = [sid for sid in fs_summaries.keys() if sid not in existing]
+    for sid in missing:
+        sess = _read_session_file(sid)
+        if isinstance(sess, dict):
+            _db_import_session_from_fs(sid, sess)
+    app.config["FS_DB_MIGRATED"] = True
+
+
 def _should_include_owner(owner_id: str | None, current_uid, include_unowned: bool) -> bool:
     if current_uid is None:
         return True
@@ -1587,10 +1801,7 @@ def _community_detail_path(sid: str) -> str:
     return os.path.join(COMMUNITY_DIR, f"{safe}.json")
 
 
-def _load_community_feed() -> list[dict]:
-    db_posts = _db_load_community_feed()
-    if db_posts:
-        return db_posts
+def _load_community_feed_fs() -> list[dict]:
     try:
         with open(COMMUNITY_FEED_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -1606,24 +1817,35 @@ def _load_community_feed() -> list[dict]:
     if not isinstance(posts, list):
         return []
     posts.sort(key=lambda x: x.get("createdAt") or 0, reverse=True)
-    if posts:
-        try:
-            _db_backfill_community_from_fs(posts)
-        except Exception:
-            pass
     return posts
 
 
+def _load_community_feed() -> list[dict]:
+    db = _db_get()
+    if db:
+        db_posts = _db_load_community_feed()
+        if db_posts:
+            return db_posts
+        posts = _load_community_feed_fs()
+        if posts:
+            try:
+                _db_backfill_community_from_fs(posts)
+            except Exception:
+                pass
+        return posts
+    return _load_community_feed_fs()
+
+
 def _write_community_feed(posts: list[dict]):
+    db = _db_get()
+    if db:
+        _db_upsert_community_summary(posts)
+        return
     tmp_path = COMMUNITY_FEED_PATH + ".tmp"
     payload = {"version": 1, "posts": posts}
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
     os.replace(tmp_path, COMMUNITY_FEED_PATH)
-    try:
-        _db_upsert_community_summary(posts)
-    except Exception:
-        pass
 
 
 def _db_load_community_feed() -> list[dict]:
@@ -1656,6 +1878,8 @@ def _db_load_community_feed() -> list[dict]:
         return posts
     except Exception as exc:
         _trace("community:db feed load error", exc)
+        if DB_REQUIRED:
+            raise
         return []
 
 
@@ -1681,6 +1905,8 @@ def _db_get_community_detail(sid: str):
                     return None
     except Exception as exc:
         _trace("community:db detail load error", exc)
+        if DB_REQUIRED:
+            raise
     return None
 
 
@@ -1713,6 +1939,8 @@ def _db_upsert_community_post(sid: str, summary: dict, detail: dict | None) -> b
         return True
     except Exception as exc:
         _trace("community:db upsert error", exc)
+        if DB_REQUIRED:
+            raise
         return False
 
 
@@ -1747,6 +1975,8 @@ def _db_upsert_community_summary(posts: list[dict]) -> bool:
         return True
     except Exception as exc:
         _trace("community:db feed sync error", exc)
+        if DB_REQUIRED:
+            raise
         return False
 
 
@@ -1766,6 +1996,8 @@ def _db_delete_community_post(sid: str) -> bool:
         return True
     except Exception as exc:
         _trace("community:db delete error", exc)
+        if DB_REQUIRED:
+            raise
         return False
 
 
@@ -1931,16 +2163,69 @@ def _community_actions_payload(summary: dict, detail: dict | None) -> dict:
     }
 
 
+def _summary_from_detail(detail: dict, sid: str) -> dict:
+    summary = {"id": sid, "sessionId": sid}
+    for key in (
+        "title",
+        "summary",
+        "author",
+        "tags",
+        "createdAt",
+        "project",
+        "projectName",
+        "dataset",
+        "stats",
+        "highlights",
+        "preview",
+        "previewRev",
+        "likeCount",
+        "commentCount",
+        "shareCount",
+        "subscriberCount",
+        "hidden",
+        "hiddenAt",
+        "hiddenBy",
+        "hiddenReason",
+    ):
+        if key in detail:
+            summary[key] = detail.get(key)
+    return summary
+
+
 def _load_community_detail_payload(sid: str):
     detail_path = _community_detail_path(sid)
+    db = _db_get()
+    if db:
+        detail = _db_get_community_detail(sid)
+        if isinstance(detail, dict):
+            return detail, detail_path
+        if os.path.exists(detail_path):
+            try:
+                with open(detail_path, "r", encoding="utf-8") as f:
+                    detail = json.load(f)
+            except Exception:
+                return None, detail_path
+            if isinstance(detail, dict):
+                try:
+                    summary = None
+                    for post in _load_community_feed_fs():
+                        if _community_post_id(post) == sid:
+                            summary = post
+                            break
+                    if summary is None:
+                        summary = _summary_from_detail(detail, sid)
+                    _db_upsert_community_post(sid, summary, detail)
+                except Exception:
+                    pass
+                return detail, detail_path
+        return None, detail_path
     if os.path.exists(detail_path):
         try:
             with open(detail_path, "r", encoding="utf-8") as f:
                 return json.load(f), detail_path
         except Exception:
             return None, detail_path
-    detail = _db_get_community_detail(sid)
-    return detail if isinstance(detail, dict) else None, detail_path
+    return None, detail_path
 
 
 def _init_community_detail_from_summary(sid: str, summary: dict) -> dict:
@@ -2713,63 +2998,24 @@ def api_session_end(sid):
 def api_sessions_list():
     current_uid = session.get("user_id")
     include_unowned = _truthy(request.args.get("include_unowned"), default=False)
-    fs_summaries = _load_fs_session_summaries()
+    db = _db_get()
     items_by_sid = {}
-    for sid, summary in fs_summaries.items():
-        owner_id = summary.get("user_id")
-        if not _should_include_owner(owner_id, current_uid, include_unowned):
-            continue
-        items_by_sid[sid] = {
-            "id": sid,
-            "startedAt": summary.get("startedAt"),
-            "endedAt": summary.get("endedAt"),
-            "totals": summary.get("totals") or {},
-            "shots": summary.get("shots") or 0,
-        }
-    try:
-        db = _db_get()
-        if db:
-            from sqlalchemy import select, or_
-
-            current_uid_db = current_uid
-            if current_uid_db is not None:
-                try:
-                    current_uid_db = int(current_uid_db)
-                except Exception:
-                    pass
-            with db["Session"]() as s:
-                query = select(db["SessionRow"])
-                if current_uid_db is not None:
-                    if include_unowned:
-                        query = query.where(
-                            or_(
-                                db["SessionRow"].user_id == current_uid_db,
-                                db["SessionRow"].user_id.is_(None),
-                            )
-                        )
-                    else:
-                        query = query.where(db["SessionRow"].user_id == current_uid_db)
-                rows = s.execute(query).scalars().all()
-                for row in rows:
-                    sid = row.sid
-                    if sid in items_by_sid:
-                        continue
-                    shots_count = int(row.shots_count or 0)
-                    makes = int(row.makes or 0)
-                    accuracy = int(row.accuracy or 0)
-                    items_by_sid[sid] = {
-                        "id": sid,
-                        "startedAt": _to_epoch_ms(row.created_at),
-                        "endedAt": _to_epoch_ms(row.ended_at),
-                        "totals": {
-                            "attempts": shots_count,
-                            "made": makes,
-                            "accuracy": accuracy,
-                        },
-                        "shots": shots_count,
-                    }
-    except Exception:
-        pass
+    if db:
+        _maybe_backfill_db_sessions_from_fs()
+        items_by_sid = _db_list_session_items(current_uid, include_unowned)
+    else:
+        fs_summaries = _load_fs_session_summaries()
+        for sid, summary in fs_summaries.items():
+            owner_id = summary.get("user_id")
+            if not _should_include_owner(owner_id, current_uid, include_unowned):
+                continue
+            items_by_sid[sid] = {
+                "id": sid,
+                "startedAt": summary.get("startedAt"),
+                "endedAt": summary.get("endedAt"),
+                "totals": summary.get("totals") or {},
+                "shots": summary.get("shots") or 0,
+            }
     items = list(items_by_sid.values())
     items.sort(key=lambda x: x.get("startedAt") or 0, reverse=True)
     return jsonify({"sessions": items})
@@ -3288,12 +3534,15 @@ def api_community_publish():
     )
     _write_community_feed(updated_posts)
 
-    with open(_community_detail_path(sid), "w", encoding="utf-8") as f:
-        json.dump(detail_payload, f, ensure_ascii=False, indent=2)
-    try:
-        _db_upsert_community_post(sid, summary_entry, detail_payload)
-    except Exception:
-        pass
+    db = _db_get()
+    if not db:
+        with open(_community_detail_path(sid), "w", encoding="utf-8") as f:
+            json.dump(detail_payload, f, ensure_ascii=False, indent=2)
+    if db:
+        try:
+            _db_upsert_community_post(sid, summary_entry, detail_payload)
+        except Exception:
+            pass
 
     return jsonify({"ok": True, "post": summary_entry})
 
@@ -3331,18 +3580,25 @@ def api_community_session_detail(sid):
     detail_path = _community_detail_path(sid)
     detail = None
     detail_from_db = False
-    if os.path.exists(detail_path):
-        with open(detail_path, "r", encoding="utf-8") as f:
-            detail = json.load(f)
-    else:
+    db = _db_get()
+    if db:
         detail = _db_get_community_detail(sid)
         detail_from_db = isinstance(detail, dict)
-        if detail_from_db:
+        if not detail_from_db and os.path.exists(detail_path):
             try:
-                with open(detail_path, "w", encoding="utf-8") as f:
-                    json.dump(detail, f, ensure_ascii=False, indent=2)
+                with open(detail_path, "r", encoding="utf-8") as f:
+                    detail = json.load(f)
             except Exception:
-                pass
+                detail = None
+            if isinstance(detail, dict):
+                try:
+                    _db_upsert_community_post(sid, post, detail)
+                except Exception:
+                    pass
+    else:
+        if os.path.exists(detail_path):
+            with open(detail_path, "r", encoding="utf-8") as f:
+                detail = json.load(f)
     if not isinstance(detail, dict):
         return jsonify({"error": "session not published"}), 404
     summary_updated, detail_updated, action_changed = _ensure_community_action_fields(post, detail)
@@ -3355,28 +3611,36 @@ def api_community_session_detail(sid):
             _write_community_feed(posts)
         except Exception as exc:
             _trace("community:action update failed", exc)
-        try:
-            with open(detail_path, "w", encoding="utf-8") as f:
-                json.dump(detail, f, ensure_ascii=False, indent=2)
-        except Exception as exc:
-            _trace("community:detail update failed", exc)
-        try:
-            _db_upsert_community_post(sid, summary_updated, detail)
-        except Exception:
-            pass
+        if not db:
+            try:
+                with open(detail_path, "w", encoding="utf-8") as f:
+                    json.dump(detail, f, ensure_ascii=False, indent=2)
+            except Exception as exc:
+                _trace("community:detail update failed", exc)
+        if db:
+            try:
+                _db_upsert_community_post(sid, summary_updated, detail)
+            except Exception:
+                pass
     if _ensure_shot_clip_urls(sid, detail.get("shots") or []):
+        if not db:
+            try:
+                with open(detail_path, "w", encoding="utf-8") as f:
+                    json.dump(detail, f, ensure_ascii=False, indent=2)
+            except Exception as exc:
+                _trace("community:detail update failed", exc)
+        if db:
+            try:
+                _db_upsert_community_post(
+                    sid, summary_updated if action_changed else post, detail
+                )
+            except Exception:
+                pass
+    elif (detail_from_db or action_changed) and db:
         try:
-            with open(detail_path, "w", encoding="utf-8") as f:
-                json.dump(detail, f, ensure_ascii=False, indent=2)
-        except Exception as exc:
-            _trace("community:detail update failed", exc)
-        try:
-            _db_upsert_community_post(sid, summary_updated if action_changed else post, detail)
-        except Exception:
-            pass
-    elif detail_from_db or action_changed:
-        try:
-            _db_upsert_community_post(sid, summary_updated if action_changed else post, detail)
+            _db_upsert_community_post(
+                sid, summary_updated if action_changed else post, detail
+            )
         except Exception:
             pass
     return jsonify(detail)
@@ -3400,6 +3664,7 @@ def api_community_actions(sid):
     idx, post = _find_community_post(posts, sid)
     if not post or post.get("hidden"):
         return jsonify({"error": "session not published"}), 404
+    db = _db_get()
     detail, detail_path = _load_community_detail_payload(sid)
     if not isinstance(detail, dict):
         detail = _init_community_detail_from_summary(sid, post)
@@ -3412,15 +3677,17 @@ def api_community_actions(sid):
             _write_community_feed(posts)
         except Exception as exc:
             _trace("community:actions feed update failed", exc)
-        try:
-            with open(detail_path, "w", encoding="utf-8") as f:
-                json.dump(detail, f, ensure_ascii=False, indent=2)
-        except Exception as exc:
-            _trace("community:actions detail update failed", exc)
-        try:
-            _db_upsert_community_post(sid, summary_updated, detail)
-        except Exception:
-            pass
+        if not db:
+            try:
+                with open(detail_path, "w", encoding="utf-8") as f:
+                    json.dump(detail, f, ensure_ascii=False, indent=2)
+            except Exception as exc:
+                _trace("community:actions detail update failed", exc)
+        if db:
+            try:
+                _db_upsert_community_post(sid, summary_updated, detail)
+            except Exception:
+                pass
     payload = _community_actions_payload(summary_updated, detail)
     return jsonify({"ok": True, "actions": payload})
 
@@ -3435,6 +3702,7 @@ def api_community_actions_update(sid):
     idx, post = _find_community_post(posts, sid)
     if not post or post.get("hidden"):
         return jsonify({"error": "session not published"}), 404
+    db = _db_get()
     detail, detail_path = _load_community_detail_payload(sid)
     if not isinstance(detail, dict):
         detail = _init_community_detail_from_summary(sid, post)
@@ -3499,15 +3767,17 @@ def api_community_actions_update(sid):
         _write_community_feed(posts)
     except Exception as exc:
         _trace("community:actions feed update failed", exc)
-    try:
-        with open(detail_path, "w", encoding="utf-8") as f:
-            json.dump(detail, f, ensure_ascii=False, indent=2)
-    except Exception as exc:
-        _trace("community:actions detail update failed", exc)
-    try:
-        _db_upsert_community_post(sid, summary_updated, detail)
-    except Exception:
-        pass
+    if not db:
+        try:
+            with open(detail_path, "w", encoding="utf-8") as f:
+                json.dump(detail, f, ensure_ascii=False, indent=2)
+        except Exception as exc:
+            _trace("community:actions detail update failed", exc)
+    if db:
+        try:
+            _db_upsert_community_post(sid, summary_updated, detail)
+        except Exception:
+            pass
 
     payload = _community_actions_payload(summary_updated, detail)
     return jsonify({"ok": True, "actions": payload})
@@ -3598,6 +3868,8 @@ def _try_init_db():
         return existing
 
     if not SQLA_AVAILABLE:
+        if DB_REQUIRED:
+            raise RuntimeError("SQLAlchemy unavailable but database is required.")
         return None
     try:
         load_dotenv()
@@ -3608,6 +3880,8 @@ def _try_init_db():
             or ""
         ).strip()
         if not uri:
+            if DB_REQUIRED:
+                raise RuntimeError("DATABASE_URL is required but not configured.")
             return None
         # On Windows, mysql-connector C extension can crash the interpreter.
         # Force pure-Python mode when using mysql+mysqlconnector to avoid access violations.
@@ -3945,6 +4219,8 @@ def _try_init_db():
         print("✅ SQLAlchemy connected")
         return app.db
     except Exception as e:
+        if DB_REQUIRED:
+            raise
         print("⚠️ DB init skipped:", e)
         return None
 
@@ -4318,6 +4594,8 @@ def _db_get():
             app._db_retrying = True
             db = _try_init_db()
         except Exception:
+            if DB_REQUIRED:
+                raise
             db = None
         finally:
             app._db_retrying = False
@@ -5586,34 +5864,46 @@ def admin_community_session_detail(sid):
     detail_path = _community_detail_path(sid)
     detail = None
     detail_from_db = False
-    if os.path.exists(detail_path):
-        with open(detail_path, "r", encoding="utf-8") as f:
-            detail = json.load(f)
-    else:
+    db = _db_get()
+    if db:
         detail = _db_get_community_detail(sid)
         detail_from_db = isinstance(detail, dict)
-        if detail_from_db:
+        if not detail_from_db and os.path.exists(detail_path):
             try:
-                with open(detail_path, "w", encoding="utf-8") as f:
-                    json.dump(detail, f, ensure_ascii=False, indent=2)
+                with open(detail_path, "r", encoding="utf-8") as f:
+                    detail = json.load(f)
             except Exception:
-                pass
+                detail = None
+            if isinstance(detail, dict):
+                try:
+                    posts = _load_community_feed()
+                    _, post = _find_community_post(posts, sid)
+                    if post:
+                        _db_upsert_community_post(sid, post, detail)
+                except Exception:
+                    pass
+    else:
+        if os.path.exists(detail_path):
+            with open(detail_path, "r", encoding="utf-8") as f:
+                detail = json.load(f)
     if not isinstance(detail, dict):
         return jsonify({"error": "session not published"}), 404
     if _ensure_shot_clip_urls(sid, detail.get("shots") or []):
-        try:
-            with open(detail_path, "w", encoding="utf-8") as f:
-                json.dump(detail, f, ensure_ascii=False, indent=2)
-        except Exception as exc:
-            _trace("community:detail update failed", exc)
-        try:
-            posts = _load_community_feed()
-            _, post = _find_community_post(posts, sid)
-            if post:
-                _db_upsert_community_post(sid, post, detail)
-        except Exception:
-            pass
-    elif detail_from_db:
+        if not db:
+            try:
+                with open(detail_path, "w", encoding="utf-8") as f:
+                    json.dump(detail, f, ensure_ascii=False, indent=2)
+            except Exception as exc:
+                _trace("community:detail update failed", exc)
+        if db:
+            try:
+                posts = _load_community_feed()
+                _, post = _find_community_post(posts, sid)
+                if post:
+                    _db_upsert_community_post(sid, post, detail)
+            except Exception:
+                pass
+    elif detail_from_db and db:
         try:
             posts = _load_community_feed()
             _, post = _find_community_post(posts, sid)
@@ -5639,6 +5929,7 @@ def admin_community_post_update(sid):
     idx, post = _find_community_post(posts, sid)
     if post is None:
         return jsonify({"error": "post not found"}), 404
+    db = _db_get()
 
     if payload.get("delete") is True or (payload.get("action") or "").lower() == "delete":
         posts.pop(idx)
@@ -5677,14 +5968,21 @@ def admin_community_post_update(sid):
 
         detail_path = _community_detail_path(sid)
         detail = None
-        if os.path.exists(detail_path):
-            try:
-                with open(detail_path, "r", encoding="utf-8") as f:
-                    detail = json.load(f)
-            except Exception:
-                detail = None
-        else:
+        if db:
             detail = _db_get_community_detail(sid)
+            if not isinstance(detail, dict) and os.path.exists(detail_path):
+                try:
+                    with open(detail_path, "r", encoding="utf-8") as f:
+                        detail = json.load(f)
+                except Exception:
+                    detail = None
+        else:
+            if os.path.exists(detail_path):
+                try:
+                    with open(detail_path, "r", encoding="utf-8") as f:
+                        detail = json.load(f)
+                except Exception:
+                    detail = None
         if isinstance(detail, dict):
             if hide_flag:
                 detail["hidden"] = True
@@ -5697,20 +5995,23 @@ def admin_community_post_update(sid):
                 detail.pop("hiddenAt", None)
                 detail.pop("hiddenBy", None)
                 detail.pop("hiddenReason", None)
-            try:
-                with open(detail_path, "w", encoding="utf-8") as f:
-                    json.dump(detail, f, ensure_ascii=False, indent=2)
-            except Exception:
-                pass
-            try:
-                _db_upsert_community_post(sid, updated, detail)
-            except Exception:
-                pass
+            if not db:
+                try:
+                    with open(detail_path, "w", encoding="utf-8") as f:
+                        json.dump(detail, f, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
+            if db:
+                try:
+                    _db_upsert_community_post(sid, updated, detail)
+                except Exception:
+                    pass
         else:
-            try:
-                _db_upsert_community_summary([updated])
-            except Exception:
-                pass
+            if db:
+                try:
+                    _db_upsert_community_summary([updated])
+                except Exception:
+                    pass
 
         return jsonify({"ok": True, "post": updated})
 
@@ -5722,9 +6023,9 @@ def admin_sessions():
     """List sessions with basic stats and user info when available."""
     items = []
     try:
-        fs_summaries = _load_fs_session_summaries()
         db = _db_get()
         if db:
+            _maybe_backfill_db_sessions_from_fs()
             from sqlalchemy import select
 
             with db["Session"]() as s:
@@ -5736,67 +6037,50 @@ def admin_sessions():
                         .order_by(db["ShotRow"].created_at.desc())
                         .limit(1)
                     ).scalar_one_or_none()
-                    item = {
-                        "sid": r.sid,
-                        "created_at": r.created_at.isoformat()
-                        if r.created_at
-                        else None,
-                        "ended_at": r.ended_at.isoformat() if r.ended_at else None,
-                        "updated_at": r.updated_at.isoformat()
-                        if getattr(r, "updated_at", None)
-                        else None,
-                        "last_shot_at": last_shot_dt.isoformat()
-                        if last_shot_dt
-                        else None,
-                        "shots": r.shots_count,
-                        "makes": r.makes,
-                        "accuracy": r.accuracy,
-                        "user": (
-                            {
-                                "user_id": r.user.user_id,
-                                "name": r.user.name,
-                                "email": r.user.email,
-                            }
-                            if r.user
-                            else None
-                        ),
+                    items.append(
+                        {
+                            "sid": r.sid,
+                            "created_at": r.created_at.isoformat()
+                            if r.created_at
+                            else None,
+                            "ended_at": r.ended_at.isoformat() if r.ended_at else None,
+                            "updated_at": r.updated_at.isoformat()
+                            if getattr(r, "updated_at", None)
+                            else None,
+                            "last_shot_at": last_shot_dt.isoformat()
+                            if last_shot_dt
+                            else None,
+                            "shots": r.shots_count,
+                            "makes": r.makes,
+                            "accuracy": r.accuracy,
+                            "user": (
+                                {
+                                    "user_id": r.user.user_id,
+                                    "name": r.user.name,
+                                    "email": r.user.email,
+                                }
+                                if r.user
+                                else None
+                            ),
+                        }
+                    )
+        else:
+            fs_summaries = _load_fs_session_summaries()
+            for sid, fs in fs_summaries.items():
+                user_id = fs.get("user_id")
+                items.append(
+                    {
+                        "sid": sid,
+                        "created_at": fs.get("startedAt"),
+                        "ended_at": fs.get("endedAt"),
+                        "updated_at": None,
+                        "last_shot_at": fs.get("last_shot_at"),
+                        "shots": fs.get("shots"),
+                        "makes": fs.get("makes"),
+                        "accuracy": fs.get("accuracy"),
+                        "user": {"user_id": user_id} if user_id else None,
                     }
-                    fs = fs_summaries.pop(r.sid, None)
-                    if fs:
-                        fs_shots = fs.get("shots")
-                        if fs_shots is not None:
-                            try:
-                                item["shots"] = max(int(item["shots"] or 0), int(fs_shots))
-                            except Exception:
-                                item["shots"] = fs_shots
-                        if item.get("makes") is None and fs.get("makes") is not None:
-                            item["makes"] = fs.get("makes")
-                        if item.get("accuracy") is None and fs.get("accuracy") is not None:
-                            item["accuracy"] = fs.get("accuracy")
-                        if not item.get("created_at") and fs.get("startedAt") is not None:
-                            item["created_at"] = fs.get("startedAt")
-                        if not item.get("ended_at") and fs.get("endedAt") is not None:
-                            item["ended_at"] = fs.get("endedAt")
-                        if not item.get("last_shot_at") and fs.get("last_shot_at"):
-                            item["last_shot_at"] = fs.get("last_shot_at")
-                        if not item.get("user") and fs.get("user_id"):
-                            item["user"] = {"user_id": fs.get("user_id")}
-                    items.append(item)
-        for sid, fs in fs_summaries.items():
-            user_id = fs.get("user_id")
-            items.append(
-                {
-                    "sid": sid,
-                    "created_at": fs.get("startedAt"),
-                    "ended_at": fs.get("endedAt"),
-                    "updated_at": None,
-                    "last_shot_at": fs.get("last_shot_at"),
-                    "shots": fs.get("shots"),
-                    "makes": fs.get("makes"),
-                    "accuracy": fs.get("accuracy"),
-                    "user": {"user_id": user_id} if user_id else None,
-                }
-            )
+                )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     return jsonify({"sessions": items})
