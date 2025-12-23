@@ -187,6 +187,13 @@
         });
     }
 
+    function isGolfSession(meta = {}) {
+        const tags = Array.isArray(meta?.tags) ? meta.tags : [];
+        if (tags.some(tag => String(tag).toLowerCase() === 'golf')) return true;
+        const fields = [meta?.project, meta?.projectName, meta?.dataset, meta?.title];
+        return fields.some(val => String(val || '').toLowerCase().includes('golf'));
+    }
+
     function buildFilters(posts) {
         const map = new Map();
         posts.forEach(post => {
@@ -343,8 +350,11 @@
         const attempts = Number(post?.stats?.attempts) || 0;
         const accuracy = post?.stats?.accuracy;
         const poseAvg = post?.stats?.poseAverage;
+        const isGolf = isGolfSession(post);
         stats.appendChild(renderStatItem('Attempts', attempts ? String(attempts) : '—'));
-        stats.appendChild(renderStatItem('Accuracy', Number.isFinite(accuracy) ? `${accuracy}%` : '—'));
+        if (!isGolf) {
+            stats.appendChild(renderStatItem('Accuracy', Number.isFinite(accuracy) ? `${accuracy}%` : '—'));
+        }
         stats.appendChild(renderStatItem('Pose avg', Number.isFinite(poseAvg) ? `${poseAvg}` : '—'));
 
         const tagsBar = document.createElement('div');
@@ -510,9 +520,10 @@
         if (modalStatsEl) {
             modalStatsEl.innerHTML = '';
             const stats = detail?.stats || fallbackPost?.stats || {};
+            const isGolf = isGolfSession(detail || fallbackPost || {});
             const statItems = [
                 { label: 'Attempts', value: stats.attempts },
-                { label: 'Accuracy', value: Number.isFinite(stats.accuracy) ? `${stats.accuracy}%` : null },
+                ...(isGolf ? [] : [{ label: 'Accuracy', value: Number.isFinite(stats.accuracy) ? `${stats.accuracy}%` : null }]),
                 { label: 'Avg pose', value: Number.isFinite(stats.poseAverage) ? stats.poseAverage : null },
             ];
             statItems.forEach(stat => {
@@ -740,6 +751,7 @@
     function showSessionSummary() {
         if (!modalOverlayEl) return;
         const stats = state.activeDetail?.stats || {};
+        const isGolf = isGolfSession(state.activeDetail || {});
         const highlights = Array.isArray(state.activeDetail?.highlights) ? state.activeDetail.highlights : [];
         const summaryText = (state.activeDetail?.summary || '').trim();
         modalOverlayEl.innerHTML = '';
@@ -757,19 +769,23 @@
         const attemptValue = document.createElement('strong');
         attemptValue.textContent = String(stats.attempts ?? '—');
         attemptLi.append(attemptLabel, attemptValue);
-        const accuracyLi = document.createElement('li');
-        const accuracyLabel = document.createElement('span');
-        accuracyLabel.textContent = 'Accuracy';
-        const accuracyValue = document.createElement('strong');
-        accuracyValue.textContent = Number.isFinite(stats.accuracy) ? `${stats.accuracy}%` : '—';
-        accuracyLi.append(accuracyLabel, accuracyValue);
         const poseLi = document.createElement('li');
         const poseLabel = document.createElement('span');
         poseLabel.textContent = 'Avg pose';
         const poseValue = document.createElement('strong');
         poseValue.textContent = Number.isFinite(stats.poseAverage) ? String(stats.poseAverage) : '—';
         poseLi.append(poseLabel, poseValue);
-        statList.append(attemptLi, accuracyLi, poseLi);
+        if (!isGolf) {
+            const accuracyLi = document.createElement('li');
+            const accuracyLabel = document.createElement('span');
+            accuracyLabel.textContent = 'Accuracy';
+            const accuracyValue = document.createElement('strong');
+            accuracyValue.textContent = Number.isFinite(stats.accuracy) ? `${stats.accuracy}%` : '—';
+            accuracyLi.append(accuracyLabel, accuracyValue);
+            statList.append(attemptLi, accuracyLi, poseLi);
+        } else {
+            statList.append(attemptLi, poseLi);
+        }
         container.appendChild(statList);
 
         if (summaryText) {

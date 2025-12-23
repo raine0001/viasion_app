@@ -1657,6 +1657,18 @@ window.addEventListener('shot:feedback:request', (e) => {
         return body;
     }
 
+    function stripNoShotPlaceholder(el) {
+        if (!el) return;
+        const spans = Array.from(el.querySelectorAll('span'));
+        for (const span of spans) {
+            const text = (span.textContent || '').trim();
+            if (!text) continue;
+            if (/no shot yet/i.test(text)) {
+                try { span.remove(); } catch { }
+            }
+        }
+    }
+
     function ensureCoachNotesClose(el) {
         if (!el) return null;
         let btn = el.querySelector('.coach-notes__close');
@@ -1699,6 +1711,7 @@ window.addEventListener('shot:feedback:request', (e) => {
     function setCoachNotesContent(content, options = {}) {
         const el = ensureCoachNotes();
         if (!el) return null;
+        stripNoShotPlaceholder(el);
         const body = ensureCoachNotesBody(el);
 
         if (options.html === true) {
