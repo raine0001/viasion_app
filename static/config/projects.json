@@ -265,7 +265,8 @@
                 "readyPrompt": "Swing when ready.",
                 "clip": {
                     "totalMs": 3000,
-                    "preMs": 1800
+                    "preMs": 1800,
+                    "earlyTrigger": false
                 },
                 "poseStreakNeed": 1,
                 "swingDetection": {

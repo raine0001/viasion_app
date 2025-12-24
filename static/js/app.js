@@ -3570,7 +3570,9 @@ function startPreDetectWarm(videoEl) {
         const gate = usingSwing
             ? evaluateSwingGate(hist, workflow)
             : (window.releaseGate ? window.releaseGate(hist.slice(-8)) : { released: false });
-        if (usingSwing && gate?.clipTrigger) {
+        const clipConfig = workflow?.clip || {};
+        const allowEarlyClip = usingSwing && clipConfig.earlyTrigger !== false;
+        if (allowEarlyClip && gate?.clipTrigger) {
             maybeStartSwingClip(gate.clipTrigger);
         }
         if (usingSwing && window.SWING_DEBUG) {

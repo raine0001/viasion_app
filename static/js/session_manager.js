@@ -310,7 +310,21 @@ async function startSession() {
 async function persistShotFromSummary(detail) {
     console.debug('[persistShot] detail', detail);
 
-    const shotId = Number(detail?.shotId);
+    let shotId = Number(detail?.shotId);
+    if (!Number.isFinite(shotId) || shotId <= 0) shotId = null;
+    if (shotId != null) {
+        const maxAllowed = Number(__shotCounter || 0) + 1;
+        if (shotId > maxAllowed) {
+            console.warn('[persistShot] shotId jump; clamping', {
+                incoming: shotId,
+                maxAllowed,
+                sid: __sid || null,
+                detail
+            });
+            shotId = maxAllowed;
+            try { detail.shotId = shotId; } catch { }
+        }
+    }
     const hasShotId = Number.isFinite(shotId) && shotId > 0;
     const releasePose = Number.isFinite(shotId)
         ? window.poseStore?.get(shotId) || null
