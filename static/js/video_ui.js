@@ -1070,7 +1070,7 @@ window.recordShotSummary = function recordShotSummary(summary) {
         sid = 0;
     } else {
         const maxAllowed = list.length + 1;
-        if (sid > maxAllowed + 1) {
+        if (sid > maxAllowed) {
             console.warn('[shotId clamp] incoming shotId jumped', {
                 incoming: sid,
                 maxAllowed,

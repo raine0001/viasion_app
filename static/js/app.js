@@ -2413,10 +2413,12 @@ function setPoseIfMissing(shotId, snap) {
             const pendingClipStarted = swingState?.clipStarted === true;
             let shotId = null;
             if (Number.isFinite(pendingShotId) && pendingShotId > 0) {
-                const pendingRec = (window.__shots instanceof Map && typeof window.__shots.get === 'function')
-                    ? window.__shots.get(pendingShotId)
-                    : null;
-                if (pendingRec) shotId = pendingShotId;
+                shotId = pendingShotId;
+                try {
+                    if (window.__shots instanceof Map && !window.__shots.has(pendingShotId)) {
+                        window.__shots.set(pendingShotId, { id: pendingShotId, idx: pendingShotId, at: Date.now(), pending: true });
+                    }
+                } catch { }
             }
             if (!Number.isFinite(shotId) || shotId <= 0) {
                 const rec = window.createShot?.();
@@ -2466,7 +2468,7 @@ function setPoseIfMissing(shotId, snap) {
                     }
                 } catch { }
             }
-            if (Number.isFinite(shotId) && shotId === pendingShotId && swingState) {
+            if (swingState && swingState.clipStarted) {
                 try {
                     swingState.clipShotId = null;
                     swingState.clipStarted = false;
@@ -3499,9 +3501,23 @@ function startPreDetectWarm(videoEl) {
 
         if (state.clipShotId && state.clipStarted) {
             if (state.clipTriggerTime && (now - state.clipTriggerTime) > staleMs) {
+                const staleId = Number(state.clipShotId);
                 state.clipShotId = null;
                 state.clipStarted = false;
                 state.clipCaptureKey = null;
+                if (Number.isFinite(staleId) && staleId > 0) {
+                    const finalized = window.__finalizedShotIds?.has?.(staleId);
+                    if (!finalized) {
+                        try {
+                            if (window.__shots instanceof Map) window.__shots.delete(staleId);
+                        } catch { }
+                        try {
+                            if (Number(window.__SHOT_ID || 0) === staleId) {
+                                window.__SHOT_ID = staleId - 1;
+                            }
+                        } catch { }
+                    }
+                }
             } else {
                 return;
             }
