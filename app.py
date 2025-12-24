@@ -1279,6 +1279,12 @@ def _resolve_sessions_dir():
     data_root = (os.getenv("DATA_DIR") or "").strip()
     if data_root:
         return os.path.abspath(os.path.join(data_root, "sessions"))
+    for candidate in ("/app/sessions", "/app/sesions"):
+        try:
+            if os.path.isdir(candidate):
+                return os.path.abspath(candidate)
+        except OSError:
+            pass
     return os.path.join(app.root_path, "sessions")
 
 
