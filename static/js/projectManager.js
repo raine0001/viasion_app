@@ -155,9 +155,13 @@
         }
 
         const maxPre = Math.max(0, (window.__MICROCLIP_MS || defaultClipConfig.totalMs) - 120);
+        const attemptLabel = typeof project?.workflow?.attemptLabel === 'string'
+            ? project.workflow.attemptLabel.trim().toLowerCase()
+            : '';
+        const minSwingPre = attemptLabel === 'swing' ? 1500 : 0;
         const pre = Number(clip?.preMs);
         const resolvedPre = Number.isFinite(pre) && pre >= 0 ? Math.min(pre, maxPre) : Math.min(defaultClipConfig.preMs, maxPre);
-        window.__MICROCLIP_PRE_MS = resolvedPre;
+        window.__MICROCLIP_PRE_MS = Math.min(maxPre, Math.max(resolvedPre, minSwingPre));
 
         const poseStreakNeed = Number(project?.workflow?.poseStreakNeed);
         if (Number.isFinite(poseStreakNeed) && poseStreakNeed > 0) {

@@ -264,8 +264,8 @@
                 "attemptsLabel": "Swings Taken",
                 "readyPrompt": "Swing when ready.",
                 "clip": {
-                    "totalMs": 4800,
-                    "preMs": 2000
+                    "totalMs": 3000,
+                    "preMs": 1500
                 },
                 "poseStreakNeed": 1,
                 "swingDetection": {
