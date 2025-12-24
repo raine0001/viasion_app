@@ -22,9 +22,24 @@ function isBasketballProjectActive() {
                 ? window.visaionProjectManager.getActiveProject()
                 : null);
         const slug = project?.slug;
-        return !slug || slug === ACTIVE_PROJECT_SLUG;
+        if (slug) return slug === ACTIVE_PROJECT_SLUG;
+
+        let override = null;
+        try { override = window.__visaion_PROJECT_OVERRIDE || sessionStorage.getItem('visaion.activeProject') || null; } catch { }
+        if (!override) {
+            try {
+                const qs = new URLSearchParams(location.search || '');
+                override = qs.get('project') || null;
+            } catch { }
+        }
+        if (override) return String(override).toLowerCase() === ACTIVE_PROJECT_SLUG;
+
+        const attempt = String(project?.workflow?.attemptLabel || '').toLowerCase();
+        if (attempt === 'swing') return false;
+
+        return false;
     } catch (err) {
-        return true;
+        return false;
     }
 }
 

@@ -326,6 +326,31 @@ async function persistShotFromSummary(detail) {
         }
     }
     const hasShotId = Number.isFinite(shotId) && shotId > 0;
+    const shotStoreEntry = (Number.isFinite(shotId) && window.__shots instanceof Map && typeof window.__shots.get === 'function')
+        ? window.__shots.get(shotId)
+        : null;
+    const attemptLabel = getWorkflowAttemptLabel();
+    if (attemptLabel === 'swing') {
+        if (!hasShotId) {
+            console.warn('[persistShot] drop swing summary without shotId', detail);
+            return;
+        }
+        const lastId = Number(window.__LAST_RELEASE_SHOT_ID || 0);
+        const lastAt = Number(window.__LAST_RELEASE_AT || 0);
+        const ageMs = lastAt ? (Date.now() - lastAt) : null;
+        if (!shotStoreEntry) {
+            const stale = Number.isFinite(ageMs) && ageMs > 15000;
+            if (shotId !== lastId || stale) {
+                console.warn('[persistShot] drop swing summary without matching release', {
+                    shotId,
+                    lastId,
+                    ageMs,
+                    detail
+                });
+                return;
+            }
+        }
+    }
     const releasePose = Number.isFinite(shotId)
         ? window.poseStore?.get(shotId) || null
         : null;
@@ -509,9 +534,6 @@ async function persistShotFromSummary(detail) {
         }
         return null;
     };
-    const shotStoreEntry = (Number.isFinite(shotId) && window.__shots instanceof Map && typeof window.__shots.get === 'function')
-        ? window.__shots.get(shotId)
-        : null;
     let clipInfo =
         coerceClip(detail?.clip) ||
         coerceClip(detail?.clipPath) ||

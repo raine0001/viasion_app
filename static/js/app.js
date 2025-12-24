@@ -968,6 +968,19 @@ window.poseDetectSerial = poseDetectSerial;
         const rawKey = options?.captureKey != null ? String(options.captureKey) : '';
         const captureKey = rawKey.trim() ? rawKey : `${shotId}:${Math.round(performance.now())}`;
 
+        async function ensureSessionId() {
+            if (window.__SESSION_ID) return window.__SESSION_ID;
+            if (window.visaionSession?.start) {
+                try {
+                    const sid = await window.visaionSession.start();
+                    if (sid) window.__SESSION_ID = sid;
+                } catch (err) {
+                    console.warn('[microclip] session start failed', err);
+                }
+            }
+            return window.__SESSION_ID || `sess_${Date.now()}`;
+        }
+
         async function persistClipBlob(blob) {
             if (!blob || !blob.size) {
                 window.updateShot?.(shotId, { clip: { status: 'error', reason: 'empty' } });
@@ -982,7 +995,8 @@ window.poseDetectSerial = poseDetectSerial;
                 }
             }
             const fd = new FormData();
-            fd.append('sessionId', window.__SESSION_ID || (`sess_${Date.now()}`));
+            const sid = await ensureSessionId();
+            fd.append('sessionId', sid);
             fd.append('shotId', String(shotId));
             fd.append('ts', String(Date.now()));
             fd.append('clip', blob, `shot-${shotId}.webm`);
@@ -2422,6 +2436,10 @@ function setPoseIfMissing(shotId, snap) {
                 const rec = window.createShot?.();
                 shotId = rec?.id || (Number(window.__SHOT_ID || 0) || 1);
             }
+            try {
+                window.__LAST_RELEASE_SHOT_ID = shotId;
+                window.__LAST_RELEASE_AT = Date.now();
+            } catch { }
             let clipStartedEarly = Number.isFinite(shotId) && shotId === pendingShotId && pendingClipStarted;
             if (clipStartedEarly && swingState && Number.isFinite(swingState.clipTriggerTime)) {
                 const clipTriggerAgeMs = Date.now() - Number(swingState.clipTriggerTime || 0);
