@@ -3676,7 +3676,12 @@
 
                 info.className = 'muted';
 
-                info.textContent = `Score ${fmtNumber(summary.score)} | Attempts ${fmtNumber(summary.attempts)} | Accuracy ${fmtPct(summary.accuracy)}`;
+                if (!golfMode) {
+                    info.textContent = `Score ${fmtNumber(summary.score)} | Attempts ${fmtNumber(summary.attempts)} | Accuracy ${fmtPct(summary.accuracy)}`;
+                } else {
+                    info.textContent = '';
+                    info.style.display = 'none';
+                }
 
                 body.appendChild(info);
 
@@ -3754,7 +3759,11 @@
                 const privacyHidden = resolveSessionPrivacy(session.id, session);
                 SESSION_PRIVACY_CACHE.set(session.id, privacyHidden);
                 const communityLabel = privacyHidden ? 'Private' : 'Public';
-                meta.textContent = `Started ${fmtDate(session.startedAt)} | Attempts ${fmtNumber(summary.attempts)} | Makes ${fmtNumber(summary.makes)} | Accuracy ${fmtPct(summary.accuracy)} | Community ${communityLabel}`;
+                const golfMode = isGolfSession(session);
+                const baseMeta = `Started ${fmtDate(session.startedAt)} | Attempts ${fmtNumber(summary.attempts)}`;
+                const makesMeta = golfMode ? '' : ` | Makes ${fmtNumber(summary.makes)}`;
+                const accuracyMeta = golfMode ? '' : ` | Accuracy ${fmtPct(summary.accuracy)}`;
+                meta.textContent = `${baseMeta}${makesMeta}${accuracyMeta} | Community ${communityLabel}`;
 
                 title.append(titleText, meta);
 

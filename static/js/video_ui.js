@@ -1975,6 +1975,12 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
             return true;
         },
         waitForIdle,
+        getBufferCoverageMs: () => {
+            const now = performance.now();
+            const first = buffer[0];
+            if (!first || !Number.isFinite(first.ts)) return 0;
+            return Math.max(0, now - first.ts);
+        },
 
         stop: async () => {
 

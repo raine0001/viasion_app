@@ -2670,6 +2670,24 @@ function scheduleArmWhenReady(delay = 200) {
             await new Promise(r => setTimeout(r, 60));
         }
         if (streak >= need) {
+            const workflow = getWorkflowConfig();
+            const attemptLabel = String(workflow?.attemptLabel || '').toLowerCase();
+            const useMicroclip = window.USE_MICROCLIP !== false && window.__CLIPS_AVAILABLE !== false;
+            if (useMicroclip && attemptLabel === 'swing') {
+                const preSetting = Number(window.__MICROCLIP_PRE_MS);
+                if (Number.isFinite(preSetting) && preSetting > 0) {
+                    const comp = window.__landscapeRecController;
+                    const getCoverage = comp?.getBufferCoverageMs;
+                    if (typeof getCoverage === 'function') {
+                        const startWait = performance.now();
+                        const maxWait = Math.max(800, Math.min(2400, preSetting + 600));
+                        while (performance.now() - startWait < maxWait) {
+                            if (getCoverage() >= Math.max(0, preSetting - 80)) break;
+                            await new Promise(r => setTimeout(r, 60));
+                        }
+                    }
+                }
+            }
             window.__shotTrackingArmed = true;
             try { window.__ENTRY_ARM_BLOCK_UNTIL = Date.now() + Number(window.ENTRY_ARM_COOLDOWN_MS || 1500); } catch { }
         }
