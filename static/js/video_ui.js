@@ -1064,6 +1064,32 @@ window.__finalizedShotIds ||= new Set();
 // Record a finalized shot summary (UI only, no server)
 window.recordShotSummary = function recordShotSummary(summary) {
     summary = normalizeShotScore(summary);
+    const list = (window.__shotList ||= []);
+    let sid = Number(summary?.shotId || 0);
+    if (!Number.isFinite(sid) || sid <= 0) {
+        sid = 0;
+    } else {
+        const maxAllowed = list.length + 1;
+        if (sid > maxAllowed + 1) {
+            console.warn('[shotId clamp] incoming shotId jumped', {
+                incoming: sid,
+                maxAllowed,
+                listLen: list.length,
+                sessionId: window.__SESSION_ID,
+                via: summary?.via
+            });
+            sid = maxAllowed;
+            summary.shotId = sid;
+        }
+    }
+    if (window.SWING_DEBUG === true) {
+        console.log('[recordShotSummary] incoming', {
+            shotId: summary?.shotId,
+            listLen: list.length,
+            sessionId: window.__SESSION_ID,
+            via: summary?.via
+        });
+    }
     const shotRecord = (Number.isFinite(summary?.shotId) && window.__shots instanceof Map && typeof window.__shots.get === 'function')
         ? window.__shots.get(summary.shotId)
         : null;
@@ -1169,14 +1195,11 @@ window.recordShotSummary = function recordShotSummary(summary) {
         console.warn('[score:recordShotSummary] failed to inspect summary', err);
     }
     // de-dupe by shotId first (but allow richer follow-up updates)
-    const sid = Number(summary.shotId || 0);
     if (sid > 0) {
         if (!window.__finalizedShotIds.has(sid)) {
             window.__finalizedShotIds.add(sid);
         }
     }
-
-    const list = (window.__shotList ||= []);
 
     // de-dupe minor repeats by value signature but allow richer follow-ups
     const key = `${sid || '?'}|${+!!summary.made}|${Math.round(summary.arcHeight || 0)}|${summary.entryAngle}|${summary.releaseAngle}`;
