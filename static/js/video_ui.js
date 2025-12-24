@@ -1963,6 +1963,7 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
             return true;
         },
         waitForIdle,
+        waitForInitChunk,
         getBufferCoverageMs: () => {
             const now = performance.now();
             const first = buffer[0];
@@ -2030,6 +2031,26 @@ function primeLandscapeRecorder() {
     try { comp.waitForIdle?.(500); } catch { }
     if (window.DEBUG_MICROCLIP === true) {
         console.log('[landscapeRecorder] primed');
+    }
+}
+
+async function waitForClipWarm(preMs) {
+    if (window.USE_MICROCLIP === false || window.__CLIPS_AVAILABLE === false) return;
+    const comp = window.__landscapeRecController;
+    if (!comp) return;
+    const initPromise = (typeof comp.waitForInitChunk === 'function') ? comp.waitForInitChunk() : null;
+    if (initPromise && typeof initPromise.then === 'function') {
+        await Promise.race([initPromise, new Promise((resolve) => setTimeout(resolve, 1200))]);
+    }
+    const preSetting = Number(preMs);
+    if (!Number.isFinite(preSetting) || preSetting <= 0) return;
+    const getCoverage = comp.getBufferCoverageMs;
+    if (typeof getCoverage !== 'function') return;
+    const startWait = performance.now();
+    const maxWait = Math.max(900, Math.min(3500, preSetting + 900));
+    while (performance.now() - startWait < maxWait) {
+        if (getCoverage() >= Math.max(0, preSetting - 80)) break;
+        await new Promise(r => setTimeout(r, 60));
     }
 }
 
@@ -2241,15 +2262,22 @@ function handleHudStartSession(event) {
         try { window.__hoopConfirmed = true; } catch { }
         try { window.resumeHoopTracking?.(); } catch { }
         setTimeout(() => {
-            try {
-                window.startShotTrackingCountdown?.(countdownSec, readyPrompt);
-            } catch (err) {
-                console.warn('[hud] countdown failed', err);
-            }
-            const delayMs = Math.max(0, countdownSec * 1000 + 60);
-            setTimeout(() => {
-                try { window.scheduleArmWhenReady?.(0); } catch { }
-            }, delayMs);
+            (async () => {
+                try {
+                    if (String(terms.attemptLabel || '').toLowerCase() === 'swing') {
+                        await waitForClipWarm(window.__MICROCLIP_PRE_MS);
+                    }
+                } catch { }
+                try {
+                    window.startShotTrackingCountdown?.(countdownSec, readyPrompt);
+                } catch (err) {
+                    console.warn('[hud] countdown failed', err);
+                }
+                const delayMs = Math.max(0, countdownSec * 1000 + 60);
+                setTimeout(() => {
+                    try { window.scheduleArmWhenReady?.(0); } catch { }
+                }, delayMs);
+            })();
         }, 100);
     } else if (hoopWasLocked) {
         try { window.__hoopConfirmed = true; } catch { }
