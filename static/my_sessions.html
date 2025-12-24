@@ -3672,6 +3672,8 @@
 
                 body.className = 'body';
 
+                const golfMode = isGolfSession(session);
+
                 const info = document.createElement('div');
 
                 info.className = 'muted';
@@ -3694,9 +3696,6 @@
                 const avgRelease = average(shotViews.map(s => s.release));
 
                 const avgArc = average(shotViews.map(s => s.arc));
-
-                
-                const golfMode = isGolfSession(session);
                 const metrics = [
 
                     { label: 'Makes', value: fmtNumber(summary.makes) },
