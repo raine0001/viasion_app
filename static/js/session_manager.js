@@ -700,19 +700,20 @@ async function publishCommunityRecap(detail) {
         const idx1 = Number.isFinite(shot?.shotId) && shot.shotId > 0 ? shot.shotId : (idx + 1);
         const clipPath = (shot?.clip && typeof shot.clip.path === 'string')
             ? shot.clip.path
-            : `/sessions/${sid}/clips/shot-${idx1}.mp4`;
+            : null;
         const poseScore = Number.isFinite(shot?.poseScore) ? Math.round(shot.poseScore) : null;
         const weightedScore = Number.isFinite(shot?.weightedScore) ? shot.weightedScore : null;
         const coachNote = typeof shot?.visaion === 'string' && shot.visaion.trim()
             ? shot.visaion.trim()
             : (typeof shot?.coachLine === 'string' && shot.coachLine.trim() ? shot.coachLine.trim() : null);
-        return {
+        const payload = {
             idx: idx1,
-            clip: clipPath,
             poseScore,
             weightedScore,
             coachNote
         };
+        if (clipPath) payload.clip = clipPath;
+        return payload;
     });
     const poseScores = shots.map(s => s.poseScore).filter(v => Number.isFinite(v));
     const avgPose = poseScores.length ? Math.round(poseScores.reduce((a, b) => a + b, 0) / poseScores.length) : null;

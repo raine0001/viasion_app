@@ -984,21 +984,19 @@ window.poseDetectSerial = poseDetectSerial;
             const fd = new FormData();
             fd.append('sessionId', window.__SESSION_ID || (`sess_${Date.now()}`));
             fd.append('shotId', String(shotId));
+            fd.append('ts', String(Date.now()));
             fd.append('clip', blob, `shot-${shotId}.webm`);
             try {
                 const r = await fetch('/api/microclip/upload', { method: 'POST', body: fd });
                 const j = await r.json().catch(() => null);
                 const sid = window.__SESSION_ID || null;
-                const basePath = sid ? `/sessions/${sid}/clips/shot-${shotId}` : null;
-                const fallbackMp4 = basePath ? `${basePath}.mp4` : null;
-                const fallbackWebm = basePath ? `${basePath}.webm` : null;
                 const normalizePath = (value) => {
                     if (!value || typeof value !== 'string') return value;
                     if (/^[a-z]+:/i.test(value)) return value;
                     const trimmed = value.replace(/^\/+/, '');
                     return `/${trimmed}`;
                 };
-                const resolvedPath = j?.path || fallbackMp4 || fallbackWebm;
+                const resolvedPath = j?.path || null;
                 const normalizedPath = normalizePath(resolvedPath);
                 const clipMeta = {
                     status: r.ok ? 'saved' : 'error',
@@ -1007,8 +1005,8 @@ window.poseDetectSerial = poseDetectSerial;
                     frame: releaseFrame,
                     ms: totalMs
                 };
-                if (j?.source || fallbackWebm) {
-                    clipMeta.source = normalizePath(j?.source || fallbackWebm) || fallbackWebm;
+                if (j?.source) {
+                    clipMeta.source = normalizePath(j.source) || j.source;
                 }
                 if (j?.mp4) {
                     clipMeta.mp4 = normalizePath(j.mp4);

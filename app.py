@@ -3071,11 +3071,15 @@ def api_microclip_upload():
         return jsonify(ok=False, error="no file"), 400
     session_id = request.form.get("sessionId") or "sess_unknown"
     shot_id = request.form.get("shotId") or "0"
+    ts_raw = request.form.get("ts") or ""
     safe_sid = secure_filename(session_id) or "sess_unknown"
     safe_shot = "".join(ch for ch in str(shot_id) if ch.isdigit()) or "0"
+    safe_ts = "".join(ch for ch in str(ts_raw) if ch.isdigit())
+    if not safe_ts:
+        safe_ts = str(int(time.time() * 1000))
     clips_dir = Path(_session_path(safe_sid)) / "clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"shot-{safe_shot}.webm"
+    filename = f"shot-{safe_shot}-{safe_ts}.webm"
     dest_path = clips_dir / filename
     clip.save(dest_path)
     try:
@@ -3662,18 +3666,51 @@ def serve_session_file(sid, filename):
     return _range_aware_send(sid=sid, filename=filename)
 
 
+def _match_shot_clip_filename(name: str, idx_display: int):
+    match = re.match(r"^shot[-_](\d+)(?:[-_](\d+))?\.(mp4|webm)$", name)
+    if not match:
+        return None
+    try:
+        idx = int(match.group(1))
+    except Exception:
+        return None
+    if idx != idx_display:
+        return None
+    ts_raw = match.group(2)
+    try:
+        ts = int(ts_raw) if ts_raw else 0
+    except Exception:
+        ts = 0
+    ext = match.group(3)
+    return ext, ts
+
+
 def _preferred_clip_rel(sid: str, idx_display: int) -> str:
     """Return the best clip URL for a shot, preferring MP4 when available."""
     clips_dir = Path(_session_path(sid)) / "clips"
-    mp4_candidate = clips_dir / f"shot-{idx_display}.mp4"
-    if mp4_candidate.exists():
-        return f"/sessions/{sid}/clips/shot-{idx_display}.mp4"
-    webm_candidate = clips_dir / f"shot-{idx_display}.webm"
-    if webm_candidate.exists():
-        remuxed = _remux_to_mp4(webm_candidate)
-        if remuxed and remuxed.exists():
-            return f"/sessions/{sid}/clips/{remuxed.name}"
-        return f"/sessions/{sid}/clips/shot-{idx_display}.webm"
+    best = None
+    best_score = None
+    try:
+        entries = list(clips_dir.iterdir()) if clips_dir.exists() else []
+    except Exception:
+        entries = []
+    for clip_path in entries:
+        if not clip_path.is_file():
+            continue
+        info = _match_shot_clip_filename(clip_path.name, idx_display)
+        if not info:
+            continue
+        ext, ts = info
+        try:
+            mtime = clip_path.stat().st_mtime
+        except Exception:
+            mtime = 0
+        score = (1 if ext == "mp4" else 0, ts, mtime)
+        if best_score is None or score > best_score:
+            best_score = score
+            best = clip_path.name
+    if best:
+        return f"/sessions/{sid}/clips/{best}"
     return ""
 
 
@@ -3698,30 +3735,42 @@ def _ensure_shot_clip_urls(sid: str, shots: list[dict]) -> bool:
             )
         else:
             current_path = current
+        is_remote = isinstance(current_path, str) and current_path.startswith(("http://", "https://"))
+        local_exists = False
+        if isinstance(current_path, str) and current_path.startswith(f"/sessions/{sid}/"):
+            rel = current_path[len(f"/sessions/{sid}/") :]
+            try:
+                local_exists = (Path(_session_path(sid)) / rel).exists()
+            except Exception:
+                local_exists = False
+
+        if is_remote or local_exists:
+            continue
+
         preferred = _preferred_clip_rel(sid, idx_display)
         has_preferred = isinstance(preferred, str) and preferred.strip() != ""
-        is_remote = isinstance(current_path, str) and current_path.startswith(("http://", "https://"))
         if has_preferred:
             if isinstance(current, dict):
                 if current.get("path") != preferred:
+                    current = dict(current)
                     current["path"] = preferred
+                    shot["clip"] = current
                     updated = True
             else:
                 shot["clip"] = {"path": preferred}
                 updated = True
         else:
-            if not is_remote:
-                if isinstance(current, dict):
-                    if current_path:
-                        current = dict(current)
-                        current["path"] = None
-                        current["url"] = None
-                        current["href"] = None
-                        shot["clip"] = current
-                        updated = True
-                elif current_path:
-                    shot["clip"] = None
+            if isinstance(current, dict):
+                if current_path:
+                    current = dict(current)
+                    current["path"] = None
+                    current["url"] = None
+                    current["href"] = None
+                    shot["clip"] = current
                     updated = True
+            elif current_path:
+                shot["clip"] = None
+                updated = True
     return updated
 
 
