@@ -2429,6 +2429,7 @@
                     shot?.clip?.url,
 
                     shot?.clip?.path,
+                    shot?.clip,
 
                     shot?.clipUrl,
 
@@ -2441,42 +2442,6 @@
                 ];
 
                 for (const raw of candidates) {
-
-                    const normalized = normalizeClipUrl(sessionId, raw);
-
-                    if (normalized) return normalized;
-
-                }
-
-                const fallbacks = [
-
-                    `processed/shot-${shotNumber}.results.mp4`,
-
-                    `processed/shot_${shotNumber}.results.mp4`,
-
-                    `processed/shot-${shotNumber}.results.webm`,
-
-                    `processed/shot_${shotNumber}.results.webm`,
-
-                    `clips/shot-${shotNumber}.mp4`,
-
-                    `clips/shot-${shotNumber}.webm`,
-
-                    `clips/shot_${shotNumber}.mp4`,
-
-                    `clips/shot_${shotNumber}.webm`,
-
-                    `shot-${shotNumber}.mp4`,
-
-                    `shot-${shotNumber}.webm`,
-
-                    `shot_${shotNumber}.mp4`,
-
-                    `shot_${shotNumber}.webm`,
-
-                ];
-
-                for (const raw of fallbacks) {
 
                     const normalized = normalizeClipUrl(sessionId, raw);
 

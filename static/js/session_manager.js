@@ -521,13 +521,7 @@ async function persistShotFromSummary(detail) {
         const listEntry = Array.isArray(window.__shotList) ? window.__shotList[shotNumber - 1] : null;
         clipInfo = coerceClip(listEntry?.clip);
     }
-    if (!clipInfo) {
-        const sidActive = window.__SESSION_ID || __sid || null;
-        const clipNumber = Number.isFinite(shotNumber) && shotNumber > 0 ? shotNumber : null;
-        if (sidActive && clipNumber) {
-            clipInfo = { path: `/sessions/${sidActive}/clips/shot-${clipNumber}.mp4`, source: `/sessions/${sidActive}/clips/shot-${clipNumber}.webm` };
-        }
-    }
+    // Do not guess clip URLs here; let the API fill based on real files.
     if (clipInfo && !clipInfo.status) {
         clipInfo.status = 'saved';
     }

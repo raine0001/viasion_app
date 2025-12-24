@@ -3253,6 +3253,16 @@ def api_session_get(sid):
                 sess["communityHidden"] = bool(post.get("hidden"))
         except Exception:
             pass
+    try:
+        shots = sess.get("shots") if isinstance(sess, dict) else None
+        if isinstance(shots, list) and _ensure_shot_clip_urls(sid, shots):
+            sess["shots"] = shots
+            try:
+                _write_session(sid, sess)
+            except Exception:
+                pass
+    except Exception:
+        pass
     return jsonify(sess)
 
 
@@ -3664,7 +3674,7 @@ def _preferred_clip_rel(sid: str, idx_display: int) -> str:
         if remuxed and remuxed.exists():
             return f"/sessions/{sid}/clips/{remuxed.name}"
         return f"/sessions/{sid}/clips/shot-{idx_display}.webm"
-    return f"/sessions/{sid}/clips/shot-{idx_display}.webm"
+    return ""
 
 
 def _ensure_shot_clip_urls(sid: str, shots: list[dict]) -> bool:
@@ -3689,9 +3699,29 @@ def _ensure_shot_clip_urls(sid: str, shots: list[dict]) -> bool:
         else:
             current_path = current
         preferred = _preferred_clip_rel(sid, idx_display)
-        if not isinstance(current_path, str) or current_path != preferred:
-            shot["clip"] = preferred
-            updated = True
+        has_preferred = isinstance(preferred, str) and preferred.strip() != ""
+        is_remote = isinstance(current_path, str) and current_path.startswith(("http://", "https://"))
+        if has_preferred:
+            if isinstance(current, dict):
+                if current.get("path") != preferred:
+                    current["path"] = preferred
+                    updated = True
+            else:
+                shot["clip"] = {"path": preferred}
+                updated = True
+        else:
+            if not is_remote:
+                if isinstance(current, dict):
+                    if current_path:
+                        current = dict(current)
+                        current["path"] = None
+                        current["url"] = None
+                        current["href"] = None
+                        shot["clip"] = current
+                        updated = True
+                elif current_path:
+                    shot["clip"] = None
+                    updated = True
     return updated
 
 
