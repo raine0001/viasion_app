@@ -1822,17 +1822,16 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
 
         const preChunks = [];
+        const now = performance.now();
+        const cutoff = now - pre;
+        let earliestTs = null;
 
-        let covered = 0;
-
-        for (let i = buffer.length - 1; i >= 0 && covered < pre; i--) {
-
+        for (let i = buffer.length - 1; i >= 0; i--) {
             const entry = buffer[i];
-
+            if (!entry || !Number.isFinite(entry.ts)) continue;
+            if (entry.ts < cutoff) break;
             preChunks.unshift(entry.blob);
-
-            covered += entry.duration;
-
+            earliestTs = entry.ts;
         }
 
         const buildParts = (liveChunks = []) => {
@@ -1848,7 +1847,8 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
             return parts;
         };
 
-        let remainingMs = Math.max(0, total - covered);
+        const coveredPreMs = earliestTs != null ? Math.max(0, now - earliestTs) : 0;
+        let remainingMs = Math.max(0, total - coveredPreMs);
         const ready = waitForInitChunk();
 
         if (remainingMs <= 0) {
@@ -2008,20 +2008,12 @@ function primeLandscapeRecorder() {
     if (window.__landscapeRecPrimed) return;
     if (window.USE_MICROCLIP === false || window.__CLIPS_AVAILABLE === false) return;
     const comp = window.__landscapeRecController;
-    if (!comp || typeof comp.captureClip !== 'function') return;
+    if (!comp) return;
     window.__landscapeRecPrimed = true;
-    const preMs = 0;
-    const baseMs = Number(window.__MICROCLIP_PRE_MS);
-    const primeMs = Math.max(360, Math.min(900, Math.round(Number.isFinite(baseMs) ? baseMs * 0.4 : 500)));
-    comp.captureClip({ preMs, totalMs: primeMs, key: 'prime' })
-        .then(() => {
-            if (window.DEBUG_MICROCLIP === true) {
-                console.log('[landscapeRecorder] primed', { ms: primeMs });
-            }
-        })
-        .catch(() => {
-            window.__landscapeRecPrimed = false;
-        });
+    try { comp.waitForIdle?.(500); } catch { }
+    if (window.DEBUG_MICROCLIP === true) {
+        console.log('[landscapeRecorder] primed');
+    }
 }
 
 // Reset to start overlay state

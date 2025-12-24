@@ -965,7 +965,8 @@ window.poseDetectSerial = poseDetectSerial;
         const totalMs = Number(window.__MICROCLIP_MS) || 3000;
         const preSetting = Number(window.__MICROCLIP_PRE_MS);
         const preMs = Math.max(0, Math.min(Number.isFinite(preSetting) ? preSetting : 360, totalMs - 120));
-        const captureKey = options?.captureKey ?? shotId;
+        const rawKey = options?.captureKey != null ? String(options.captureKey) : '';
+        const captureKey = rawKey.trim() ? rawKey : `${shotId}:${Math.round(performance.now())}`;
 
         async function persistClipBlob(blob) {
             if (!blob || !blob.size) {
@@ -2450,10 +2451,12 @@ function setPoseIfMissing(shotId, snap) {
                     const remainingMs = currentEnd - releaseTime;
                     if (remainingMs < minPostMs) {
                         const extraMs = minPostMs - Math.max(0, remainingMs);
-                        const extended = window.__landscapeRecController?.extendCapture?.(shotId, extraMs);
+                        const captureKey = swingState?.clipCaptureKey || shotId;
+                        const extended = window.__landscapeRecController?.extendCapture?.(captureKey, extraMs);
                         if (window.DEBUG_MICROCLIP === true || window.SWING_DEBUG === true) {
                             console.log('[microclip] extend post-roll', {
                                 shotId,
+                                captureKey,
                                 remainingMs: Math.round(remainingMs),
                                 minPostMs,
                                 extraMs: Math.round(extraMs),
@@ -2470,6 +2473,7 @@ function setPoseIfMissing(shotId, snap) {
                     swingState.clipTriggerFrame = null;
                     swingState.clipTriggerTime = 0;
                     swingState.clipTriggerReason = null;
+                    swingState.clipCaptureKey = null;
                 } catch { }
             }
 
@@ -3113,6 +3117,7 @@ function startPreDetectWarm(videoEl) {
             clipTriggerReady: false,
             clipStarted: false,
             clipTriggerReason: null,
+            clipCaptureKey: null,
         };
     }
 
@@ -3496,6 +3501,7 @@ function startPreDetectWarm(videoEl) {
             if (state.clipTriggerTime && (now - state.clipTriggerTime) > staleMs) {
                 state.clipShotId = null;
                 state.clipStarted = false;
+                state.clipCaptureKey = null;
             } else {
                 return;
             }
@@ -3510,9 +3516,11 @@ function startPreDetectWarm(videoEl) {
         state.clipTriggerFrame = Number.isFinite(trigger.frame) ? trigger.frame : null;
         state.clipTriggerTime = now;
         state.clipTriggerReason = trigger.reason || 'backswing';
+        const captureKey = `${shotId}:${Math.round(performance.now())}`;
+        state.clipCaptureKey = captureKey;
 
         try {
-            window.__startMicroClip?.(shotId, state.clipTriggerFrame, { deferSummary: true, trigger: state.clipTriggerReason });
+            window.__startMicroClip?.(shotId, state.clipTriggerFrame, { deferSummary: true, trigger: state.clipTriggerReason, captureKey });
         } catch { }
     }
 
