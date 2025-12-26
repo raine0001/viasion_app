@@ -826,7 +826,7 @@
         const accuracy = post?.stats?.accuracy;
         const poseAvg = post?.stats?.poseAverage;
         const isGolf = isGolfSession(post);
-        stats.appendChild(renderStatItem('Attempts', attempts ? String(attempts) : '—'));
+        stats.appendChild(renderStatItem(isGolf ? 'Swings' : 'Attempts', attempts ? String(attempts) : '—'));
         if (!isGolf) {
             stats.appendChild(renderStatItem('Accuracy', Number.isFinite(accuracy) ? `${accuracy}%` : '—'));
         }
@@ -1074,7 +1074,7 @@
             const stats = detail?.stats || fallbackPost?.stats || {};
             const isGolf = isGolfSession(detail || fallbackPost || {});
             const statItems = [
-                { label: 'Attempts', value: stats.attempts },
+                { label: isGolf ? 'Swings' : 'Attempts', value: stats.attempts },
                 ...(isGolf ? [] : [{ label: 'Accuracy', value: Number.isFinite(stats.accuracy) ? `${stats.accuracy}%` : null }]),
                 { label: 'Avg pose', value: Number.isFinite(stats.poseAverage) ? stats.poseAverage : null },
             ];
