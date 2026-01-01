@@ -578,6 +578,15 @@
             background: black;
         }
 
+        .modal-media video.video-portrait-fix {
+            width: auto;
+            height: auto;
+            max-width: 100%;
+            max-height: 60vh;
+            transform: rotate(90deg);
+            transform-origin: center;
+        }
+
         .modal-overlay {
             position: absolute;
             inset: 0;
@@ -904,7 +913,7 @@
                         <ul data-modal-highlights></ul>
                     </section>
                     <section class="modal-shots" hidden>
-                        <h4>Swings</h4>
+                        <h4 data-modal-shots-label>Attempts</h4>
                         <ul data-modal-shots></ul>
                     </section>
                 </aside>

@@ -54,6 +54,16 @@ function getWorkflowReadyPrompt() {
     return attempt === 'swing' ? 'Swing when ready.' : 'Shoot when ready.';
 }
 
+function getWorkflowAttemptsLabel() {
+    const workflow = getWorkflowConfig();
+    if (typeof workflow.attemptsLabel === 'string') {
+        const trimmed = workflow.attemptsLabel.trim();
+        if (trimmed) return trimmed;
+    }
+    const attempt = getWorkflowAttemptLabel();
+    return attempt === 'swing' ? 'Swings Taken' : 'Shots Taken';
+}
+
 /* ------------------------ tiny helpers ------------------------ */
 async function postJSON(url, body) {
     const r = await fetch(url, {
@@ -179,17 +189,26 @@ async function startSession() {
             const projectMeta = getActiveProjectMeta();
             const qs = new URLSearchParams(location.search || '');
             const datasetSlug = qs.get('dataset') || null;
+            const attemptLabel = getWorkflowAttemptLabel();
+            const attemptsLabel = getWorkflowAttemptsLabel();
+            const readyPrompt = getWorkflowReadyPrompt();
             const payload = {
                 device: navigator.userAgent,
                 project: projectMeta?.slug || null,
                 projectName: projectMeta?.name || null,
                 dataset: datasetSlug || (projectMeta?.datasets?.[0]?.slug ?? null),
-                tags: Array.isArray(projectMeta?.tags) ? projectMeta.tags : null
+                tags: Array.isArray(projectMeta?.tags) ? projectMeta.tags : null,
+                attemptLabel: attemptLabel || null,
+                attemptsLabel: attemptsLabel || null,
+                readyPrompt: readyPrompt || null
             };
             if (!payload.project) delete payload.project;
             if (!payload.projectName) delete payload.projectName;
             if (!payload.dataset) delete payload.dataset;
             if (!payload.tags) delete payload.tags;
+            if (!payload.attemptLabel) delete payload.attemptLabel;
+            if (!payload.attemptsLabel) delete payload.attemptsLabel;
+            if (!payload.readyPrompt) delete payload.readyPrompt;
             const res = await postJSON('/api/sessions/start', payload);
             sessionId = res?.id || null;
         } catch (err) {
@@ -720,9 +739,15 @@ async function publishCommunityRecap(detail) {
     const attempts = shotsList.length;
     const shots = shotsList.map((shot, idx) => {
         const idx1 = Number.isFinite(shot?.shotId) && shot.shotId > 0 ? shot.shotId : (idx + 1);
-        const clipPath = (shot?.clip && typeof shot.clip.path === 'string')
-            ? shot.clip.path
-            : null;
+        let clipPayload = null;
+        if (typeof shot?.clip === 'string') {
+            clipPayload = shot.clip;
+        } else if (shot?.clip && typeof shot.clip === 'object') {
+            const rawPath = shot.clip.path || shot.clip.url || shot.clip.href || null;
+            if (typeof rawPath === 'string' && rawPath.trim()) {
+                clipPayload = { ...shot.clip, path: rawPath };
+            }
+        }
         const poseScore = Number.isFinite(shot?.poseScore) ? Math.round(shot.poseScore) : null;
         const weightedScore = Number.isFinite(shot?.weightedScore) ? shot.weightedScore : null;
         const coachNote = typeof shot?.visaion === 'string' && shot.visaion.trim()
@@ -734,7 +759,7 @@ async function publishCommunityRecap(detail) {
             weightedScore,
             coachNote
         };
-        if (clipPath) payload.clip = clipPath;
+        if (clipPayload) payload.clip = clipPayload;
         return payload;
     });
     const poseScores = shots.map(s => s.poseScore).filter(v => Number.isFinite(v));
@@ -746,6 +771,9 @@ async function publishCommunityRecap(detail) {
     if (Array.isArray(detail?.tags)) detail.tags.forEach(t => tags.add(String(t)));
     if (project?.slug) tags.add(project.slug);
     if (datasetSlug) tags.add(datasetSlug);
+    const attemptLabel = getWorkflowAttemptLabel();
+    const attemptsLabel = getWorkflowAttemptsLabel();
+    const readyPrompt = getWorkflowReadyPrompt();
     const payload = {
         sessionId: sid,
         title: detail?.title || (project?.name ? `${project.name} recap` : 'Session recap'),
@@ -756,6 +784,9 @@ async function publishCommunityRecap(detail) {
         project: project?.slug || null,
         projectName: project?.name || null,
         dataset: datasetSlug,
+        attemptLabel: attemptLabel || null,
+        attemptsLabel: attemptsLabel || null,
+        readyPrompt: readyPrompt || null,
         stats: {
             attempts,
             poseAverage: avgPose,
@@ -763,6 +794,9 @@ async function publishCommunityRecap(detail) {
         },
         shots
     };
+    if (!payload.attemptLabel) delete payload.attemptLabel;
+    if (!payload.attemptsLabel) delete payload.attemptsLabel;
+    if (!payload.readyPrompt) delete payload.readyPrompt;
     try {
         const res = await fetch('/api/community/publish', {
             method: 'POST',

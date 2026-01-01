@@ -2370,6 +2370,9 @@ def _summary_from_detail(detail: dict, sid: str) -> dict:
         "project",
         "projectName",
         "dataset",
+        "attemptLabel",
+        "attemptsLabel",
+        "readyPrompt",
         "stats",
         "highlights",
         "preview",
@@ -2435,6 +2438,9 @@ def _init_community_detail_from_summary(sid: str, summary: dict) -> dict:
         "project": summary.get("project"),
         "projectName": summary.get("projectName"),
         "dataset": summary.get("dataset"),
+        "attemptLabel": summary.get("attemptLabel"),
+        "attemptsLabel": summary.get("attemptsLabel"),
+        "readyPrompt": summary.get("readyPrompt"),
         "stats": summary.get("stats"),
         "shots": summary.get("shots") or [],
         "comments": [],
@@ -2928,6 +2934,18 @@ def api_session_start():
         "projectName": (b.get("projectName") or "").strip() or None,
         "dataset": (b.get("dataset") or "").strip() or None,
     }
+    attempt_label = b.get("attemptLabel")
+    if isinstance(attempt_label, str):
+        attempt_label = attempt_label.strip() or None
+        extra_fields["attemptLabel"] = attempt_label
+    attempts_label = b.get("attemptsLabel")
+    if isinstance(attempts_label, str):
+        attempts_label = attempts_label.strip() or None
+        extra_fields["attemptsLabel"] = attempts_label
+    ready_prompt = b.get("readyPrompt")
+    if isinstance(ready_prompt, str):
+        ready_prompt = ready_prompt.strip() or None
+        extra_fields["readyPrompt"] = ready_prompt
     tags_val = b.get("tags")
     if isinstance(tags_val, list):
         safe_tags = []
@@ -3805,6 +3823,18 @@ def api_community_publish():
         data.get("highlights") if isinstance(data.get("highlights"), list) else []
     )
     tags = _sanitize_tags(data.get("tags") or sess.get("tags"))
+    attempt_label = data.get("attemptLabel")
+    if not isinstance(attempt_label, str):
+        attempt_label = sess.get("attemptLabel")
+    attempt_label = attempt_label.strip() if isinstance(attempt_label, str) else None
+    attempts_label = data.get("attemptsLabel")
+    if not isinstance(attempts_label, str):
+        attempts_label = sess.get("attemptsLabel")
+    attempts_label = attempts_label.strip() if isinstance(attempts_label, str) else None
+    ready_prompt = data.get("readyPrompt")
+    if not isinstance(ready_prompt, str):
+        ready_prompt = sess.get("readyPrompt")
+    ready_prompt = ready_prompt.strip() if isinstance(ready_prompt, str) else None
 
     # shots detail
     incoming_shots = data.get("shots") if isinstance(data.get("shots"), list) else []
@@ -3826,9 +3856,23 @@ def api_community_publish():
             continue
         idx_display = idx_server + 1
         entry = incoming_map.get(idx_display) or incoming_map.get(idx_server) or {}
-        clip_rel = entry.get("clip")
-        if not isinstance(clip_rel, str) or not clip_rel.strip():
-            clip_rel = _preferred_clip_rel(sid, idx_display)
+        clip_entry = entry.get("clip") or shot.get("clip")
+        clip_payload = None
+        clip_path = None
+        if isinstance(clip_entry, dict):
+            clip_payload = dict(clip_entry)
+            clip_path = clip_entry.get("path") or clip_entry.get("url") or clip_entry.get("href")
+        elif isinstance(clip_entry, str):
+            clip_path = clip_entry
+        if not isinstance(clip_path, str) or not clip_path.strip():
+            clip_path = _preferred_clip_rel(sid, idx_display)
+        if isinstance(clip_payload, dict):
+            if clip_path:
+                clip_payload["path"] = clip_path
+            else:
+                clip_payload = None
+        else:
+            clip_payload = clip_path if isinstance(clip_path, str) and clip_path.strip() else None
         coach_note = entry.get("coachNote") or shot.get("coachNote")
         if isinstance(coach_note, str):
             coach_note = coach_note.strip()
@@ -3842,7 +3886,7 @@ def api_community_publish():
         detail_shots.append(
             {
                 "idx": idx_display,
-                "clip": clip_rel,
+                "clip": clip_payload,
                 "poseScore": pose_score,
                 "weightedScore": entry.get("weightedScore", shot.get("weightedScore")),
                 "coachNote": coach_note,
@@ -3887,6 +3931,9 @@ def api_community_publish():
         "project": sess.get("project"),
         "projectName": sess.get("projectName"),
         "dataset": sess.get("dataset"),
+        "attemptLabel": attempt_label,
+        "attemptsLabel": attempts_label,
+        "readyPrompt": ready_prompt,
         "stats": {
             "attempts": attempts,
             "accuracy": accuracy,
@@ -3941,6 +3988,9 @@ def api_community_publish():
         "project": sess.get("project"),
         "projectName": sess.get("projectName"),
         "dataset": sess.get("dataset"),
+        "attemptLabel": attempt_label,
+        "attemptsLabel": attempts_label,
+        "readyPrompt": ready_prompt,
         "stats": summary_entry["stats"],
         "shots": detail_shots,
         "likeCount": summary_entry.get("likeCount", 0),

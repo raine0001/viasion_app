@@ -968,6 +968,32 @@ window.poseDetectSerial = poseDetectSerial;
         const rawKey = options?.captureKey != null ? String(options.captureKey) : '';
         const captureKey = rawKey.trim() ? rawKey : `${shotId}:${Math.round(performance.now())}`;
 
+        function getClipDimensions() {
+            let width = null;
+            let height = null;
+            try {
+                const stream = comp?.stream || v?.srcObject || null;
+                const track = stream?.getVideoTracks?.()[0];
+                const settings = track?.getSettings?.() || {};
+                const settingWidth = Number(settings.width);
+                const settingHeight = Number(settings.height);
+                if (Number.isFinite(settingWidth) && Number.isFinite(settingHeight)) {
+                    width = settingWidth;
+                    height = settingHeight;
+                }
+            } catch { }
+            const outputWidth = Number(comp?.outputWidth);
+            const outputHeight = Number(comp?.outputHeight);
+            if (!Number.isFinite(width) && Number.isFinite(outputWidth)) width = outputWidth;
+            if (!Number.isFinite(height) && Number.isFinite(outputHeight)) height = outputHeight;
+            const videoWidth = Number(v?.videoWidth);
+            const videoHeight = Number(v?.videoHeight);
+            if (!Number.isFinite(width) && Number.isFinite(videoWidth)) width = videoWidth;
+            if (!Number.isFinite(height) && Number.isFinite(videoHeight)) height = videoHeight;
+            if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+            return { width, height };
+        }
+
         async function ensureSessionId() {
             if (window.__SESSION_ID) return window.__SESSION_ID;
             if (window.visaionSession?.start) {
@@ -1019,6 +1045,11 @@ window.poseDetectSerial = poseDetectSerial;
                     frame: releaseFrame,
                     ms: totalMs
                 };
+                const dims = getClipDimensions();
+                if (dims) {
+                    clipMeta.width = dims.width;
+                    clipMeta.height = dims.height;
+                }
                 if (j?.source) {
                     clipMeta.source = normalizePath(j.source) || j.source;
                 }

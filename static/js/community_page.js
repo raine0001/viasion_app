@@ -657,6 +657,23 @@
         return fields.some(val => String(val || '').toLowerCase().includes('golf'));
     }
 
+    function getAttemptMeta(meta = {}) {
+        const rawAttempt = meta?.attemptLabel || meta?.workflow?.attemptLabel;
+        let attemptLabel = typeof rawAttempt === 'string' ? rawAttempt.trim().toLowerCase() : '';
+        if (!attemptLabel) attemptLabel = isGolfSession(meta) ? 'swing' : 'shot';
+        const attemptLabelTitle = attemptLabel.charAt(0).toUpperCase() + attemptLabel.slice(1);
+        const attemptLabelPlural = attemptLabel === 'swing' ? 'Swings' : 'Shots';
+        const rawAttemptsLabel = meta?.attemptsLabel;
+        const attemptsLabel = typeof rawAttemptsLabel === 'string' && rawAttemptsLabel.trim()
+            ? rawAttemptsLabel.trim()
+            : (attemptLabel === 'swing' ? 'Swings Taken' : 'Shots Taken');
+        return { attemptLabel, attemptLabelTitle, attemptLabelPlural, attemptsLabel };
+    }
+
+    function getActiveAttemptMeta() {
+        return getAttemptMeta(state.activeDetail || {});
+    }
+
     function buildFilters(posts) {
         const map = new Map();
         posts.forEach(post => {
@@ -739,6 +756,37 @@
         if (!post || !post.preview) return null;
         if (post.previewRev) return `${post.preview}?rev=${post.previewRev}`;
         return `${post.preview}?cb=${Date.now()}`;
+    }
+
+    function getClipPath(clip) {
+        if (!clip) return null;
+        if (typeof clip === 'string') return clip;
+        if (typeof clip === 'object') {
+            const raw = clip.path || clip.url || clip.href;
+            return typeof raw === 'string' ? raw : null;
+        }
+        return null;
+    }
+
+    function getClipDimensions(shot) {
+        const clip = shot?.clip;
+        if (!clip || typeof clip !== 'object') return null;
+        const width = Number(clip.width ?? clip.w ?? clip.clipWidth ?? clip.videoWidth);
+        const height = Number(clip.height ?? clip.h ?? clip.clipHeight ?? clip.videoHeight);
+        if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+        return { width, height };
+    }
+
+    function applyPortraitFix(videoEl, shot) {
+        if (!videoEl) return;
+        const dims = getClipDimensions(shot);
+        const width = dims?.width ?? Number(videoEl.videoWidth);
+        const height = dims?.height ?? Number(videoEl.videoHeight);
+        if (!Number.isFinite(width) || !Number.isFinite(height)) {
+            videoEl.classList.remove('video-portrait-fix');
+            return;
+        }
+        videoEl.classList.toggle('video-portrait-fix', height > width);
     }
 
     function matchesFilter(post) {
@@ -1025,6 +1073,7 @@
         }
         if (modalVideoEl) {
             modalVideoEl.pause();
+            modalVideoEl.classList.remove('video-portrait-fix');
             modalVideoEl.removeAttribute('src');
             modalVideoEl.load();
         }
@@ -1043,6 +1092,7 @@
     function populateModal(detail, fallbackPost) {
         state.activeDetail = detail;
         state.activeShotIndex = -1;
+        const attemptMeta = getAttemptMeta(detail || fallbackPost || {});
         if (modalTitleEl) {
             modalTitleEl.textContent = detail?.title || fallbackPost?.title || 'Session recap';
         }
@@ -1072,10 +1122,10 @@
         if (modalStatsEl) {
             modalStatsEl.innerHTML = '';
             const stats = detail?.stats || fallbackPost?.stats || {};
-            const isGolf = isGolfSession(detail || fallbackPost || {});
+            const showAccuracy = attemptMeta.attemptLabel !== 'swing';
             const statItems = [
-                { label: isGolf ? 'Swings' : 'Attempts', value: stats.attempts },
-                ...(isGolf ? [] : [{ label: 'Accuracy', value: Number.isFinite(stats.accuracy) ? `${stats.accuracy}%` : null }]),
+                { label: attemptMeta.attemptsLabel, value: stats.attempts },
+                ...(showAccuracy ? [{ label: 'Accuracy', value: Number.isFinite(stats.accuracy) ? `${stats.accuracy}%` : null }] : []),
                 { label: 'Avg pose', value: Number.isFinite(stats.poseAverage) ? stats.poseAverage : null },
             ];
             statItems.forEach(stat => {
@@ -1089,12 +1139,15 @@
             modalShotListEl.innerHTML = '';
             const shots = Array.isArray(detail?.shots) ? detail.shots : [];
             if (shots.length) {
+                const shotSection = modalShotListEl.parentElement;
+                const shotHeading = shotSection?.querySelector?.('h4');
+                if (shotHeading) shotHeading.textContent = attemptMeta.attemptLabelPlural;
                 shots.forEach((shot, idx) => {
                     const row = document.createElement('li');
                     row.className = 'shot-row';
                     row.dataset.index = String(idx);
                     const label = document.createElement('span');
-                    label.textContent = `Swing ${shot.idx ?? idx + 1}`;
+                    label.textContent = `${attemptMeta.attemptLabelTitle} ${shot.idx ?? idx + 1}`;
                     const note = document.createElement('p');
                     note.textContent = shot.coachNote || 'Pose summary pending';
                     const score = document.createElement('span');
@@ -1143,7 +1196,8 @@
 
     function onVideoError() {
         console.warn('[community] video playback error', modalVideoEl?.error);
-        showShotOverlay('Playback error. Skipping to next swing.');
+        const attemptLabel = getActiveAttemptMeta().attemptLabel;
+        showShotOverlay(`Playback error. Skipping to next ${attemptLabel}.`);
     }
 
     function stopOverlayTimer() {
@@ -1165,16 +1219,18 @@
         state.activeShotIndex = targetIndex;
         const shot = shots[state.activeShotIndex];
         highlightShotRow(state.activeShotIndex);
-        if (!shot || !shot.clip) {
-            showShotOverlay('Clip missing for this swing. Moving on.', true);
+        const attemptLabel = getActiveAttemptMeta().attemptLabel;
+        const clipPath = getClipPath(shot?.clip);
+        if (!shot || !clipPath) {
+            showShotOverlay(`Clip missing for this ${attemptLabel}. Moving on.`, true);
             return;
         }
-        showBufferingOverlay('Loading swing...');
+        showBufferingOverlay(`Loading ${attemptLabel}...`);
         const token = Symbol('clip');
         state.loadingClipToken = token;
-        let clipUrl = shot.clip;
+        let clipUrl = clipPath;
         try {
-            clipUrl = await resolveClipSource(shot.clip);
+            clipUrl = await resolveClipSource(clipPath);
         } catch (err) {
             if (state.loadingClipToken !== token) return;
             console.warn('[community] clip load failed', err);
@@ -1185,8 +1241,12 @@
         hideOverlay();
         modalVideoEl.pause();
         modalVideoEl.removeAttribute('src');
+        modalVideoEl.classList.remove('video-portrait-fix');
         modalVideoEl.src = clipUrl;
         modalVideoEl.load();
+        modalVideoEl.addEventListener('loadedmetadata', () => {
+            applyPortraitFix(modalVideoEl, shot);
+        }, { once: true });
         modalVideoEl.defaultPlaybackRate = PLAYBACK_RATE;
         modalVideoEl.playbackRate = PLAYBACK_RATE;
 
@@ -1214,7 +1274,8 @@
             }
         });
         const upcoming = shots[state.activeShotIndex + 1];
-        if (upcoming?.clip) prefetchClip(upcoming.clip);
+        const upcomingPath = getClipPath(upcoming?.clip);
+        if (upcomingPath) prefetchClip(upcomingPath);
     }
 
     function highlightShotRow(index) {
@@ -1238,7 +1299,8 @@
         const container = document.createElement('div');
         container.className = 'overlay-content loading';
         const paragraph = document.createElement('p');
-        paragraph.textContent = message || 'Loading swing...';
+        const attemptLabel = getActiveAttemptMeta().attemptLabel;
+        paragraph.textContent = message || `Loading ${attemptLabel}...`;
         container.appendChild(paragraph);
         modalOverlayEl.appendChild(container);
         modalOverlayEl.classList.add('show');
@@ -1251,11 +1313,12 @@
         const idx = shot?.idx ?? state.activeShotIndex + 1;
         const note = message || shot?.coachNote || 'Pose breakdown ready';
         const poseScore = Number.isFinite(shot?.poseScore) ? shot.poseScore : null;
+        const attemptMeta = getActiveAttemptMeta();
         modalOverlayEl.innerHTML = '';
         const container = document.createElement('div');
         container.className = 'overlay-content';
         const title = document.createElement('h4');
-        title.textContent = `Swing ${idx}`;
+        title.textContent = `${attemptMeta.attemptLabelTitle} ${idx}`;
         const paragraph = document.createElement('p');
         paragraph.textContent = note;
         container.append(title, paragraph);
@@ -1273,7 +1336,7 @@
         btn.type = 'button';
         btn.className = 'overlay-next';
         btn.setAttribute('data-overlay-next', '');
-        btn.textContent = 'Next swing';
+        btn.textContent = `Next ${attemptMeta.attemptLabel}`;
         container.appendChild(btn);
         modalOverlayEl.appendChild(container);
         modalOverlayEl.classList.add('show');
@@ -1303,7 +1366,8 @@
     function showSessionSummary() {
         if (!modalOverlayEl) return;
         const stats = state.activeDetail?.stats || {};
-        const isGolf = isGolfSession(state.activeDetail || {});
+        const attemptMeta = getActiveAttemptMeta();
+        const showAccuracy = attemptMeta.attemptLabel !== 'swing';
         const highlights = Array.isArray(state.activeDetail?.highlights) ? state.activeDetail.highlights : [];
         const summaryText = (state.activeDetail?.summary || '').trim();
         modalOverlayEl.innerHTML = '';
@@ -1317,7 +1381,7 @@
         statList.className = 'overlay-stats';
         const attemptLi = document.createElement('li');
         const attemptLabel = document.createElement('span');
-        attemptLabel.textContent = 'Attempts';
+        attemptLabel.textContent = attemptMeta.attemptsLabel;
         const attemptValue = document.createElement('strong');
         attemptValue.textContent = String(stats.attempts ?? '—');
         attemptLi.append(attemptLabel, attemptValue);
@@ -1327,7 +1391,7 @@
         const poseValue = document.createElement('strong');
         poseValue.textContent = Number.isFinite(stats.poseAverage) ? String(stats.poseAverage) : '—';
         poseLi.append(poseLabel, poseValue);
-        if (!isGolf) {
+        if (showAccuracy) {
             const accuracyLi = document.createElement('li');
             const accuracyLabel = document.createElement('span');
             accuracyLabel.textContent = 'Accuracy';
@@ -1396,6 +1460,7 @@
             if (modalVideoEl.src && modalVideoEl.src.startsWith('blob:')) {
                 try { URL.revokeObjectURL(modalVideoEl.src); } catch { }
             }
+            modalVideoEl.classList.remove('video-portrait-fix');
             modalVideoEl.removeAttribute('src');
             modalVideoEl.load();
             modalVideoEl.removeEventListener('ended', onVideoEnded);

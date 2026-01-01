@@ -1437,6 +1437,14 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
     }
 
+    const getSourceMetrics = () => {
+        const vW = Number(videoEl?.videoWidth) || 0;
+        const vH = Number(videoEl?.videoHeight) || 0;
+        const width = vW > 0 ? vW : wantW;
+        const height = vH > 0 ? vH : wantH;
+        return { width, height, isPortrait: height > width };
+    };
+
 
 
     const stream = cvs.captureStream(fps);
@@ -1970,6 +1978,9 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
             if (!first || !Number.isFinite(first.ts)) return 0;
             return Math.max(0, now - first.ts);
         },
+        outputWidth: wantW,
+        outputHeight: wantH,
+        getSourceMetrics,
 
         stop: async () => {
 
