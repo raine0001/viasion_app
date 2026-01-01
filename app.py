@@ -61,6 +61,8 @@ import subprocess
 import json
 import glob
 import time
+import hashlib
+import secrets
 import smtplib
 import ssl
 import html
@@ -69,12 +71,13 @@ import io
 import wave
 import mimetypes
 from email.message import EmailMessage
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from collections import defaultdict
 import random
 import threading
 from queue import Queue
 from PIL import Image
+from urllib.parse import urlencode
 from arcmm_api import arcmm_api
 from support.engine import detect_intent, generate_general_reply, run_intent_handler
 
@@ -133,6 +136,14 @@ _default_stub = "0" if _has_db_uri else "1"
 ALLOW_STUB_AUTH = _truthy(
     os.getenv("ALLOW_STUB_AUTH", _default_stub), default=(_default_stub == "1")
 )
+try:
+    PASSWORD_RESET_TOKEN_TTL_MINUTES = int(
+        os.getenv("PASSWORD_RESET_TOKEN_TTL_MINUTES", "60")
+    )
+except Exception:
+    PASSWORD_RESET_TOKEN_TTL_MINUTES = 60
+if PASSWORD_RESET_TOKEN_TTL_MINUTES < 10:
+    PASSWORD_RESET_TOKEN_TTL_MINUTES = 10
 
 # Simple trace flag (enable with visaion_TRACE=1; legacy DOACH_TRACE still honored)
 try:
@@ -3537,6 +3548,86 @@ def _send_summary_email(to_addr: str, payload: dict) -> tuple[bool, str | None]:
         return False, "smtp_send_failed"
 
 
+def _build_password_reset_link(token: str, email: str | None = None) -> str:
+    params = {"reset": "1", "token": token}
+    if email:
+        params["email"] = email
+    query = urlencode(params)
+    base = _clean_env_value(
+        os.getenv("PUBLIC_BASE_URL")
+        or os.getenv("SITE_URL")
+        or os.getenv("APP_BASE_URL")
+        or os.getenv("BASE_URL")
+    )
+    if base:
+        if not base.endswith("/"):
+            base = f"{base}/"
+        return f"{base}static/login.html?{query}"
+    try:
+        base = url_for("static", filename="login.html", _external=True)
+        return f"{base}?{query}"
+    except Exception:
+        return f"/static/login.html?{query}"
+
+
+def _build_password_reset_email(payload: dict) -> tuple[str, str, str | None]:
+    reset_url = payload.get("reset_url") or ""
+    name = (payload.get("name") or "").strip() or "there"
+    ttl_minutes = payload.get("ttl_minutes") or PASSWORD_RESET_TOKEN_TTL_MINUTES
+    subject = "Reset your Visaion password"
+    safe_name = html.escape(name)
+    safe_url = html.escape(reset_url)
+    text_lines = [
+        f"Hi {name},",
+        "",
+        "We received a request to reset your Visaion password.",
+        f"This link expires in {ttl_minutes} minutes:",
+        reset_url,
+        "",
+        "If you did not request this, you can ignore this email.",
+    ]
+    text_body = "\n".join([line for line in text_lines if line is not None])
+    html_body = "\n".join(
+        [
+            f"<p>Hi {safe_name},</p>",
+            "<p>We received a request to reset your Visaion password.</p>",
+            f"<p>This link expires in {ttl_minutes} minutes:</p>",
+            f'<p><a href="{safe_url}">{safe_url}</a></p>',
+            "<p>If you did not request this, you can ignore this email.</p>",
+        ]
+    )
+    return subject, text_body, html_body
+
+
+def _send_password_reset_email(to_addr: str, payload: dict) -> tuple[bool, str | None]:
+    cfg = _get_smtp_config()
+    if not cfg.get("host") or not cfg.get("sender"):
+        return False, "smtp_not_configured"
+    if not cfg.get("username") or not cfg.get("password"):
+        return False, "smtp_credentials_missing"
+    subject, text_body, html_body = _build_password_reset_email(payload)
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = cfg["sender"]
+    msg["To"] = to_addr
+    msg.set_content(text_body)
+    if html_body:
+        msg.add_alternative(html_body, subtype="html")
+    try:
+        with smtplib.SMTP(cfg["host"], cfg["port"], timeout=20) as server:
+            server.ehlo()
+            if cfg.get("use_tls"):
+                server.starttls(context=ssl.create_default_context())
+                server.ehlo()
+            if cfg.get("username") and cfg.get("password"):
+                server.login(cfg["username"], cfg["password"])
+            server.send_message(msg)
+        return True, None
+    except Exception as exc:
+        _trace("smtp_reset_send_error", exc)
+        return False, "smtp_send_failed"
+
+
 @app.post("/api/sessions/<sid>/email_summary")
 def api_session_email_summary(sid):
     data = request.get_json(force=True) or {}
@@ -4435,6 +4526,22 @@ def _try_init_db():
             metadata_json = Column("metadata", MyJSON)
             user = relationship("User", backref="face_lock", uselist=False)
 
+        class PasswordResetToken(Base):
+            __tablename__ = "password_reset_tokens"
+            id = Column(Integer, primary_key=True, autoincrement=True)
+            user_id = Column(
+                Integer,
+                ForeignKey("users.user_id", ondelete="CASCADE"),
+                nullable=False,
+            )
+            token_hash = Column(String(64), unique=True, nullable=False)
+            created_at = Column(DateTime, default=datetime.utcnow)
+            expires_at = Column(DateTime, nullable=False)
+            used_at = Column(DateTime)
+            requested_ip = Column(String(64))
+            requested_ua = Column(String(255))
+            user = relationship("User", backref="password_reset_tokens")
+
         class SessionRow(Base):
             __tablename__ = "sessions"
             sid = Column(String(64), primary_key=True)
@@ -4707,6 +4814,7 @@ def _try_init_db():
             "User": User,
             "UserAdminMeta": UserAdminMeta,
             "UserFaceLock": UserFaceLock,
+            "PasswordResetToken": PasswordResetToken,
             "SessionRow": SessionRow,
             "SessionPayloadRow": SessionPayloadRow,
             "CommunityPostRow": CommunityPostRow,
@@ -5399,6 +5507,10 @@ def _check_stub_credentials(email, password):
     return None
 
 
+def _hash_password_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 def _write_face_lock(
     user_id,
     *,
@@ -5696,6 +5808,92 @@ def api_login():
 @app.post("/api/auth/logout")
 def api_logout():
     session.clear()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/auth/password_reset/request")
+def api_password_reset_request():
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        return jsonify({"error": "valid email required"}), 400
+    db = _db_get()
+    if not db:
+        return jsonify({"ok": True})
+    Token = db.get("PasswordResetToken")
+    if Token is None:
+        return jsonify({"error": "reset unavailable"}), 500
+    from sqlalchemy import select
+
+    user = None
+    with db["Session"]() as s:
+        user = s.execute(
+            select(db["User"]).where(db["User"].email == email)
+        ).scalar_one_or_none()
+        if not user:
+            return jsonify({"ok": True})
+        now = datetime.utcnow()
+        try:
+            s.query(Token).filter(
+                Token.user_id == user.user_id,
+                Token.used_at.is_(None),
+                Token.expires_at > now,
+            ).update({Token.used_at: now}, synchronize_session=False)
+        except Exception:
+            pass
+        token = secrets.token_urlsafe(32)
+        token_hash = _hash_password_reset_token(token)
+        reset_row = Token(
+            user_id=user.user_id,
+            token_hash=token_hash,
+            expires_at=now + timedelta(minutes=PASSWORD_RESET_TOKEN_TTL_MINUTES),
+            requested_ip=request.headers.get("X-Forwarded-For") or request.remote_addr,
+            requested_ua=(request.headers.get("User-Agent") or "")[:255],
+        )
+        s.add(reset_row)
+        s.commit()
+        user_email = user.email
+        user_name = user.name
+
+    reset_url = _build_password_reset_link(token, email=user_email)
+    payload = {
+        "reset_url": reset_url,
+        "name": user_name,
+        "ttl_minutes": PASSWORD_RESET_TOKEN_TTL_MINUTES,
+    }
+    sent, send_error = _send_password_reset_email(user_email, payload)
+    if not sent:
+        _trace("password_reset_send_failed", send_error or "unknown")
+    return jsonify({"ok": True})
+
+
+@app.post("/api/auth/password_reset/confirm")
+def api_password_reset_confirm():
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    password = data.get("password") or ""
+    if not token or not password:
+        return jsonify({"error": "token and password required"}), 400
+    db = _db_get()
+    if not db:
+        return jsonify({"error": "db not configured"}), 500
+    Token = db.get("PasswordResetToken")
+    if Token is None:
+        return jsonify({"error": "reset unavailable"}), 500
+    token_hash = _hash_password_reset_token(token)
+    now = datetime.utcnow()
+    with db["Session"]() as s:
+        row = s.query(Token).filter(Token.token_hash == token_hash).one_or_none()
+        if not row or row.used_at or (row.expires_at and row.expires_at < now):
+            return jsonify({"error": "invalid or expired token"}), 400
+        user = s.get(db["User"], row.user_id)
+        if not user:
+            return jsonify({"error": "invalid token"}), 400
+        user.password_hash = generate_password_hash(password)
+        row.used_at = now
+        s.add(user)
+        s.add(row)
+        s.commit()
     return jsonify({"ok": True})
 
 

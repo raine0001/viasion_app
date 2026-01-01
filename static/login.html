@@ -10,6 +10,7 @@
         (function redirectIfAuthenticated() {
             const params = new URLSearchParams(location.search || '');
             if (params.get('stay') === '1') return;
+            if (params.get('reset') === '1' || params.get('reset_token') || params.get('token')) return;
             try {
                 fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' })
                     .then((res) => (res.ok ? res.json() : null))
@@ -104,6 +105,69 @@
             color: #64748b;
             font-size: 13px;
             margin-top: 8px;
+        }
+
+        .auth-links {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .link-button {
+            width: auto;
+            padding: 0;
+            margin: 0;
+            border: none;
+            background: none;
+            color: #1d4ed8;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .link-button:hover {
+            text-decoration: underline;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .reset-panel {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px dashed #cbd5f5;
+            background: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .reset-panel[hidden] {
+            display: none;
+        }
+
+        .reset-panel h3 {
+            margin: 0;
+            font-size: 15px;
+            color: #1e3a8a;
+        }
+
+        .reset-panel p {
+            margin: 0;
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .reset-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .reset-actions button {
+            flex: 1;
+        }
+
+        .reset-msg {
+            min-height: 16px;
         }
 
         .cta-panel {
@@ -358,6 +422,31 @@
             <button id="btnRegister">Register</button>
         </div>
         <div class="muted" id="msg"></div>
+        <div class="auth-links">
+            <button class="link-button" id="btnForgot" type="button">Forgot or reset password?</button>
+        </div>
+        <div class="reset-panel" id="resetRequestPanel" hidden>
+            <h3>Reset your password</h3>
+            <p>Enter your account email and we will send a reset link.</p>
+            <input id="resetEmail" placeholder="Email" autocomplete="email" />
+            <div class="reset-actions">
+                <button id="btnResetRequest" type="button">Send reset link</button>
+                <button class="cta-secondary" id="btnResetCancel" type="button">Back to login</button>
+            </div>
+            <div class="muted reset-msg" id="resetMsg"></div>
+        </div>
+        <div class="reset-panel" id="resetConfirmPanel" hidden>
+            <h3>Choose a new password</h3>
+            <p>This link expires after 60 minutes.</p>
+            <input id="resetPassword" type="password" placeholder="New password" autocomplete="new-password" />
+            <input id="resetPasswordConfirm" type="password" placeholder="Confirm new password"
+                autocomplete="new-password" />
+            <div class="reset-actions">
+                <button id="btnResetConfirm" type="button">Update password</button>
+                <button class="cta-secondary" id="btnResetCancel2" type="button">Back to login</button>
+            </div>
+            <div class="muted reset-msg" id="resetConfirmMsg"></div>
+        </div>
     </div>
     <div class="cta-panel" aria-label="Quick links">
         <div class="cta-row">
@@ -427,6 +516,43 @@
             try { localStorage.setItem('firstname', first); } catch { }
         }
 
+        const emailInput = document.getElementById('email');
+        const resetRequestPanel = document.getElementById('resetRequestPanel');
+        const resetConfirmPanel = document.getElementById('resetConfirmPanel');
+        const resetEmailInput = document.getElementById('resetEmail');
+        const resetPasswordInput = document.getElementById('resetPassword');
+        const resetPasswordConfirmInput = document.getElementById('resetPasswordConfirm');
+        const resetMsg = document.getElementById('resetMsg');
+        const resetConfirmMsg = document.getElementById('resetConfirmMsg');
+        const resetToken = params.get('reset_token') || params.get('token') || '';
+        const resetEmailParam = params.get('email') || '';
+
+        function setResetMsg(text) { if (resetMsg) resetMsg.textContent = text || ''; }
+
+        function setResetConfirmMsg(text) { if (resetConfirmMsg) resetConfirmMsg.textContent = text || ''; }
+
+        function hideResetPanels() {
+            if (resetRequestPanel) resetRequestPanel.setAttribute('hidden', '');
+            if (resetConfirmPanel) resetConfirmPanel.setAttribute('hidden', '');
+            setResetMsg('');
+            setResetConfirmMsg('');
+        }
+
+        function showResetRequest() {
+            if (resetConfirmPanel) resetConfirmPanel.setAttribute('hidden', '');
+            if (resetRequestPanel) resetRequestPanel.removeAttribute('hidden');
+            if (resetEmailInput) {
+                resetEmailInput.value = resetEmailInput.value || resetEmailParam || (emailInput?.value || '');
+                resetEmailInput.focus();
+            }
+        }
+
+        function showResetConfirm() {
+            if (resetRequestPanel) resetRequestPanel.setAttribute('hidden', '');
+            if (resetConfirmPanel) resetConfirmPanel.removeAttribute('hidden');
+            if (resetPasswordInput) resetPasswordInput.focus();
+        }
+
         async function login() {
             try {
                 const name = document.getElementById('name').value.trim();
@@ -472,8 +598,103 @@
             }
         }
 
+        async function requestPasswordReset() {
+            const email = (resetEmailInput?.value || emailInput?.value || '').trim().toLowerCase();
+            if (!email || !email.includes('@')) {
+                setResetMsg('Enter a valid email address.');
+                return;
+            }
+            setResetMsg('Sending reset link...');
+            try {
+                const res = await fetch('/api/auth/password_reset/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email }),
+                });
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(errText || 'reset failed');
+                }
+                setResetMsg('If an account matches that email, a reset link is on the way.');
+            } catch (err) {
+                console.warn('[login] password reset request failed', err);
+                setResetMsg('Unable to send reset email. Please try again.');
+            }
+        }
+
+        async function confirmPasswordReset() {
+            if (!resetToken) {
+                setResetConfirmMsg('Missing reset token.');
+                return;
+            }
+            const password = resetPasswordInput?.value || '';
+            const confirm = resetPasswordConfirmInput?.value || '';
+            if (!password) {
+                setResetConfirmMsg('Enter a new password.');
+                return;
+            }
+            if (password !== confirm) {
+                setResetConfirmMsg('Passwords do not match.');
+                return;
+            }
+            setResetConfirmMsg('Updating password...');
+            try {
+                const res = await fetch('/api/auth/password_reset/confirm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: resetToken, password }),
+                });
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(errText || 'reset failed');
+                }
+                setResetConfirmMsg('Password updated. Please log in.');
+                setMsg('Password updated. Please log in.');
+            } catch (err) {
+                console.warn('[login] password reset confirm failed', err);
+                setResetConfirmMsg('Reset failed. Request a new link.');
+            }
+        }
+
         document.getElementById('btnLogin').onclick = login;
         document.getElementById('btnRegister').onclick = register;
+
+        const btnForgot = document.getElementById('btnForgot');
+        const btnResetRequest = document.getElementById('btnResetRequest');
+        const btnResetConfirm = document.getElementById('btnResetConfirm');
+        const btnResetCancel = document.getElementById('btnResetCancel');
+        const btnResetCancel2 = document.getElementById('btnResetCancel2');
+
+        if (btnForgot) btnForgot.addEventListener('click', showResetRequest);
+        if (btnResetRequest) btnResetRequest.addEventListener('click', requestPasswordReset);
+        if (btnResetConfirm) btnResetConfirm.addEventListener('click', confirmPasswordReset);
+        if (btnResetCancel) btnResetCancel.addEventListener('click', hideResetPanels);
+        if (btnResetCancel2) btnResetCancel2.addEventListener('click', hideResetPanels);
+        if (resetEmailInput) {
+            resetEmailInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    requestPasswordReset();
+                }
+            });
+        }
+        if (resetPasswordConfirmInput) {
+            resetPasswordConfirmInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    confirmPasswordReset();
+                }
+            });
+        }
+
+        if (resetEmailParam && emailInput && !emailInput.value) {
+            emailInput.value = resetEmailParam;
+        }
+        if (resetToken) {
+            showResetConfirm();
+        } else if (params.get('reset') === '1') {
+            showResetRequest();
+        }
 
         const tryBtn = document.getElementById('btnTrySession');
         const tryOptions = document.getElementById('trySessionOptions');
