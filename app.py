@@ -4400,6 +4400,21 @@ def _try_init_db():
             sports = Column(MyJSON)
             goals = Column(MyJSON)
 
+        class UserAdminMeta(Base):
+            __tablename__ = "user_admin_meta"
+            id = Column(Integer, primary_key=True, autoincrement=True)
+            user_id = Column(
+                Integer,
+                ForeignKey("users.user_id", ondelete="CASCADE"),
+                unique=True,
+                nullable=False,
+            )
+            status = Column(String(16))
+            notes = Column(Text)
+            updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+            updated_by = Column(String(64))
+            user = relationship("User", backref="admin_meta", uselist=False)
+
         class UserFaceLock(Base):
             __tablename__ = "user_face_lock"
             id = Column(Integer, primary_key=True, autoincrement=True)
@@ -4690,6 +4705,7 @@ def _try_init_db():
             "engine": engine,
             "Session": DBSessionLocal,
             "User": User,
+            "UserAdminMeta": UserAdminMeta,
             "UserFaceLock": UserFaceLock,
             "SessionRow": SessionRow,
             "SessionPayloadRow": SessionPayloadRow,
@@ -5276,6 +5292,35 @@ def _serialize_profile_row(row) -> dict:
         "goals": goals,
     }
 
+USER_STATUS_VALUES = {
+    "active",
+    "inactive",
+    "blocked",
+    "banned",
+    "suspended",
+    "review",
+}
+USER_BLOCKED_STATUSES = {"inactive", "blocked", "banned", "suspended", "review"}
+
+
+def _normalize_user_status(value) -> str | None:
+    if value is None:
+        return None
+    raw = str(value).strip().lower()
+    if not raw or raw in {"none", "null", "clear"}:
+        return None
+    if raw in USER_STATUS_VALUES:
+        return raw
+    return None
+
+
+def _resolve_user_status(base_status, admin_status) -> str:
+    return _normalize_user_status(admin_status) or _normalize_user_status(base_status) or "active"
+
+
+def _is_user_blocked(status: str | None) -> bool:
+    return _normalize_user_status(status) in USER_BLOCKED_STATUSES
+
 
 def _load_user_profile(user_id: int | None) -> dict:
     if not user_id:
@@ -5615,6 +5660,25 @@ def api_login():
         ).scalar_one_or_none()
         if not row or not check_password_hash(row.password_hash or "", pw):
             return jsonify({"error": "invalid credentials"}), 401
+        admin_status = None
+        try:
+            AdminMeta = db.get("UserAdminMeta")
+            if AdminMeta is not None:
+                meta = (
+                    s.query(AdminMeta)
+                    .filter(AdminMeta.user_id == row.user_id)
+                    .one_or_none()
+                )
+                if meta and meta.status:
+                    admin_status = meta.status
+        except Exception:
+            admin_status = None
+        effective_status = _resolve_user_status(row.status, admin_status)
+        if _is_user_blocked(effective_status):
+            return (
+                jsonify({"error": "account suspended", "status": effective_status}),
+                403,
+            )
         session["user_id"] = row.user_id
         profile = _serialize_profile_row(row)
         return jsonify(
@@ -5697,6 +5761,29 @@ def api_me():
         row = s.get(db["User"], uid)
         if not row:
             return jsonify({"user": None})
+        admin_status = None
+        try:
+            AdminMeta = db.get("UserAdminMeta")
+            if AdminMeta is not None:
+                meta = (
+                    s.query(AdminMeta)
+                    .filter(AdminMeta.user_id == row.user_id)
+                    .one_or_none()
+                )
+                if meta and meta.status:
+                    admin_status = meta.status
+        except Exception:
+            admin_status = None
+        effective_status = _resolve_user_status(row.status, admin_status)
+        if _is_user_blocked(effective_status):
+            try:
+                session.pop("user_id", None)
+            except Exception:
+                pass
+            return (
+                jsonify({"error": "account suspended", "status": effective_status}),
+                403,
+            )
         profile = _serialize_profile_row(row)
         return jsonify(
             {
@@ -5705,6 +5792,7 @@ def api_me():
                     "name": row.name,
                     "email": row.email,
                     "face_lock": _serialize_face_lock(getattr(row, "face_lock", None)),
+                    "status": effective_status,
                 },
                 "profile": profile,
                 "profile_complete": _profile_is_complete(profile),
@@ -7504,6 +7592,14 @@ def admin_users():
             with db["Session"]() as s:
                 U = db["User"]
                 SR = db["SessionRow"]
+                AdminMeta = db.get("UserAdminMeta")
+                admin_map = {}
+                if AdminMeta is not None:
+                    try:
+                        meta_rows = s.execute(select(AdminMeta)).scalars().all()
+                        admin_map = {row.user_id: row for row in meta_rows}
+                    except Exception:
+                        admin_map = {}
                 rows = s.execute(select(U)).scalars().all()
                 for u in rows:
                     cnt = (
@@ -7512,15 +7608,122 @@ def admin_users():
                         ).scalar_one()
                         or 0
                     )
+                    admin = admin_map.get(u.user_id)
+                    effective_status = _resolve_user_status(u.status, getattr(admin, "status", None))
                     users.append(
                         {
                             "user_id": u.user_id,
                             "name": u.name,
                             "email": u.email,
+                            "status": effective_status,
+                            "created_at": u.created_at.isoformat() if u.created_at else None,
+                            "notes": getattr(admin, "notes", None),
                             "sessions": int(cnt),
                         }
                     )
         return jsonify({"users": users, "active": list(app.active_users.values())})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/admin/user/<int:uid>")
+def admin_user_detail(uid):
+    try:
+        db = _db_get()
+        if not db:
+            return jsonify({"error": "db unavailable"}), 503
+        with db["Session"]() as s:
+            U = db["User"]
+            AdminMeta = db.get("UserAdminMeta")
+            user = s.get(U, uid)
+            if not user:
+                return jsonify({"error": "user not found"}), 404
+            admin = None
+            if AdminMeta is not None:
+                admin = (
+                    s.query(AdminMeta)
+                    .filter(AdminMeta.user_id == uid)
+                    .one_or_none()
+                )
+            effective_status = _resolve_user_status(user.status, getattr(admin, "status", None))
+            profile = _serialize_profile_row(user)
+            payload = {
+                "user": {
+                    "user_id": user.user_id,
+                    "name": user.name,
+                    "email": user.email,
+                    "status": effective_status,
+                    "created_at": user.created_at.isoformat() if user.created_at else None,
+                    "handle": user.handle,
+                    "phone": user.phone,
+                },
+                "profile": profile,
+                "admin": {
+                    "status": getattr(admin, "status", None),
+                    "notes": getattr(admin, "notes", None),
+                    "updated_at": admin.updated_at.isoformat() if getattr(admin, "updated_at", None) else None,
+                    "updated_by": getattr(admin, "updated_by", None),
+                },
+            }
+            return jsonify(payload)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.patch("/admin/user/<int:uid>")
+def admin_user_update(uid):
+    try:
+        db = _db_get()
+        if not db:
+            return jsonify({"error": "db unavailable"}), 503
+        payload = request.get_json(silent=True) or {}
+        with db["Session"]() as s:
+            U = db["User"]
+            AdminMeta = db.get("UserAdminMeta")
+            if AdminMeta is None:
+                return jsonify({"error": "admin meta unavailable"}), 500
+            user = s.get(U, uid)
+            if not user:
+                return jsonify({"error": "user not found"}), 404
+            admin = (
+                s.query(AdminMeta)
+                .filter(AdminMeta.user_id == uid)
+                .one_or_none()
+            )
+            if not admin:
+                admin = AdminMeta(user_id=uid)
+            has_status = "status" in payload
+            status_val = _normalize_user_status(payload.get("status"))
+            if has_status:
+                admin.status = status_val
+                try:
+                    user.status = status_val
+                except Exception:
+                    pass
+            if payload.get("clear_notes") is True:
+                admin.notes = None
+            if "notes" in payload:
+                notes_raw = payload.get("notes")
+                notes = str(notes_raw).strip() if notes_raw is not None else ""
+                admin.notes = notes or None
+            admin.updated_by = str(payload.get("by") or session.get("user_id") or "admin")
+            s.add(admin)
+            s.add(user)
+            s.commit()
+            s.refresh(admin)
+            effective_status = _resolve_user_status(user.status, admin.status)
+            return jsonify(
+                {
+                    "ok": True,
+                    "user_id": uid,
+                    "status": effective_status,
+                    "notes": admin.notes,
+                    "updated_at": admin.updated_at.isoformat()
+                    if admin.updated_at
+                    else None,
+                    "updated_by": admin.updated_by,
+                }
+            )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

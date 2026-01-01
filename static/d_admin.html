@@ -1459,6 +1459,317 @@
             background: #3a1515;
         }
 
+        .user-wrap {
+            display: grid;
+            grid-template-columns: 260px minmax(320px, 1fr);
+            gap: 12px;
+            padding: 12px;
+            flex: 1 1 auto;
+            overflow: auto;
+        }
+
+        .user-list,
+        .user-detail {
+            background: #101721;
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        .user-list-body {
+            border: 1px solid #1b2735;
+            border-radius: 8px;
+            background: #0b0f14;
+            flex: 1 1 auto;
+            overflow: auto;
+        }
+
+        .user-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #1b2735;
+            cursor: pointer;
+            transition: background 0.18s ease;
+        }
+
+        .user-row:hover {
+            background: #101c2a;
+        }
+
+        .user-row.active {
+            background: #132946;
+            border-left: 4px solid #2563eb;
+        }
+
+        .user-row:last-child {
+            border-bottom: none;
+        }
+
+        .user-row-main {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: 0;
+        }
+
+        .user-row-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #e6edf3;
+        }
+
+        .user-row-sub {
+            font-size: 11px;
+            color: #94a3b8;
+        }
+
+        .user-row-meta {
+            font-size: 11px;
+            color: #94a3b8;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .user-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .user-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .user-toggle input {
+            margin: 0;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 11px;
+            border: 1px solid #1f2a36;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .status-pill.ok {
+            background: #11331f;
+            color: #34d399;
+            border-color: #1e7a42;
+        }
+
+        .status-pill.bad {
+            background: #2a1111;
+            color: #f87171;
+            border-color: #7a1e1e;
+        }
+
+        .status-pill.pending {
+            background: #1c1b24;
+            color: #d1d5db;
+            border-color: #54535c;
+        }
+
+        .status-pill.info {
+            background: #102037;
+            color: #93c5fd;
+            border-color: #1d4ed8;
+        }
+
+        .user-detail-empty {
+            color: #94a3b8;
+            font-style: italic;
+        }
+
+        .user-detail-body {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 0;
+        }
+
+        .user-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .user-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .user-subtitle {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .user-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+        }
+
+        .user-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 12px;
+            color: #94a3b8;
+            background: #0b0f14;
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            padding: 8px;
+        }
+
+        .user-field .value {
+            color: #e6edf3;
+        }
+
+        .user-section {
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            padding: 10px;
+            background: #0b0f14;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .user-section h3 {
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .user-section-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        .user-status-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .user-status-controls select {
+            background: #070a11;
+            color: #e6edf3;
+            border: 1px solid #1f2a36;
+            padding: 6px 8px;
+            border-radius: 8px;
+        }
+
+        .user-quick-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .user-notes {
+            width: 100%;
+            min-height: 90px;
+            border-radius: 8px;
+            border: 1px solid #1f2a36;
+            background: #070a11;
+            color: #e6edf3;
+            padding: 8px;
+            resize: vertical;
+        }
+
+        .user-note-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .user-note-actions .btn.primary {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+        }
+
+        .user-note-actions .btn.primary:hover {
+            background: #1d4ed8;
+        }
+
+        .user-status-message {
+            font-size: 12px;
+            color: #94a3b8;
+            min-height: 16px;
+        }
+
+        .user-status-message.success {
+            color: #4ade80;
+        }
+
+        .user-status-message.error {
+            color: #f87171;
+        }
+
+        .user-status-message.warn {
+            color: #facc15;
+        }
+
+        .user-subscription-list,
+        .user-session-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .user-subscription-item,
+        .user-session-item {
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            padding: 8px;
+            background: #0f1621;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 12px;
+        }
+
+        .user-session-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .user-session-actions a {
+            color: #7dd3fc;
+            text-decoration: none;
+        }
+
+        .user-session-actions a:hover {
+            text-decoration: underline;
+        }
+
 
 
         @media (max-width: 1040px) {
@@ -1474,6 +1785,12 @@
 
             #viewer {
                 min-height: 320px;
+            }
+        }
+
+        @media (max-width: 980px) {
+            .user-wrap {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -1506,6 +1823,8 @@
                 data-tab-target="sessions">Sessions</button>
             <button class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-subscriptions"
                 data-tab-target="subscriptions">Subscriptions</button>
+            <button class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-users"
+                data-tab-target="users">User Management</button>
             <button class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-challenges"
                 data-tab-target="challenges">Challenge Management</button>
             <button class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-community"
@@ -1656,6 +1975,135 @@
                             <button class="btn" type="button" id="subscriptionAssignBtn">Assign</button>
                         </div>
                         <button class="btn" type="button" id="subscriptionReloadBtn">Reload</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="tab-panel" id="tab-users" role="tabpanel" data-tab-panel="users">
+            <section id="usersPane">
+                <h2>User Management</h2>
+                <div class="tab-toolbar">
+                    <input id="userFilterInput" placeholder="Filter users..." type="text" />
+                    <select id="userStatusFilter">
+                        <option value="">All statuses</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="review">Review</option>
+                        <option value="suspended">Suspended</option>
+                        <option value="blocked">Blocked</option>
+                        <option value="banned">Banned</option>
+                    </select>
+                    <label class="user-toggle">
+                        <input id="userActiveOnly" type="checkbox" />
+                        Active only
+                    </label>
+                    <button class="btn" id="userRefreshBtn" type="button">Refresh</button>
+                </div>
+                <div class="user-wrap">
+                    <div class="user-list">
+                        <div class="user-list-body" id="userList">
+                            <div class="muted" style="padding:8px;">No users loaded.</div>
+                        </div>
+                    </div>
+                    <div class="user-detail" id="userDetail">
+                        <div class="user-detail-empty" id="userDetailEmpty">Select a user to view details.</div>
+                        <div class="user-detail-body" id="userDetailBody" style="display:none;">
+                            <div class="user-header">
+                                <div>
+                                    <div class="user-title" id="userDetailName"></div>
+                                    <div class="user-subtitle" id="userDetailSubtitle"></div>
+                                </div>
+                                <div class="user-badges" id="userDetailBadges"></div>
+                            </div>
+                            <div class="user-detail-grid">
+                                <div class="user-field">
+                                    <span>Created</span>
+                                    <span class="value" id="userDetailCreated"></span>
+                                </div>
+                                <div class="user-field">
+                                    <span>Handle</span>
+                                    <span class="value" id="userDetailHandle"></span>
+                                </div>
+                                <div class="user-field">
+                                    <span>Phone</span>
+                                    <span class="value" id="userDetailPhone"></span>
+                                </div>
+                                <div class="user-field">
+                                    <span>Sessions</span>
+                                    <span class="value" id="userDetailSessions"></span>
+                                </div>
+                                <div class="user-field">
+                                    <span>Last Seen</span>
+                                    <span class="value" id="userDetailLastSeen"></span>
+                                </div>
+                                <div class="user-field">
+                                    <span>Last Path</span>
+                                    <span class="value" id="userDetailPath"></span>
+                                </div>
+                                <div class="user-field">
+                                    <span>IP</span>
+                                    <span class="value" id="userDetailIp"></span>
+                                </div>
+                            </div>
+                            <div class="user-section">
+                                <div class="user-section-header">
+                                    <h3>Account Status</h3>
+                                    <span class="muted" id="userDetailStatusMeta"></span>
+                                </div>
+                                <div class="user-status-controls">
+                                    <select id="userStatusSelect">
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                        <option value="review">Review</option>
+                                        <option value="suspended">Suspended</option>
+                                        <option value="blocked">Blocked</option>
+                                        <option value="banned">Banned</option>
+                                    </select>
+                                    <button class="btn" id="userStatusSaveBtn" type="button">Save Status</button>
+                                    <div class="user-quick-actions">
+                                        <button class="btn btn-mini" data-user-status="active" type="button">Activate</button>
+                                        <button class="btn btn-mini" data-user-status="review" type="button">Review</button>
+                                        <button class="btn btn-mini" data-user-status="suspended" type="button">Suspend</button>
+                                        <button class="btn btn-mini btn-warning" data-user-status="blocked"
+                                            type="button">Block</button>
+                                        <button class="btn btn-mini btn-danger" data-user-status="banned"
+                                            type="button">Ban</button>
+                                    </div>
+                                </div>
+                                <div class="user-status-message" id="userStatusMessage"></div>
+                            </div>
+                            <div class="user-section">
+                                <div class="user-section-header">
+                                    <h3>Account Notes</h3>
+                                    <span class="muted">Internal only</span>
+                                </div>
+                                <textarea class="user-notes" id="userNotesInput"
+                                    placeholder="Add notes about this account..."></textarea>
+                                <div class="user-note-actions">
+                                    <button class="btn" id="userNotesClearBtn" type="button">Clear</button>
+                                    <button class="btn primary" id="userNotesSaveBtn" type="button">Save Notes</button>
+                                </div>
+                                <div class="user-status-message" id="userNotesMessage"></div>
+                            </div>
+                            <div class="user-section">
+                                <div class="user-section-header">
+                                    <h3>Subscriptions</h3>
+                                </div>
+                                <div class="user-subscription-list" id="userSubscriptionsList">
+                                    <div class="muted">No subscriptions loaded.</div>
+                                </div>
+                            </div>
+                            <div class="user-section">
+                                <div class="user-section-header">
+                                    <h3>Sessions</h3>
+                                    <span class="muted" id="userSessionsMeta"></span>
+                                </div>
+                                <div class="user-session-list" id="userSessionsList">
+                                    <div class="muted">No sessions loaded.</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>

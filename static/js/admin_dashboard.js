@@ -168,6 +168,35 @@
     const communityPostList = document.getElementById('communityPostList');
     const communityStatus = document.getElementById('communityStatus');
 
+    const userFilterInput = document.getElementById('userFilterInput');
+    const userStatusFilter = document.getElementById('userStatusFilter');
+    const userActiveOnly = document.getElementById('userActiveOnly');
+    const userRefreshBtn = document.getElementById('userRefreshBtn');
+    const userList = document.getElementById('userList');
+    const userDetailEmpty = document.getElementById('userDetailEmpty');
+    const userDetailBody = document.getElementById('userDetailBody');
+    const userDetailName = document.getElementById('userDetailName');
+    const userDetailSubtitle = document.getElementById('userDetailSubtitle');
+    const userDetailBadges = document.getElementById('userDetailBadges');
+    const userDetailCreated = document.getElementById('userDetailCreated');
+    const userDetailHandle = document.getElementById('userDetailHandle');
+    const userDetailPhone = document.getElementById('userDetailPhone');
+    const userDetailSessions = document.getElementById('userDetailSessions');
+    const userDetailLastSeen = document.getElementById('userDetailLastSeen');
+    const userDetailPath = document.getElementById('userDetailPath');
+    const userDetailIp = document.getElementById('userDetailIp');
+    const userDetailStatusMeta = document.getElementById('userDetailStatusMeta');
+    const userStatusSelect = document.getElementById('userStatusSelect');
+    const userStatusSaveBtn = document.getElementById('userStatusSaveBtn');
+    const userStatusMessage = document.getElementById('userStatusMessage');
+    const userNotesInput = document.getElementById('userNotesInput');
+    const userNotesSaveBtn = document.getElementById('userNotesSaveBtn');
+    const userNotesClearBtn = document.getElementById('userNotesClearBtn');
+    const userNotesMessage = document.getElementById('userNotesMessage');
+    const userSubscriptionsList = document.getElementById('userSubscriptionsList');
+    const userSessionsList = document.getElementById('userSessionsList');
+    const userSessionsMeta = document.getElementById('userSessionsMeta');
+
     const subscriptionState = {
         plans: new Map(),
         usersByPlan: new Map(),
@@ -235,7 +264,15 @@
 
     let challenges = [];
 
-
+    let adminUsers = [];
+    let adminUsersLoading = false;
+    let activeUsers = new Map();
+    let selectedUserId = null;
+    let selectedUserDetail = null;
+    let selectedUserSessions = [];
+    let selectedUserSessionsError = '';
+    let userListError = '';
+    let userDetailRequestId = 0;
 
     let activeChallengeId = null;
 
@@ -4895,6 +4932,10 @@
             subscriptionState.loading = false;
             renderSubscriptionPlans();
             renderSubscriptionAssignments();
+            if (selectedUserId) {
+                const email = selectedUserDetail?.user?.email || selectedUserDetail?.profile?.email || '';
+                renderUserSubscriptions(selectedUserId, email);
+            }
         }
     };
 
@@ -5262,6 +5303,567 @@
         } finally {
             communityLoading = false;
             renderCommunityPosts();
+            if (selectedUserId && !selectedUserSessionsError) {
+                renderUserSessions(selectedUserSessions, selectedUserSessionsError);
+            }
+        }
+    };
+
+    const normalizeUserStatus = (value) => {
+        const raw = String(value || '').trim().toLowerCase();
+        return raw;
+    };
+
+    const userStatusLabel = (value) => {
+        const raw = normalizeUserStatus(value);
+        if (!raw) return 'unknown';
+        return raw.replace(/_/g, ' ');
+    };
+
+    const userStatusClass = (value) => {
+        switch (normalizeUserStatus(value)) {
+            case 'active':
+                return 'ok';
+            case 'inactive':
+            case 'review':
+            case 'suspended':
+                return 'pending';
+            case 'blocked':
+            case 'banned':
+                return 'bad';
+            default:
+                return 'pending';
+        }
+    };
+
+    const buildStatusPill = (value, labelOverride) => {
+        const pill = document.createElement('span');
+        const label = labelOverride || userStatusLabel(value);
+        pill.className = `status-pill ${userStatusClass(value)}`;
+        pill.textContent = String(label || 'unknown').toUpperCase();
+        return pill;
+    };
+
+    const buildInfoPill = (label) => {
+        const pill = document.createElement('span');
+        pill.className = 'status-pill info';
+        pill.textContent = String(label || '').toUpperCase();
+        return pill;
+    };
+
+    const setUserStatusMessage = (message = '', tone = '') => {
+        if (!userStatusMessage) return;
+        userStatusMessage.textContent = message || '';
+        userStatusMessage.classList.remove('success', 'error', 'warn');
+        if (tone) userStatusMessage.classList.add(tone);
+    };
+
+    const setUserNotesMessage = (message = '', tone = '') => {
+        if (!userNotesMessage) return;
+        userNotesMessage.textContent = message || '';
+        userNotesMessage.classList.remove('success', 'error', 'warn');
+        if (tone) userNotesMessage.classList.add(tone);
+    };
+
+    const setUserDetailControlsEnabled = (enabled) => {
+        const disabled = !enabled;
+        if (userStatusSelect) userStatusSelect.disabled = disabled;
+        if (userStatusSaveBtn) userStatusSaveBtn.disabled = disabled;
+        if (userNotesInput) userNotesInput.disabled = disabled;
+        if (userNotesSaveBtn) userNotesSaveBtn.disabled = disabled;
+        if (userNotesClearBtn) userNotesClearBtn.disabled = disabled;
+        if (userDetailBody) {
+            userDetailBody.querySelectorAll('[data-user-status]').forEach((btn) => {
+                btn.disabled = disabled;
+            });
+        }
+    };
+
+    const setUserDetailEmptyState = (message) => {
+        if (userDetailEmpty) {
+            userDetailEmpty.textContent = message || 'Select a user to view details.';
+            userDetailEmpty.style.display = 'block';
+        }
+        if (userDetailBody) userDetailBody.style.display = 'none';
+        setUserDetailControlsEnabled(false);
+        setUserStatusMessage('');
+        setUserNotesMessage('');
+    };
+
+    const showUserDetailBody = () => {
+        if (userDetailEmpty) userDetailEmpty.style.display = 'none';
+        if (userDetailBody) userDetailBody.style.display = '';
+        setUserDetailControlsEnabled(true);
+    };
+
+    const getUserIdValue = (value) => String(value ?? '').trim();
+
+    const getUserFromList = (userId) => {
+        const key = getUserIdValue(userId);
+        return adminUsers.find((item) => getUserIdValue(item?.user_id) === key) || null;
+    };
+
+    const getActiveUserMeta = (userId) => activeUsers.get(getUserIdValue(userId)) || null;
+
+    const renderUserList = () => {
+        if (!userList) return;
+        userList.innerHTML = '';
+        if (adminUsersLoading) {
+            userList.innerHTML = '<div class="muted" style="padding:8px;">Loading users...</div>';
+            return;
+        }
+        const hasError = !!userListError;
+        if (hasError) {
+            const err = document.createElement('div');
+            err.className = 'muted';
+            err.style.padding = '8px';
+            err.textContent = userListError;
+            userList.appendChild(err);
+        }
+        const filter = (userFilterInput?.value || '').trim().toLowerCase();
+        const statusFilter = normalizeUserStatus(userStatusFilter?.value || '');
+        const activeOnly = !!userActiveOnly?.checked;
+        const frag = document.createDocumentFragment();
+        let count = 0;
+        adminUsers.forEach((user) => {
+            const userId = getUserIdValue(user?.user_id);
+            if (!userId) return;
+            const name = String(user?.name || '').trim();
+            const email = String(user?.email || '').trim();
+            const status = normalizeUserStatus(user?.status) || 'active';
+            const haystack = `${userId} ${name} ${email}`.toLowerCase();
+            if (filter && !haystack.includes(filter)) return;
+            if (statusFilter && status !== statusFilter) return;
+            const activeMeta = getActiveUserMeta(userId);
+            if (activeOnly && !activeMeta) return;
+            const row = document.createElement('div');
+            row.className = 'user-row';
+            if (userId === selectedUserId) row.classList.add('active');
+
+            const main = document.createElement('div');
+            main.className = 'user-row-main';
+            const title = document.createElement('div');
+            title.className = 'user-row-title';
+            title.textContent = name || email || `User ${userId}`;
+            const sub = document.createElement('div');
+            sub.className = 'user-row-sub';
+            sub.textContent = email || `ID ${userId}`;
+            main.append(title, sub);
+
+            const meta = document.createElement('div');
+            meta.className = 'user-row-meta';
+            const badges = document.createElement('div');
+            badges.className = 'user-badges';
+            badges.appendChild(buildStatusPill(status));
+            if (activeMeta) badges.appendChild(buildInfoPill('Online'));
+            const sessionsCount = Number(user?.sessions);
+            const sessionsLine = document.createElement('div');
+            sessionsLine.textContent = Number.isFinite(sessionsCount) ? `${sessionsCount} sessions` : '';
+            meta.append(badges, sessionsLine);
+
+            row.append(main, meta);
+            row.addEventListener('click', () => selectUser(userId));
+            frag.appendChild(row);
+            count += 1;
+        });
+        if (!count && !(hasError && !adminUsers.length)) {
+            const empty = document.createElement('div');
+            empty.className = 'muted';
+            empty.style.padding = '8px';
+            empty.textContent = adminUsers.length ? 'No users match the current filters.' : 'No users found.';
+            userList.appendChild(empty);
+        } else {
+            userList.appendChild(frag);
+        }
+    };
+
+    const renderUserSubscriptions = (userId, email) => {
+        if (!userSubscriptionsList) return;
+        userSubscriptionsList.innerHTML = '';
+        if (!userId) {
+            userSubscriptionsList.innerHTML = '<div class="muted">Select a user to view subscriptions.</div>';
+            return;
+        }
+        if (subscriptionState.loading) {
+            userSubscriptionsList.innerHTML = '<div class="muted">Loading subscription data...</div>';
+            return;
+        }
+        const idKey = getUserIdValue(userId);
+        const emailKey = String(email || '').trim();
+        const planIds = subscriptionState.userPlans.get(idKey)
+            || (emailKey ? subscriptionState.userPlans.get(emailKey) : null)
+            || [];
+        if (!planIds.length) {
+            userSubscriptionsList.innerHTML = '<div class="muted">No subscriptions assigned.</div>';
+            return;
+        }
+        planIds.forEach((planId) => {
+            const plan = subscriptionState.plans.get(planId);
+            const item = document.createElement('div');
+            item.className = 'user-subscription-item';
+            const title = document.createElement('div');
+            title.textContent = plan?.name || planId;
+            const meta = document.createElement('div');
+            const metaParts = [];
+            if (plan?.dataset) metaParts.push(plan.dataset);
+            if (plan) metaParts.push(formatSubscriptionPrice(plan));
+            if (plan?.active === false) metaParts.push('inactive');
+            if (metaParts.length) meta.textContent = metaParts.join(' • ');
+            item.append(title);
+            if (metaParts.length) item.append(meta);
+            userSubscriptionsList.appendChild(item);
+        });
+    };
+
+    const renderUserSessions = (sessions, errorMessage = '') => {
+        if (!userSessionsList) return;
+        userSessionsList.innerHTML = '';
+        if (errorMessage) {
+            const err = document.createElement('div');
+            err.className = 'muted';
+            err.textContent = errorMessage;
+            userSessionsList.appendChild(err);
+            if (userSessionsMeta) userSessionsMeta.textContent = '';
+            return;
+        }
+        const list = Array.isArray(sessions) ? sessions.slice() : [];
+        list.sort((a, b) => getSessionTimestamp(b) - getSessionTimestamp(a));
+        const postMap = new Map();
+        communityPosts.forEach((post) => {
+            const sid = getCommunityPostId(post);
+            if (sid) postMap.set(String(sid), post);
+        });
+        const total = list.length;
+        if (userSessionsMeta) {
+            const postsCount = list.reduce((acc, session) => {
+                const sid = getUserIdValue(session?.sid);
+                return acc + (sid && postMap.has(sid) ? 1 : 0);
+            }, 0);
+            userSessionsMeta.textContent = total ? `${total} sessions${postsCount ? ` • ${postsCount} posts` : ''}` : '';
+        }
+        if (!total) {
+            userSessionsList.innerHTML = '<div class="muted">No sessions found.</div>';
+            return;
+        }
+        list.forEach((session) => {
+            const sid = getUserIdValue(session?.sid);
+            if (!sid) return;
+            const item = document.createElement('div');
+            item.className = 'user-session-item';
+            const title = document.createElement('div');
+            title.textContent = sid;
+            const meta = document.createElement('div');
+            const metaParts = [];
+            if (session?.created_at) metaParts.push(`Created ${fmtDate(session.created_at)}`);
+            if (session?.ended_at) metaParts.push(`Ended ${fmtDate(session.ended_at)}`);
+            const shots = Number(session?.shots);
+            const accuracy = Number(session?.accuracy);
+            if (Number.isFinite(shots)) metaParts.push(`${shots} shots`);
+            if (Number.isFinite(accuracy)) metaParts.push(`${accuracy}%`);
+            if (metaParts.length) meta.textContent = metaParts.join(' • ');
+
+            const actions = document.createElement('div');
+            actions.className = 'user-session-actions';
+            const debugLink = document.createElement('a');
+            debugLink.href = `/admin/session/${encodeURIComponent(sid)}/debug`;
+            debugLink.target = '_blank';
+            debugLink.rel = 'noopener';
+            debugLink.textContent = 'Debug JSON';
+            actions.appendChild(debugLink);
+
+            const post = postMap.get(sid);
+            if (post) {
+                const postLink = document.createElement('a');
+                postLink.href = `/admin/community/session/${encodeURIComponent(sid)}`;
+                postLink.target = '_blank';
+                postLink.rel = 'noopener';
+                postLink.textContent = post.hidden ? 'Community (hidden)' : 'Community Post';
+                actions.appendChild(postLink);
+            }
+
+            item.append(title);
+            if (metaParts.length) item.append(meta);
+            if (actions.childNodes.length) item.append(actions);
+            userSessionsList.appendChild(item);
+        });
+    };
+
+    const hydrateUserDetail = () => {
+        const detail = selectedUserDetail;
+        if (!detail || !detail.user) {
+            setUserDetailEmptyState('Select a user to view details.');
+            return;
+        }
+        const user = detail.user || {};
+        const profile = detail.profile || {};
+        const admin = detail.admin || {};
+        const userId = getUserIdValue(user.user_id || selectedUserId);
+        const email = user.email || profile.email || '';
+        const name = user.name || profile.name || email || `User ${userId}`;
+        const status = normalizeUserStatus(user.status) || 'active';
+        const activeMeta = getActiveUserMeta(userId);
+
+        if (userDetailName) userDetailName.textContent = name;
+        if (userDetailSubtitle) {
+            const parts = [];
+            if (email) parts.push(email);
+            if (userId) parts.push(`ID ${userId}`);
+            userDetailSubtitle.textContent = parts.join(' • ');
+        }
+
+        if (userDetailBadges) {
+            userDetailBadges.innerHTML = '';
+            userDetailBadges.appendChild(buildStatusPill(status));
+            if (activeMeta) userDetailBadges.appendChild(buildInfoPill('Online'));
+        }
+
+        if (userDetailCreated) userDetailCreated.textContent = fmtDate(user.created_at) || '--';
+        if (userDetailHandle) userDetailHandle.textContent = user.handle || profile.handle || '--';
+        if (userDetailPhone) userDetailPhone.textContent = user.phone || '--';
+
+        const listEntry = getUserFromList(userId);
+        const sessionsCount = Number(listEntry?.sessions);
+        if (userDetailSessions) {
+            if (Number.isFinite(sessionsCount)) {
+                userDetailSessions.textContent = String(sessionsCount);
+            } else {
+                userDetailSessions.textContent = selectedUserSessions.length ? String(selectedUserSessions.length) : '--';
+            }
+        }
+
+        if (userDetailLastSeen) {
+            userDetailLastSeen.textContent = activeMeta?.last_seen ? fmtDate(activeMeta.last_seen) : 'Offline';
+        }
+        if (userDetailPath) userDetailPath.textContent = activeMeta?.path || '--';
+        if (userDetailIp) userDetailIp.textContent = activeMeta?.ip || '--';
+
+        if (userDetailStatusMeta) {
+            const parts = [];
+            if (admin?.updated_at) parts.push(`Updated ${fmtDate(admin.updated_at)}`);
+            if (admin?.updated_by) parts.push(`by ${admin.updated_by}`);
+            userDetailStatusMeta.textContent = parts.join(' ');
+        }
+
+        if (userStatusSelect) {
+            const available = Array.from(userStatusSelect.options).some((opt) => opt.value === status);
+            userStatusSelect.value = available ? status : 'active';
+        }
+        if (userNotesInput) userNotesInput.value = admin?.notes || '';
+
+        setUserStatusMessage('');
+        setUserNotesMessage('');
+        showUserDetailBody();
+        renderUserSubscriptions(userId, email);
+        renderUserSessions(selectedUserSessions, selectedUserSessionsError);
+    };
+
+    const ensureCommunityPostsLoaded = async () => {
+        if (communityLoading) return;
+        if (!communityPosts.length) {
+            await loadCommunityPosts(true);
+        }
+    };
+
+    const ensureSubscriptionData = async () => {
+        if (subscriptionState.loading) return;
+        if (!subscriptionState.plans.size && subscriptionUI.planList) {
+            await loadSubscriptionConfig(true);
+        }
+    };
+
+    const loadUserDetail = async (userId) => {
+        if (!userId) return;
+        const requestId = ++userDetailRequestId;
+        setUserDetailEmptyState('Loading user details...');
+        try {
+            const detailRes = await fetch(`/admin/user/${encodeURIComponent(userId)}`);
+            if (!detailRes.ok) throw new Error(`http ${detailRes.status}`);
+            const detail = await detailRes.json();
+
+            let sessionsPayload = { sessions: [] };
+            let sessionError = '';
+            try {
+                const sessionsRes = await fetch(`/admin/user/${encodeURIComponent(userId)}/sessions`);
+                if (!sessionsRes.ok) throw new Error(`http ${sessionsRes.status}`);
+                sessionsPayload = await sessionsRes.json();
+            } catch (err) {
+                sessionError = `Failed to load sessions: ${err.message || err}`;
+            }
+
+            if (requestId !== userDetailRequestId) return;
+            selectedUserDetail = detail;
+            selectedUserSessions = Array.isArray(sessionsPayload?.sessions) ? sessionsPayload.sessions : [];
+            selectedUserSessionsError = sessionError;
+
+            hydrateUserDetail();
+            const detailUserId = getUserIdValue(detail?.user?.user_id || userId);
+            const detailEmail = detail?.user?.email || detail?.profile?.email || '';
+            ensureSubscriptionData()
+                .then(() => {
+                    if (userDetailRequestId === requestId && selectedUserId === detailUserId) {
+                        renderUserSubscriptions(detailUserId, detailEmail);
+                    }
+                })
+                .catch(() => { });
+            if (!sessionError) {
+                ensureCommunityPostsLoaded()
+                    .then(() => {
+                        if (userDetailRequestId === requestId && selectedUserId === detailUserId) {
+                            renderUserSessions(selectedUserSessions, selectedUserSessionsError);
+                        }
+                    })
+                    .catch(() => { });
+            }
+        } catch (err) {
+            console.error('[admin] load user detail failed', err);
+            setUserDetailEmptyState(`Failed to load user: ${err.message || err}`);
+        }
+    };
+
+    const selectUser = (userId) => {
+        const key = getUserIdValue(userId);
+        if (!key) return;
+        selectedUserId = key;
+        renderUserList();
+        loadUserDetail(key);
+    };
+
+    const loadUsers = async (force = false) => {
+        if (!userList) return;
+        if (adminUsersLoading) return;
+        if (!force && adminUsers.length) {
+            renderUserList();
+            return;
+        }
+        adminUsersLoading = true;
+        userListError = '';
+        userList.innerHTML = '<div class="muted" style="padding:8px;">Loading users...</div>';
+        try {
+            const res = await fetch('/admin/users');
+            if (!res.ok) throw new Error(`http ${res.status}`);
+            const data = await res.json();
+            adminUsers = Array.isArray(data?.users) ? data.users.slice() : [];
+            adminUsers.sort((a, b) => {
+                const aLabel = String(a?.name || a?.email || a?.user_id || '');
+                const bLabel = String(b?.name || b?.email || b?.user_id || '');
+                return aLabel.localeCompare(bLabel);
+            });
+            activeUsers = new Map();
+            (data?.active || []).forEach((entry) => {
+                const key = getUserIdValue(entry?.user_id);
+                if (key) activeUsers.set(key, entry);
+            });
+            renderUserList();
+            if (selectedUserId) {
+                const exists = adminUsers.some((user) => getUserIdValue(user?.user_id) === selectedUserId);
+                if (exists) {
+                    loadUserDetail(selectedUserId);
+                } else {
+                    selectedUserId = null;
+                    selectedUserDetail = null;
+                    selectedUserSessions = [];
+                    selectedUserSessionsError = '';
+                    setUserDetailEmptyState('Select a user to view details.');
+                }
+            } else {
+                selectedUserDetail = null;
+                selectedUserSessions = [];
+                selectedUserSessionsError = '';
+                setUserDetailEmptyState('Select a user to view details.');
+            }
+        } catch (err) {
+            console.error('[admin] load users failed', err);
+            userListError = `Failed to load users: ${err.message || err}`;
+            setUserDetailEmptyState('Failed to load users.');
+        } finally {
+            adminUsersLoading = false;
+            renderUserList();
+        }
+    };
+
+    const updateUserStatus = async (nextStatus) => {
+        const userId = selectedUserId;
+        if (!userId) return;
+        const targetStatus = normalizeUserStatus(nextStatus || userStatusSelect?.value);
+        if (!targetStatus) {
+            setUserStatusMessage('Select a status.', 'warn');
+            return;
+        }
+        setUserStatusMessage(`Updating status to ${targetStatus}...`);
+        if (userStatusSaveBtn) userStatusSaveBtn.disabled = true;
+        if (userDetailBody) {
+            userDetailBody.querySelectorAll('[data-user-status]').forEach((btn) => {
+                btn.disabled = true;
+            });
+        }
+        try {
+            const res = await fetch(`/admin/user/${encodeURIComponent(userId)}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: targetStatus }),
+            });
+            if (!res.ok) {
+                const msg = await res.text();
+                throw new Error(msg || res.statusText || `http ${res.status}`);
+            }
+            const data = await res.json();
+            if (!selectedUserDetail) selectedUserDetail = { user: { user_id: userId }, admin: {} };
+            if (selectedUserDetail.user) selectedUserDetail.user.status = data?.status || targetStatus;
+            if (!selectedUserDetail.admin) selectedUserDetail.admin = {};
+            selectedUserDetail.admin.status = data?.status || targetStatus;
+            selectedUserDetail.admin.updated_at = data?.updated_at || null;
+            selectedUserDetail.admin.updated_by = data?.updated_by || null;
+            const listEntry = getUserFromList(userId);
+            if (listEntry) listEntry.status = data?.status || targetStatus;
+            hydrateUserDetail();
+            setUserStatusMessage('Status updated.', 'success');
+            renderUserList();
+        } catch (err) {
+            console.error('[admin] update user status failed', err);
+            setUserStatusMessage(`Status update failed: ${err.message || err}`, 'error');
+        } finally {
+            if (userStatusSaveBtn) userStatusSaveBtn.disabled = false;
+            if (userDetailBody) {
+                userDetailBody.querySelectorAll('[data-user-status]').forEach((btn) => {
+                    btn.disabled = false;
+                });
+            }
+        }
+    };
+
+    const saveUserNotes = async (clear = false) => {
+        const userId = selectedUserId;
+        if (!userId) return;
+        const notes = clear ? '' : (userNotesInput?.value || '');
+        setUserNotesMessage(clear ? 'Clearing notes...' : 'Saving notes...');
+        if (userNotesSaveBtn) userNotesSaveBtn.disabled = true;
+        if (userNotesClearBtn) userNotesClearBtn.disabled = true;
+        try {
+            const payload = clear ? { clear_notes: true } : { notes };
+            const res = await fetch(`/admin/user/${encodeURIComponent(userId)}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) {
+                const msg = await res.text();
+                throw new Error(msg || res.statusText || `http ${res.status}`);
+            }
+            const data = await res.json();
+            if (!selectedUserDetail) selectedUserDetail = { user: { user_id: userId }, admin: {} };
+            if (!selectedUserDetail.admin) selectedUserDetail.admin = {};
+            selectedUserDetail.admin.notes = data?.notes || '';
+            selectedUserDetail.admin.updated_at = data?.updated_at || null;
+            selectedUserDetail.admin.updated_by = data?.updated_by || null;
+            if (userNotesInput) userNotesInput.value = data?.notes || '';
+            hydrateUserDetail();
+            setUserNotesMessage(clear ? 'Notes cleared.' : 'Notes saved.', 'success');
+        } catch (err) {
+            console.error('[admin] save user notes failed', err);
+            setUserNotesMessage(`Save failed: ${err.message || err}`, 'error');
+        } finally {
+            if (userNotesSaveBtn) userNotesSaveBtn.disabled = false;
+            if (userNotesClearBtn) userNotesClearBtn.disabled = false;
         }
     };
 
@@ -5331,6 +5933,30 @@
     if (communityFilterInput) communityFilterInput.addEventListener('input', () => renderCommunityPosts());
 
     if (communityRefreshBtn) communityRefreshBtn.addEventListener('click', () => loadCommunityPosts(true));
+
+    if (userFilterInput) userFilterInput.addEventListener('input', () => renderUserList());
+
+    if (userStatusFilter) userStatusFilter.addEventListener('change', () => renderUserList());
+
+    if (userActiveOnly) userActiveOnly.addEventListener('change', () => renderUserList());
+
+    if (userRefreshBtn) userRefreshBtn.addEventListener('click', () => loadUsers(true));
+
+    if (userStatusSaveBtn) userStatusSaveBtn.addEventListener('click', () => updateUserStatus());
+
+    if (userNotesSaveBtn) userNotesSaveBtn.addEventListener('click', () => saveUserNotes(false));
+
+    if (userNotesClearBtn) userNotesClearBtn.addEventListener('click', () => saveUserNotes(true));
+
+    if (userDetailBody) {
+        userDetailBody.addEventListener('click', (event) => {
+            const btn = event.target.closest('[data-user-status]');
+            if (btn) updateUserStatus(btn.dataset.userStatus);
+        });
+    }
+
+    const usersTabBtn = tabButtons.find((btn) => btn.dataset.tabTarget === 'users');
+    if (usersTabBtn) usersTabBtn.addEventListener('click', () => loadUsers());
 
 
 
@@ -5431,7 +6057,7 @@
 
 
 
-    if (btnRefresh) btnRefresh.addEventListener('click', () => { loadSessions(true); loadSupportMetadata(true); loadChallenges(true); loadSubscriptionConfig(true); loadCommunityPosts(true); });
+    if (btnRefresh) btnRefresh.addEventListener('click', () => { loadSessions(true); loadSupportMetadata(true); loadChallenges(true); loadSubscriptionConfig(true); loadCommunityPosts(true); loadUsers(true); });
 
 
 
@@ -5454,6 +6080,8 @@
     loadChallenges();
 
     loadCommunityPosts();
+
+    if (userList) loadUsers();
 
 
 
