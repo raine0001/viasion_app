@@ -644,9 +644,9 @@ window.updateSessionHUD = updateSessionHUD;
     }
     function labelToFacing(label) { return (String(label).toLowerCase().startsWith('b')) ? 'environment' : 'user'; }
 
-    async function startWithConstraints(cons) {
+    async function startWithConstraints(cons, opts = {}) {
         const v = document.getElementById('videoPlayer');
-        if (!v) return false;
+        if (!v) return null;
 
         const preferredSizing = {
             width: { ideal: 1280 },
@@ -665,6 +665,7 @@ window.updateSessionHUD = updateSessionHUD;
             const base = normalize(raw);
             const attempts = [];
             const seen = new Set();
+            const strictDeviceId = !!(opts.strictDeviceId && base.deviceId);
             const pushUnique = (obj) => {
                 if (!obj) return;
                 const sig = JSON.stringify(obj);
@@ -674,7 +675,9 @@ window.updateSessionHUD = updateSessionHUD;
             };
             pushUnique({ ...preferredSizing, ...base });
             pushUnique(base);
-            pushUnique({ ...preferredSizing });
+            if (!strictDeviceId) {
+                pushUnique({ ...preferredSizing });
+            }
             return attempts;
         };
 
@@ -728,7 +731,7 @@ window.updateSessionHUD = updateSessionHUD;
                 } catch { }
                 try { window.scheduleSyncOverlay?.(); } catch { }
 
-                return true;
+                return stream;
             } catch (err) {
                 const isLastAttempt = (videoCons === attempts[attempts.length - 1]);
                 try {
@@ -745,7 +748,63 @@ window.updateSessionHUD = updateSessionHUD;
                 }
             }
         }
-        return false;
+        return null;
+    }
+
+    function getStreamDeviceId(stream) {
+        try {
+            const track = stream?.getVideoTracks?.()[0];
+            const settings = track?.getSettings?.();
+            return settings?.deviceId || null;
+        } catch { }
+        return null;
+    }
+
+    async function getVideoDevices() {
+        if (!navigator.mediaDevices?.enumerateDevices) return [];
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videos = devices.filter(device => device.kind === 'videoinput');
+            const real = videos.filter(device => device.deviceId && device.deviceId !== 'default' && device.deviceId !== 'communications');
+            return real.length ? real : videos;
+        } catch { }
+        return [];
+    }
+
+    function pickDeviceForLabel(devices, label) {
+        if (!devices.length) return null;
+        const wantBack = String(label || '').toLowerCase().startsWith('b');
+        const labelText = (device) => String(device?.label || '').toLowerCase();
+        const backKeys = ['back', 'rear', 'environment', 'world'];
+        const frontKeys = ['front', 'user', 'face', 'selfie'];
+        const keys = wantBack ? backKeys : frontKeys;
+        const matches = devices.filter(device => {
+            const text = labelText(device);
+            return keys.some(key => text.includes(key));
+        });
+        if (matches.length) return matches[0];
+        return wantBack ? devices[devices.length - 1] : devices[0];
+    }
+
+    async function ensurePreferredDevice(label, currentStream) {
+        const devices = await getVideoDevices();
+        if (!devices.length) return true;
+        const hasLabels = devices.some(device => device.label);
+        if (!hasLabels) return true;
+        const target = pickDeviceForLabel(devices, label);
+        if (!target?.deviceId) return true;
+
+        const activeId = getStreamDeviceId(currentStream);
+        if (activeId && activeId === target.deviceId) return true;
+
+        stopStream();
+        const switched = await startWithConstraints({ deviceId: { exact: target.deviceId } }, { strictDeviceId: true });
+        if (switched) return true;
+
+        const facing = labelToFacing(label);
+        const fallback = await startWithConstraints({ facingMode: { exact: facing } })
+            || await startWithConstraints({ facingMode: facing });
+        return !!fallback;
     }
 
     async function restartCamera(label) {
@@ -754,13 +813,19 @@ window.updateSessionHUD = updateSessionHUD;
         try {
             stopStream();
             const facing = labelToFacing(label);
-            const ok = await startWithConstraints({ facingMode: { exact: facing } });
-            if (ok) return true;
+            const stream = await startWithConstraints({ facingMode: { exact: facing } });
+            if (stream) {
+                const ok = await ensurePreferredDevice(label, stream);
+                if (ok) return true;
+            }
         } catch { }
         try {
             stopStream();
-            const ok = await startWithConstraints({ facingMode: labelToFacing(label) });
-            if (ok) return true;
+            const stream = await startWithConstraints({ facingMode: labelToFacing(label) });
+            if (stream) {
+                const ok = await ensurePreferredDevice(label, stream);
+                if (ok) return true;
+            }
         } catch { }
         return false;
     }

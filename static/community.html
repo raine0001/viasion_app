@@ -50,7 +50,7 @@
             background: radial-gradient(circle at 20% 20%, rgba(250, 204, 21, .08), transparent 45%), var(--bg);
             font: 14px/1.5 "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             color: var(--text);
-            padding-bottom: 40px;
+            padding-bottom: calc(40px + var(--nav-offset, 0px));
             transition: background .3s ease;
         }
 
@@ -107,13 +107,20 @@
             display: flex;
             flex-direction: column;
             align-items: flex-start;
-            gap: 14px;
+            gap: 10px;
             width: 100%;
-            padding: 14px clamp(12px, 4vw, 20px);
+            padding: 12px clamp(12px, 4vw, 18px);
             background: rgba(17, 24, 39, .78);
             border: 1px solid var(--border);
             border-radius: 18px;
             box-shadow: 0 24px 48px -36px rgba(0, 0, 0, .55);
+        }
+
+        .filter-strip {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
         }
 
         .chip-row {
@@ -130,6 +137,61 @@
         .chip-row--tags {
             gap: 10px;
             opacity: .95;
+        }
+
+        .chip-row--primary {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            scrollbar-width: none;
+            padding-bottom: 2px;
+        }
+
+        .chip-row--primary::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-toggle {
+            flex-shrink: 0;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: .18s ease;
+        }
+
+        .filter-toggle svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+
+        .filter-toggle:hover {
+            background: var(--surface-soft);
+        }
+
+        .filter-toggle:disabled {
+            opacity: .5;
+            cursor: default;
+        }
+
+        .filter-bar .chip-row--tags {
+            max-height: 0;
+            opacity: 0;
+            pointer-events: none;
+            transition: max-height .2s ease, opacity .2s ease;
+            overflow: hidden;
+        }
+
+        .filter-bar.show-tags .chip-row--tags {
+            max-height: 160px;
+            opacity: 1;
+            pointer-events: auto;
         }
 
         h1 {
@@ -156,6 +218,7 @@
             font-weight: 600;
             cursor: pointer;
             transition: .18s ease;
+            white-space: nowrap;
         }
 
         .filter-btn.active,
@@ -173,6 +236,34 @@
             margin: clamp(14px, 4vw, 26px) auto clamp(32px, 8vw, 72px);
             padding: 0 clamp(16px, 6vw, 48px);
             box-sizing: border-box;
+        }
+
+        .start-card {
+            background: linear-gradient(120deg, rgba(250, 204, 21, .2), rgba(17, 24, 39, .95));
+            border: 1px solid rgba(250, 204, 21, .35);
+            border-radius: 18px;
+            padding: 16px 18px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--gap);
+        }
+
+        .start-card h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .start-card p {
+            margin: 4px 0 0;
+            color: var(--text-soft);
+            font-size: 13px;
+        }
+
+        .start-card .cta {
+            white-space: nowrap;
         }
 
         .status-message {
@@ -820,6 +911,137 @@
             background: rgba(250, 204, 21, .08);
         }
 
+        .start-sheet {
+            position: fixed;
+            inset: 0;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+            background: rgba(0, 0, 0, .55);
+            z-index: 1050;
+        }
+
+        .start-sheet.open {
+            display: flex;
+        }
+
+        .start-sheet-panel {
+            width: min(420px, 92vw);
+            margin: 0 0 22px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, .45);
+        }
+
+        .start-sheet-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .start-sheet-header h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .start-sheet-close {
+            border: none;
+            background: rgba(255, 255, 255, .08);
+            color: var(--text);
+            border-radius: 999px;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+
+        .start-sheet-options {
+            display: grid;
+            gap: 10px;
+        }
+
+        .start-option {
+            text-decoration: none;
+            color: var(--text);
+            background: var(--surface-soft);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .start-option span {
+            color: var(--text-soft);
+            font-size: 12px;
+        }
+
+        .mobile-nav {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 10px 12px 14px;
+            background: rgba(8, 11, 18, .98);
+            border-top: 1px solid var(--border);
+            display: none;
+            gap: 6px;
+            align-items: flex-end;
+            justify-content: space-between;
+            z-index: 1040;
+        }
+
+        .nav-item {
+            flex: 1;
+            border: none;
+            background: transparent;
+            color: var(--text-soft);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            padding: 6px 4px;
+            border-radius: 12px;
+            transition: .18s ease;
+        }
+
+        .nav-item svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        .nav-item.is-active,
+        .nav-item:hover {
+            color: var(--accent);
+            background: rgba(250, 204, 21, .08);
+        }
+
+        .nav-item--start {
+            background: var(--accent);
+            color: #1c1a05;
+            border-radius: 16px;
+            padding: 10px 6px 8px;
+            margin-top: -18px;
+            box-shadow: 0 12px 24px rgba(250, 204, 21, .32);
+        }
+
+        .nav-item--start svg {
+            fill: #1c1a05;
+        }
+
+        .nav-item--start:hover {
+            background: #fde047;
+        }
+
         @media (max-width:960px) {
             .modal-body {
                 grid-template-columns: 1fr;
@@ -857,6 +1079,14 @@
             .chip-row {
                 gap: 8px;
             }
+
+            .mobile-nav {
+                display: flex;
+            }
+
+            body {
+                --nav-offset: 78px;
+            }
         }
     </style>
 </head>
@@ -871,17 +1101,92 @@
             <div class="header-actions">
                 <a class="header-login-btn" id="communityBackToLogin" href="/static/login.html">Back to Login</a>
             </div>
-            <div class="filter-bar">
-                <div class="chip-row chip-row--primary" data-community-filter></div>
+            <div class="filter-bar" data-filter-bar>
+                <div class="filter-strip">
+                    <div class="chip-row chip-row--primary" data-community-filter></div>
+                    <button class="filter-toggle" type="button" data-tag-toggle aria-expanded="false"
+                        aria-label="Show tag filters">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                                d="M3 6h18v2H3V6zm4 5h10v2H7v-2zm-2 5h14v2H5v-2z" />
+                        </svg>
+                    </button>
+                </div>
                 <div class="chip-row chip-row--tags" data-community-tag-filter></div>
             </div>
         </div>
     </header>
     <main>
+        <section class="start-card" data-start-card>
+            <div>
+                <h2>Start your own session</h2>
+                <p>Record a quick set and share highlights with the community.</p>
+            </div>
+            <button class="cta" type="button" data-start-session>Start a session</button>
+        </section>
         <p class="status-message" data-community-empty hidden>Sessions will appear as soon as someone wraps a training
             run.</p>
         <section class="feed" data-community-feed></section>
     </main>
+
+    <nav class="mobile-nav" data-mobile-nav aria-label="Community navigation">
+        <button class="nav-item" type="button" data-nav="home" data-nav-target="/static/dashboard.html">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                    d="M12 5.2 4 11v8h5v-5h6v5h5v-8l-8-5.8z" />
+            </svg>
+            <span>Home</span>
+        </button>
+        <button class="nav-item" type="button" data-nav="favorites" data-nav-target="/static/community.html?view=favorites">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                    d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 6 4 4 6.5 4c1.74 0 3.41 1.01 4.5 2.09C12.09 5.01 13.76 4 15.5 4 18 4 20 6 20 8.5c0 3.78-3.4 6.86-8.55 11.54z" />
+            </svg>
+            <span>Favorites</span>
+        </button>
+        <button class="nav-item nav-item--start" type="button" data-nav="start">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                    d="M12 5v14m-7-7h14" stroke="currentColor" stroke-width="2" fill="none"
+                    stroke-linecap="round" />
+            </svg>
+            <span>Start</span>
+        </button>
+        <button class="nav-item" type="button" data-nav="subscriptions" data-nav-target="/static/subscriptions.html">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                    d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2z" />
+            </svg>
+            <span>Subscriptions</span>
+        </button>
+        <button class="nav-item" type="button" data-nav="sessions" data-nav-target="/static/my_sessions.html">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                    d="M4 5h16v14H4V5zm3 3h10v2H7V8zm0 4h10v2H7v-2z" />
+            </svg>
+            <span>My Sessions</span>
+        </button>
+    </nav>
+
+    <div class="start-sheet" data-start-sheet>
+        <div class="modal-backdrop" data-start-close></div>
+        <div class="start-sheet-panel">
+            <div class="start-sheet-header">
+                <h3>Start a session</h3>
+                <button class="start-sheet-close" type="button" data-start-close>Close</button>
+            </div>
+            <div class="start-sheet-options">
+                <a class="start-option" href="/start_session?trial=1&cap=3&project=basketball">
+                    Basketball
+                    <span>3 shots</span>
+                </a>
+                <a class="start-option" href="/start_session?trial=1&cap=3&project=golf">
+                    Golf
+                    <span>3 swings</span>
+                </a>
+            </div>
+        </div>
+    </div>
 
     <div class="modal" data-community-modal>
         <div class="modal-backdrop" data-modal-backdrop></div>
@@ -928,17 +1233,23 @@
             const backBtn = document.getElementById('communityBackToLogin');
             if (!backBtn) return;
             backBtn.style.display = 'none';
-            fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' })
+            const authPromise = window.__AUTH_PROMISE || fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' })
                 .then(res => res.ok ? res.json() : null)
                 .then(payload => {
-                    const authed = !!payload?.user;
+                    const user = payload?.user || null;
+                    const authed = !!user;
                     try { window.__AUTHED = authed; } catch { }
+                    try { window.__AUTH_USER = user; } catch { }
                     backBtn.style.display = authed ? 'none' : 'inline-flex';
+                    return payload || {};
                 })
                 .catch(() => {
                     try { window.__AUTHED = false; } catch { }
+                    try { window.__AUTH_USER = null; } catch { }
                     backBtn.style.display = 'inline-flex';
+                    return {};
                 });
+            try { window.__AUTH_PROMISE = authPromise; } catch { }
         })();
     </script>
 </body>

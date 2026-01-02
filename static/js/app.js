@@ -3710,7 +3710,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('useCameraBtn')?.addEventListener('click', async () => {
         window.__IOS_VID_LOCK.set('opening');
-        try { await startCamera(); } finally { window.__IOS_VID_LOCK.set('open'); }
+        try {
+            const startFn = (typeof window.startCamera === 'function') ? window.startCamera : startCamera;
+            await startFn();
+        } finally { window.__IOS_VID_LOCK.set('open'); }
     });
 
     window.addEventListener('orientationchange', async () => {
@@ -3719,7 +3722,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const label = window.getCameraFacing ? window.getCameraFacing() : null;
             const ok = label && window.setCameraFacing ? await window.setCameraFacing(label) : false;
             if (!ok) {
-                try { await startCamera(); } catch (err) { console.warn('[camera] rehydrate after rotation failed', err); }
+                try {
+                    const startFn = (typeof window.startCamera === 'function') ? window.startCamera : startCamera;
+                    await startFn();
+                } catch (err) { console.warn('[camera] rehydrate after rotation failed', err); }
             }
         } finally {
             window.__IOS_VID_LOCK.set('open');

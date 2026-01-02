@@ -20,6 +20,11 @@
     const filterEl = document.querySelector('[data-community-filter]');
     const tagFilterEl = document.querySelector('[data-community-tag-filter]');
     const emptyStateEl = document.querySelector('[data-community-empty]');
+    const filterBarEl = document.querySelector('[data-filter-bar]');
+    const tagToggleBtn = document.querySelector('[data-tag-toggle]');
+    const startCardBtn = document.querySelector('[data-start-session]');
+    const startSheetEl = document.querySelector('[data-start-sheet]');
+    const mobileNavEl = document.querySelector('[data-mobile-nav]');
 
     const modalEl = document.querySelector('[data-community-modal]');
     const modalBackdropEl = modalEl ? modalEl.querySelector('[data-modal-backdrop]') : null;
@@ -33,6 +38,8 @@
     const modalOverlayEl = modalEl ? modalEl.querySelector('[data-modal-overlay]') : null;
     const modalShotListEl = modalEl ? modalEl.querySelector('[data-modal-shots]') : null;
     const modalActionBarEl = modalEl ? modalEl.querySelector('[data-modal-actions]') : null;
+    const startSheetCloseEls = startSheetEl ? Array.from(startSheetEl.querySelectorAll('[data-start-close]')) : [];
+    const navItems = mobileNavEl ? Array.from(mobileNavEl.querySelectorAll('[data-nav]')) : [];
 
     if (modalVideoEl) {
         const enforcePlaybackRate = () => {
@@ -52,6 +59,7 @@
         tagFilters: [],
         activeFilter: 'all',
         activeTag: 'all',
+        tagsOpen: false,
         activeDetail: null,
         activeShotIndex: -1,
         overlayTimer: null,
@@ -60,9 +68,14 @@
         clipLoads: new Map(),
         commentModal: null,
         pendingShareSid: null,
+        authChecked: false,
+        authed: false,
+        authUser: null,
+        startRequested: false,
     };
 
     let actionStore = {};
+    let authPromise = null;
 
     const clipCache = new Map();
     const CLIP_CACHE_LIMIT = 6;
@@ -166,6 +179,93 @@
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-+|-+$/g, '')
             .replace(/-{2,}/g, '-') || 'unknown';
+    }
+
+    function normalizeReturnTarget(target) {
+        if (!target) return '/static/community.html';
+        try {
+            const url = new URL(target, window.location.origin);
+            return `${url.pathname}${url.search}${url.hash || ''}`;
+        } catch {
+            return '/static/community.html';
+        }
+    }
+
+    function redirectToLogin(target) {
+        const loginUrl = new URL('/static/login.html', window.location.origin);
+        const returnTarget = normalizeReturnTarget(target);
+        loginUrl.searchParams.set('return', returnTarget);
+        window.location.href = loginUrl.toString();
+    }
+
+    function getAuthState() {
+        if (authPromise) return authPromise;
+        if (window.__AUTH_PROMISE) {
+            authPromise = window.__AUTH_PROMISE
+                .then(payload => {
+                    const user = payload?.user || window.__AUTH_USER || null;
+                    state.authUser = user;
+                    state.authed = !!user;
+                    state.authChecked = true;
+                    try {
+                        window.__AUTHED = !!user;
+                        window.__AUTH_USER = user || null;
+                    } catch { }
+                    return payload || {};
+                })
+                .catch(() => {
+                    state.authUser = null;
+                    state.authed = false;
+                    state.authChecked = true;
+                    try {
+                        window.__AUTHED = false;
+                        window.__AUTH_USER = null;
+                    } catch { }
+                    return {};
+                });
+            return authPromise;
+        }
+        authPromise = fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' })
+            .then(res => (res.ok ? res.json() : null))
+            .then(payload => {
+                const user = payload?.user || null;
+                state.authUser = user;
+                state.authed = !!user;
+                state.authChecked = true;
+                try {
+                    window.__AUTHED = !!user;
+                    window.__AUTH_USER = user || null;
+                } catch { }
+                return payload || {};
+            })
+            .catch(() => {
+                state.authUser = null;
+                state.authed = false;
+                state.authChecked = true;
+                try {
+                    window.__AUTHED = false;
+                    window.__AUTH_USER = null;
+                } catch { }
+                return {};
+            });
+        try { window.__AUTH_PROMISE = authPromise; } catch { }
+        return authPromise;
+    }
+
+    async function ensureAuthOrRedirect(target) {
+        const payload = await getAuthState();
+        if (payload?.user || state.authed) return true;
+        redirectToLogin(target || window.location.href);
+        return false;
+    }
+
+    function updateQueryParam(key, value) {
+        try {
+            const url = new URL(window.location.href);
+            if (value) url.searchParams.set(key, value);
+            else url.searchParams.delete(key);
+            window.history.replaceState({}, '', url.toString());
+        } catch { }
     }
 
     function formatRelativeTime(ts) {
@@ -319,12 +419,27 @@
     }
 
     function getCommentAuthor() {
-        const user = window.__AUTH_USER || {};
+        const user = state.authUser || window.__AUTH_USER || {};
         const name = user?.name || user?.displayName || user?.first_name || user?.firstName || user?.email;
         if (name) return String(name);
         const guest = window.__GUEST_NAME || sessionStorage.getItem('visaionGuestName');
         if (guest) return String(guest);
         return 'Community member';
+    }
+
+    function isPostByUser(post) {
+        const user = state.authUser || window.__AUTH_USER;
+        if (!user) return false;
+        const authorRaw = String(post?.author || post?.user || post?.name || '').trim().toLowerCase();
+        if (!authorRaw) return false;
+        const email = String(user?.email || '').trim().toLowerCase();
+        const name = String(user?.name || user?.handle || '').trim().toLowerCase();
+        const userId = String(user?.user_id || user?.id || '').trim();
+        const postUserId = String(post?.user_id || post?.userId || '').trim();
+        if (userId && postUserId && userId === postUserId) return true;
+        if (email && authorRaw.includes(email)) return true;
+        if (name && authorRaw.includes(name)) return true;
+        return false;
     }
 
     function showPrompt(text, duration = 2400) {
@@ -683,7 +798,12 @@
                 map.set(id, { id, label });
             }
         });
-        const filters = [{ id: 'all', label: 'All sessions' }, ...map.values()];
+        const filters = [
+            { id: 'all', label: 'All' },
+            { id: 'favorites', label: 'Favorites', requiresAuth: true },
+            { id: 'mine', label: 'Yours', requiresAuth: true },
+            ...map.values(),
+        ];
         state.filters = filters;
         if (!filters.some(f => f.id === state.activeFilter)) {
             state.activeFilter = 'all';
@@ -710,6 +830,52 @@
         return tags;
     }
 
+    function updateTagToggle(hasTags) {
+        const showTags = hasTags && state.tagsOpen;
+        if (tagToggleBtn) {
+            tagToggleBtn.disabled = !hasTags;
+            tagToggleBtn.setAttribute('aria-expanded', showTags ? 'true' : 'false');
+        }
+        if (tagFilterEl) {
+            tagFilterEl.style.display = showTags ? 'flex' : 'none';
+        }
+        if (filterBarEl) {
+            filterBarEl.classList.toggle('show-tags', showTags);
+        }
+    }
+
+    function toggleTagFilters(force) {
+        const hasTags = (state.tagFilters || []).length > 1;
+        if (!hasTags) {
+            state.tagsOpen = false;
+            updateTagToggle(false);
+            return;
+        }
+        state.tagsOpen = typeof force === 'boolean' ? force : !state.tagsOpen;
+        updateTagToggle(true);
+    }
+
+    function setActiveFilter(filterId, { updateUrl = true } = {}) {
+        state.activeFilter = filterId || 'all';
+        if (updateUrl) {
+            updateQueryParam('view', state.activeFilter !== 'all' ? state.activeFilter : '');
+        }
+        renderFilters();
+        renderFeed();
+        updateNavActive();
+    }
+
+    function setActiveTag(tagId, { updateUrl = true } = {}) {
+        state.activeTag = tagId || 'all';
+        const tagObj = (state.tagFilters || []).find(t => t.id === state.activeTag);
+        const rawTag = tagObj?.raw || tagObj?.label;
+        if (updateUrl) {
+            updateQueryParam('tag', rawTag ? String(rawTag) : '');
+        }
+        renderTagFilters(state.tagFilters || []);
+        renderFeed();
+    }
+
     function renderFilters() {
         if (!filterEl) return;
         filterEl.textContent = '';
@@ -718,10 +884,15 @@
             btn.type = 'button';
             btn.className = 'filter-btn' + (filter.id === state.activeFilter ? ' active' : '');
             btn.textContent = filter.label;
-            btn.addEventListener('click', () => {
-                state.activeFilter = filter.id;
-                renderFilters();
-                renderFeed();
+            btn.setAttribute('aria-pressed', filter.id === state.activeFilter ? 'true' : 'false');
+            btn.addEventListener('click', async () => {
+                if (filter.requiresAuth) {
+                    const viewUrl = new URL(window.location.href);
+                    viewUrl.searchParams.set('view', filter.id);
+                    const ok = await ensureAuthOrRedirect(viewUrl.toString());
+                    if (!ok) return;
+                }
+                setActiveFilter(filter.id);
             });
             filterEl.appendChild(btn);
         });
@@ -731,10 +902,14 @@
         if (!tagFilterEl) return;
         tagFilterEl.textContent = '';
         if (tags.length <= 1) {
-            tagFilterEl.style.display = 'none';
+            state.tagsOpen = false;
+            updateTagToggle(false);
             return;
         }
-        tagFilterEl.style.display = 'flex';
+        if (state.activeTag !== 'all') {
+            state.tagsOpen = true;
+        }
+        updateTagToggle(true);
         tags.forEach(tag => {
             const btn = document.createElement('button');
             btn.type = 'button';
@@ -744,9 +919,7 @@
                 : (tag.label.startsWith('#') ? tag.label : `#${tag.label}`);
             btn.textContent = label;
             btn.addEventListener('click', () => {
-                state.activeTag = tag.id;
-                renderTagFilters(tags);
-                renderFeed();
+                setActiveTag(tag.id);
             });
             tagFilterEl.appendChild(btn);
         });
@@ -790,7 +963,12 @@
     }
 
     function matchesFilter(post) {
-        if (state.activeFilter !== 'all') {
+        if (state.activeFilter === 'favorites') {
+            const actionState = getActionState(post);
+            if (!actionState.liked) return false;
+        } else if (state.activeFilter === 'mine') {
+            if (!isPostByUser(post)) return false;
+        } else if (state.activeFilter !== 'all') {
             const label = (post.projectName || post.project || post.dataset || '').trim();
             const slug = slugify(label);
             if (slug !== state.activeFilter) return false;
@@ -810,10 +988,105 @@
         const posts = state.posts.filter(matchesFilter);
         if (!posts.length) {
             if (emptyStateEl) emptyStateEl.hidden = false;
+            if (emptyStateEl) {
+                if (state.activeFilter === 'favorites') {
+                    emptyStateEl.textContent = state.authed
+                        ? 'No favorites yet. Tap the heart to save a session.'
+                        : 'Log in to see your favorites.';
+                } else if (state.activeFilter === 'mine') {
+                    emptyStateEl.textContent = state.authed
+                        ? 'No sessions from you yet. Start one and share it.'
+                        : 'Log in to see your sessions.';
+                } else {
+                    emptyStateEl.textContent = 'Sessions will appear as soon as someone wraps a training run.';
+                }
+            }
             return;
         }
         if (emptyStateEl) emptyStateEl.hidden = true;
         posts.forEach(post => feedEl.appendChild(createPostCard(post)));
+    }
+
+    function updateNavActive() {
+        if (!navItems.length) return;
+        navItems.forEach(item => item.classList.remove('is-active'));
+        if (state.activeFilter === 'favorites') {
+            const fav = navItems.find(item => item.dataset.nav === 'favorites');
+            if (fav) fav.classList.add('is-active');
+        }
+    }
+
+    function openStartSheet() {
+        if (!startSheetEl) return;
+        startSheetEl.classList.add('open');
+        document.body.classList.add('modal-open');
+        updateQueryParam('start', '');
+    }
+
+    function closeStartSheet() {
+        if (!startSheetEl) return;
+        startSheetEl.classList.remove('open');
+        document.body.classList.remove('modal-open');
+    }
+
+    async function handleStartSession() {
+        const returnUrl = new URL(window.location.href);
+        returnUrl.searchParams.set('start', '1');
+        const ok = await ensureAuthOrRedirect(returnUrl.toString());
+        if (!ok) return;
+        openStartSheet();
+    }
+
+    async function handleNavClick(event) {
+        const btn = event.target?.closest?.('[data-nav]');
+        if (!btn) return;
+        const nav = btn.dataset.nav;
+        const target = btn.dataset.navTarget;
+        if (nav === 'start') {
+            await handleStartSession();
+            return;
+        }
+        if (!target) return;
+        const ok = await ensureAuthOrRedirect(target);
+        if (!ok) return;
+        const targetUrl = new URL(target, window.location.origin);
+        if (targetUrl.pathname === window.location.pathname) {
+            const view = targetUrl.searchParams.get('view');
+            if (view) {
+                setActiveFilter(view, { updateUrl: true });
+                return;
+            }
+        }
+        window.location.href = target;
+    }
+
+    function applyInitialView() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const viewRaw = (params.get('view') || params.get('filter') || '').toLowerCase();
+            const tagRaw = params.get('tag');
+            if (viewRaw) {
+                if (['favorites', 'favorite', 'fav', 'likes', 'liked'].includes(viewRaw)) {
+                    state.activeFilter = 'favorites';
+                } else if (['mine', 'yours', 'my', 'my-sessions'].includes(viewRaw)) {
+                    state.activeFilter = 'mine';
+                } else {
+                    state.activeFilter = slugify(viewRaw);
+                }
+            }
+            if (tagRaw) {
+                const normalized = slugify(tagRaw);
+                state.activeTag = normalized ? `tag-${normalized}` : 'all';
+            }
+            state.startRequested = params.get('start') === '1';
+        } catch { }
+    }
+
+    function maybeOpenStartFromQuery() {
+        if (!state.startRequested) return;
+        if (!state.authed) return;
+        state.startRequested = false;
+        openStartSheet();
     }
 
     function maybeOpenSharedSession() {
@@ -995,6 +1268,7 @@
 
     async function loadFeed() {
         if (!feedEl) return;
+        const authReady = getAuthState();
         try {
             feedEl.dataset.loading = '1';
             const res = await fetch(FEED_ENDPOINT, { cache: 'no-store' });
@@ -1008,6 +1282,7 @@
             renderFilters();
             renderTagFilters(tagFilters);
             renderFeed();
+            updateNavActive();
             maybeOpenSharedSession();
         } catch (err) {
             console.error('[community] load feed failed', err);
@@ -1016,6 +1291,12 @@
                 emptyStateEl.textContent = 'Unable to load the community feed. Please refresh to retry.';
             }
         } finally {
+            authReady.then(() => {
+                renderFilters();
+                renderFeed();
+                updateNavActive();
+                maybeOpenStartFromQuery();
+            });
             if (feedEl) delete feedEl.dataset.loading;
         }
     }
@@ -1099,7 +1380,7 @@
         if (modalMetaEl) {
             const authored = detail?.author || fallbackPost?.author || 'Player';
             const time = formatRelativeTime(detail?.createdAt || fallbackPost?.createdAt);
-            modalMetaEl.textContent = `${authored}${time ? ` · ${time}` : ''}`;
+            modalMetaEl.textContent = `${authored}${time ? ` - ${time}` : ''}`;
         }
         if (modalSummaryEl) {
             const text = (detail?.summary || fallbackPost?.summary || '').trim();
@@ -1498,12 +1779,37 @@
     function init() {
         if (!feedEl) return;
         actionStore = loadActionStore();
+        applyInitialView();
         try {
             const params = new URLSearchParams(window.location.search);
             const sid = params.get('sid');
             if (sid) state.pendingShareSid = sid;
         } catch { }
         bindModalEvents();
+        if (tagToggleBtn) {
+            tagToggleBtn.addEventListener('click', () => toggleTagFilters());
+        }
+        if (startCardBtn) {
+            startCardBtn.addEventListener('click', () => handleStartSession());
+        }
+        if (mobileNavEl) {
+            mobileNavEl.addEventListener('click', handleNavClick);
+        }
+        if (startSheetCloseEls.length) {
+            startSheetCloseEls.forEach(btn => {
+                btn.addEventListener('click', closeStartSheet);
+            });
+        }
+        if (startSheetEl) {
+            startSheetEl.addEventListener('click', ev => {
+                if (ev.target === startSheetEl) closeStartSheet();
+            });
+        }
+        document.addEventListener('keydown', ev => {
+            if (ev.key === 'Escape' && startSheetEl?.classList.contains('open')) {
+                closeStartSheet();
+            }
+        });
         loadFeed();
     }
 
