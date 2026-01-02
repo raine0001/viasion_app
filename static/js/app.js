@@ -955,11 +955,18 @@ window.poseDetectSerial = poseDetectSerial;
         const v = document.getElementById('videoPlayer');
 
         let comp = window.__landscapeRecController;
+        if (!comp && window.__landscapeRecStarting) {
+            try { await window.__landscapeRecStarting; } catch { }
+            comp = window.__landscapeRecController;
+        }
         if (!comp && typeof window.startLandscapeRecorder === 'function') {
             try {
-                comp = await window.startLandscapeRecorder(v, { width: 1280, height: 720, fps: 30 });
+                const startPromise = window.startLandscapeRecorder(v, { width: 1280, height: 720, fps: 30 });
+                window.__landscapeRecStarting = startPromise;
+                comp = await startPromise;
                 window.__landscapeRecController = comp;
             } catch { /* ignore */ }
+            try { window.__landscapeRecStarting = null; } catch { }
         }
 
         const totalMs = Number(window.__MICROCLIP_MS) || 3000;
@@ -2723,15 +2730,28 @@ function scheduleArmWhenReady(delay = 200) {
             if (useMicroclip && attemptLabel === 'swing') {
                 const preSetting = Number(window.__MICROCLIP_PRE_MS);
                 if (Number.isFinite(preSetting) && preSetting > 0) {
-                    const comp = window.__landscapeRecController;
-                    const getCoverage = comp?.getBufferCoverageMs;
-                    if (typeof getCoverage === 'function') {
-                        const startWait = performance.now();
-                        const maxWait = Math.max(800, Math.min(2400, preSetting + 600));
-                        while (performance.now() - startWait < maxWait) {
-                            if (getCoverage() >= Math.max(0, preSetting - 80)) break;
-                            await new Promise(r => setTimeout(r, 60));
+                    if (typeof window.ensureLandscapeRecorderReady === 'function') {
+                        try {
+                            await window.ensureLandscapeRecorderReady(preSetting);
+                        } catch (err) {
+                            if (window.DEBUG_MICROCLIP === true || window.SWING_DEBUG === true) {
+                                console.warn('[hud] clip warm failed', err);
+                            }
                         }
+                    } else {
+                        const comp = window.__landscapeRecController;
+                        const getCoverage = comp?.getBufferCoverageMs;
+                        if (typeof getCoverage === 'function') {
+                            const startWait = performance.now();
+                            const maxWait = Math.max(800, Math.min(2400, preSetting + 600));
+                            while (performance.now() - startWait < maxWait) {
+                                if (getCoverage() >= Math.max(0, preSetting - 80)) break;
+                                await new Promise(r => setTimeout(r, 60));
+                            }
+                        }
+                    }
+                    if ((window.DEBUG_MICROCLIP === true || window.SWING_DEBUG === true) && !window.__landscapeRecController) {
+                        console.warn('[hud] clip buffer not ready; arming anyway');
                     }
                 }
             }

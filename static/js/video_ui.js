@@ -74,10 +74,12 @@ window.addEventListener('hud:end-session', async () => {
     try { await window.__landscapeRecController?.stop(); } catch { }
     window.__landscapeRecController = null;
     try { window.__landscapeRecPrimed = false; } catch { }
+    try { window.__landscapeRecStarting = null; } catch { }
 });
 window.addEventListener('beforeunload', () => {
     try { window.__landscapeRecController?.stop(); } catch { }
     try { window.__landscapeRecPrimed = false; } catch { }
+    try { window.__landscapeRecStarting = null; } catch { }
 });
 
 /* ----------------------- iOS viewport + basics ----------------------- */
@@ -2072,6 +2074,7 @@ async function startLandscapeRecorder(videoEl, opts = {}) {
 
 function warmLandscapeRecorder() {
     if (window.__landscapeRecController) return;
+    if (window.__landscapeRecStarting) return;
     if (window.USE_MICROCLIP === false || window.__CLIPS_AVAILABLE === false) return;
     if (typeof window.startLandscapeRecorder !== 'function') return;
 
@@ -2079,15 +2082,19 @@ function warmLandscapeRecorder() {
     if (!videoEl) return;
 
     const start = async () => {
-        if (window.__landscapeRecController) return;
+        if (window.__landscapeRecController || window.__landscapeRecStarting) return;
         try {
-            const comp = await window.startLandscapeRecorder(videoEl, { width: 1280, height: 720, fps: 30 });
+            const startPromise = window.startLandscapeRecorder(videoEl, { width: 1280, height: 720, fps: 30 });
+            window.__landscapeRecStarting = startPromise;
+            const comp = await startPromise;
             if (comp) {
                 window.__landscapeRecController = comp;
                 try { primeLandscapeRecorder(); } catch { }
             }
         } catch (err) {
             console.warn('[hud] landscape recorder warm failed', err);
+        } finally {
+            try { window.__landscapeRecStarting = null; } catch { }
         }
     };
 
@@ -2110,24 +2117,53 @@ function primeLandscapeRecorder() {
     }
 }
 
-async function waitForClipWarm(preMs) {
-    if (window.USE_MICROCLIP === false || window.__CLIPS_AVAILABLE === false) return;
-    const comp = window.__landscapeRecController;
-    if (!comp) return;
+async function ensureLandscapeRecorderReady(preMs) {
+    if (window.USE_MICROCLIP === false || window.__CLIPS_AVAILABLE === false) return null;
+    let comp = window.__landscapeRecController;
+    if (!comp && window.__landscapeRecStarting) {
+        try { await window.__landscapeRecStarting; } catch { }
+        comp = window.__landscapeRecController;
+    }
+    if (!comp && typeof window.startLandscapeRecorder === 'function') {
+        const videoEl = document.getElementById('videoPlayer');
+        if (videoEl) {
+            try {
+                const startPromise = window.startLandscapeRecorder(videoEl, { width: 1280, height: 720, fps: 30 });
+                window.__landscapeRecStarting = startPromise;
+                comp = await startPromise;
+                if (comp) {
+                    window.__landscapeRecController = comp;
+                    try { primeLandscapeRecorder(); } catch { }
+                }
+            } catch (err) {
+                console.warn('[hud] landscape recorder warm failed', err);
+            } finally {
+                try { window.__landscapeRecStarting = null; } catch { }
+            }
+        }
+    }
+    if (!comp) return null;
     const initPromise = (typeof comp.waitForInitChunk === 'function') ? comp.waitForInitChunk() : null;
     if (initPromise && typeof initPromise.then === 'function') {
-        await Promise.race([initPromise, new Promise((resolve) => setTimeout(resolve, 1200))]);
+        await Promise.race([initPromise, new Promise((resolve) => setTimeout(resolve, 1500))]);
     }
     const preSetting = Number(preMs);
-    if (!Number.isFinite(preSetting) || preSetting <= 0) return;
+    if (!Number.isFinite(preSetting) || preSetting <= 0) return comp;
     const getCoverage = comp.getBufferCoverageMs;
-    if (typeof getCoverage !== 'function') return;
+    if (typeof getCoverage !== 'function') return comp;
     const startWait = performance.now();
     const maxWait = Math.max(900, Math.min(3500, preSetting + 900));
     while (performance.now() - startWait < maxWait) {
         if (getCoverage() >= Math.max(0, preSetting - 80)) break;
         await new Promise(r => setTimeout(r, 60));
     }
+    return comp;
+}
+window.ensureLandscapeRecorderReady = ensureLandscapeRecorderReady;
+
+async function waitForClipWarm(preMs) {
+    if (window.USE_MICROCLIP === false || window.__CLIPS_AVAILABLE === false) return;
+    try { await ensureLandscapeRecorderReady(preMs); } catch { }
 }
 
 // Reset to start overlay state

@@ -264,9 +264,9 @@
                 "attemptsLabel": "Swings Taken",
                 "readyPrompt": "Swing when ready.",
                 "clip": {
-                    "totalMs": 3000,
-                    "preMs": 2000,
-                    "earlyTrigger": false
+                    "totalMs": 5000,
+                    "preMs": 2500,
+                    "earlyTrigger": true
                 },
                 "poseStreakNeed": 1,
                 "swingDetection": {
@@ -275,9 +275,9 @@
                     "shoulderRatio": 0.15,
                     "hipRatio": 0.1,
                     "belowMemoryFrames": 140,
-                    "minBackswingFrames": 3,
+                    "minBackswingFrames": 6,
                     "maxSwingFrames": 210,
-                    "cooldownMs": 1000
+                    "cooldownMs": 1200
                 }
             },
             "analysis": {
