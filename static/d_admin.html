@@ -1133,6 +1133,155 @@
             align-self: flex-start;
         }
 
+        .subscription-specials {
+            grid-column: 1 / -1;
+            background: #101721;
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 0;
+        }
+
+        .specials-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .specials-header h3 {
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .specials-grid {
+            display: grid;
+            grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.2fr);
+            gap: 12px;
+            min-height: 0;
+        }
+
+        .specials-list {
+            border: 1px solid #1b2735;
+            border-radius: 8px;
+            background: #0b0f14;
+            overflow: auto;
+            min-height: 180px;
+        }
+
+        .specials-item {
+            padding: 8px 10px;
+            border-bottom: 1px solid #1b2735;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            transition: background .18s ease;
+        }
+
+        .specials-item:hover {
+            background: #101c2a;
+        }
+
+        .specials-item.selected {
+            background: #132946;
+            border-left: 4px solid #2563eb;
+        }
+
+        .specials-item.inactive {
+            opacity: .65;
+        }
+
+        .specials-item .special-title {
+            font-weight: 600;
+            font-size: 13px;
+            color: #e6edf3;
+        }
+
+        .specials-item .special-meta {
+            font-size: 12px;
+            color: #94a3b8;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .specials-item .special-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 6px;
+            border-radius: 999px;
+            border: 1px solid #1f2a36;
+            background: #121c2a;
+            color: #a5b4c8;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        .specials-item .special-pill.active {
+            background: #10251a;
+            border-color: #1f5236;
+            color: #4ade80;
+        }
+
+        .specials-form form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 10px;
+        }
+
+        .specials-form label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .specials-form input,
+        .specials-form select,
+        .specials-form textarea {
+            background: #0b0f14;
+            color: #e6edf3;
+            border: 1px solid #1f2a36;
+            border-radius: 8px;
+            padding: 6px 8px;
+            font: 600 13px/1.4 system-ui, -apple-system, Segoe UI, Arial;
+        }
+
+        .specials-form select[multiple] {
+            min-height: 120px;
+        }
+
+        .specials-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .specials-status {
+            font-size: 12px;
+            min-height: 16px;
+            color: #94a3b8;
+        }
+
+        .specials-status.success {
+            color: #4ade80;
+        }
+
+        .specials-status.error {
+            color: #f87171;
+        }
+
+        .specials-status.warn {
+            color: #facc15;
+        }
+
         @media (max-width:1250px) {
             .subscription-wrap {
                 grid-template-columns: minmax(240px, 1fr) minmax(280px, 1fr);
@@ -1141,6 +1290,10 @@
 
         @media (max-width:980px) {
             .subscription-wrap {
+                grid-template-columns: 1fr;
+            }
+
+            .specials-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -1975,6 +2128,63 @@
                             <button class="btn" type="button" id="subscriptionAssignBtn">Assign</button>
                         </div>
                         <button class="btn" type="button" id="subscriptionReloadBtn">Reload</button>
+                    </div>
+                    <div class="subscription-specials">
+                        <div class="specials-header">
+                            <h3>Special Subscriptions</h3>
+                            <button class="btn" id="specialSubscriptionNewBtn" type="button">New Special</button>
+                        </div>
+                        <div class="specials-grid">
+                            <div class="specials-list" id="specialSubscriptionList">
+                                <div class="subscription-empty">No specials configured.</div>
+                            </div>
+                            <div class="specials-form">
+                                <h3>Special Details</h3>
+                                <form id="specialSubscriptionForm">
+                                    <label>Offer ID
+                                        <input id="specialSubscriptionId" type="text" placeholder="ymca_san_diego" required />
+                                    </label>
+                                    <label>Title
+                                        <input id="specialSubscriptionTitle" type="text" placeholder="YMCA San Diego" />
+                                    </label>
+                                    <label>Company / Organization
+                                        <input id="specialSubscriptionCompany" type="text" placeholder="YMCA San Diego" />
+                                    </label>
+                                    <label>Promo Code
+                                        <input id="specialSubscriptionCode" type="text" placeholder="YMCAFREE" />
+                                    </label>
+                                    <label>Signup Link
+                                        <input id="specialSubscriptionLink" type="url" placeholder="https://visaion.app/static/subscriptions.html?code=YMCAFREE" />
+                                    </label>
+                                    <label>Amount
+                                        <input id="specialSubscriptionAmount" type="number" step="0.01" min="0" />
+                                    </label>
+                                    <label>Term Length
+                                        <input id="specialSubscriptionTermValue" type="number" min="0" placeholder="12" />
+                                    </label>
+                                    <label>Term Unit
+                                        <select id="specialSubscriptionTermUnit">
+                                            <option value="">Select unit</option>
+                                            <option value="days">Days</option>
+                                            <option value="months">Months</option>
+                                            <option value="years">Years</option>
+                                        </select>
+                                    </label>
+                                    <label>Available Modules
+                                        <select id="specialSubscriptionModules" multiple></select>
+                                    </label>
+                                    <label class="subscription-checkbox">
+                                        <input id="specialSubscriptionActive" type="checkbox" checked />
+                                        Active
+                                    </label>
+                                </form>
+                                <div class="specials-actions">
+                                    <button class="btn" type="button" id="specialSubscriptionSaveBtn">Save Special</button>
+                                    <button class="btn" type="button" id="specialSubscriptionDeactivateBtn" disabled>Deactivate</button>
+                                </div>
+                                <div class="specials-status" id="specialSubscriptionStatus"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>

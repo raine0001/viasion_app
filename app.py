@@ -521,6 +521,8 @@ _DEFAULT_SUBSCRIPTIONS = {
         },
     },
     "userSubscriptions": {},
+    "specials": {},
+    "userSpecials": {},
 }
 
 
@@ -560,7 +562,135 @@ def _ensure_subscription_defaults(data):
         data = {}
     data.setdefault("plans", {})
     data.setdefault("userSubscriptions", {})
+    data.setdefault("specials", {})
+    data.setdefault("userSpecials", {})
     return data
+
+
+def _normalize_special_code(value):
+    return str(value or "").strip().lower()
+
+
+def _slugify_special_id(value):
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return ""
+    cleaned = re.sub(r"[^a-z0-9]+", "_", raw).strip("_")
+    return cleaned
+
+
+def _normalize_special_payload(payload):
+    if not isinstance(payload, dict):
+        payload = {}
+    raw_id = (
+        payload.get("id")
+        or payload.get("special_id")
+        or payload.get("offer_id")
+        or payload.get("slug")
+        or ""
+    )
+    title = (payload.get("title") or payload.get("name") or "").strip()
+    company = (payload.get("company") or payload.get("organization") or "").strip()
+    code = (payload.get("code") or payload.get("promo") or payload.get("promo_code") or "").strip()
+    signup_url = (payload.get("signup_url") or payload.get("signup") or payload.get("link") or "").strip()
+    if not raw_id:
+        raw_id = title or company or code
+    special_id = _slugify_special_id(raw_id)
+    if not special_id:
+        raise ValueError("special id required")
+    if not title:
+        title = special_id.replace("_", " ").title()
+    try:
+        amount = float(payload.get("amount", payload.get("price", 0.0)) or 0.0)
+    except Exception:
+        amount = 0.0
+    term_value_raw = payload.get("term_value", payload.get("term", 0))
+    try:
+        term_value = int(term_value_raw or 0)
+    except Exception:
+        term_value = 0
+    term_unit = (payload.get("term_unit") or payload.get("termUnit") or "").strip().lower()
+    unit_map = {
+        "day": "days",
+        "days": "days",
+        "d": "days",
+        "month": "months",
+        "months": "months",
+        "m": "months",
+        "year": "years",
+        "years": "years",
+        "y": "years",
+    }
+    term_unit = unit_map.get(term_unit, term_unit)
+    if term_value <= 0:
+        term_value = 0
+        term_unit = ""
+    modules = payload.get("modules") or payload.get("projects") or payload.get("project") or []
+    if isinstance(modules, str):
+        modules = [m.strip() for m in modules.split(",")]
+    if not isinstance(modules, (list, tuple, set)):
+        modules = []
+    module_list = []
+    for module in modules:
+        if not module:
+            continue
+        module_list.append(str(module).strip())
+    active = bool(payload.get("active", True))
+    return {
+        "id": special_id,
+        "title": title,
+        "company": company,
+        "code": code,
+        "signup_url": signup_url,
+        "term_value": max(0, term_value),
+        "term_unit": term_unit,
+        "amount": max(0.0, amount),
+        "modules": sorted(set(module_list)),
+        "active": active,
+    }
+
+
+def _project_slug_for_dataset(dataset_slug):
+    if not dataset_slug:
+        return None
+    manifest = _get_project_manifest()
+    projects = manifest.get("projects") or {}
+    for project_slug, project_cfg in projects.items():
+        for dataset_cfg in project_cfg.get("datasets") or []:
+            if dataset_cfg.get("slug") == dataset_slug:
+                return project_slug
+    return None
+
+
+def _best_plan_for_modules(modules, plans):
+    if not modules:
+        return {}, []
+    best = {}
+    for plan_id, plan in (plans or {}).items():
+        if not isinstance(plan, dict):
+            continue
+        resolved_project = (plan.get("project") or plan.get("project_slug") or "").strip()
+        if not resolved_project:
+            resolved_project = _project_slug_for_dataset(plan.get("dataset"))
+        if not resolved_project:
+            continue
+        active = plan.get("active", True)
+        try:
+            price = float(plan.get("price", 0.0) or 0.0)
+        except Exception:
+            price = 0.0
+        key = (0 if active else 1, price, plan_id)
+        current = best.get(resolved_project)
+        if not current or key < current["key"]:
+            best[resolved_project] = {"id": plan_id, "key": key}
+    assigned = {}
+    missing = []
+    for module in modules:
+        if module in best:
+            assigned[module] = best[module]["id"]
+        else:
+            missing.append(module)
+    return assigned, missing
 
 
 def _load_subscriptions_config():
@@ -963,6 +1093,44 @@ def api_subscriptions_delete_plan(plan_id):
     return jsonify({"plan": plan, "status": "deactivated"})
 
 
+def _find_special_by_code(specials, code):
+    code_norm = _normalize_special_code(code)
+    if not code_norm:
+        return None
+    for special in (specials or {}).values():
+        if not isinstance(special, dict):
+            continue
+        if _normalize_special_code(special.get("code")) == code_norm:
+            return special
+    return None
+
+
+@app.post("/api/subscriptions/special")
+def api_subscriptions_upsert_special():
+    payload = request.get_json(force=True, silent=True) or {}
+    try:
+        special = _normalize_special_payload(payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    data = _load_subscriptions_config()
+    data.setdefault("specials", {})
+    data["specials"][special["id"]] = special
+    _write_subscriptions_config(data)
+    return jsonify({"special": special})
+
+
+@app.delete("/api/subscriptions/special/<special_id>")
+def api_subscriptions_delete_special(special_id):
+    data = _load_subscriptions_config()
+    specials = data.setdefault("specials", {})
+    special = specials.get(special_id)
+    if not special:
+        return jsonify({"error": "special not found"}), 404
+    special["active"] = False
+    _write_subscriptions_config(data)
+    return jsonify({"special": special, "status": "deactivated"})
+
+
 def _ensure_user_subscription_key(user_id):
     if user_id is None:
         return None
@@ -1024,6 +1192,64 @@ def api_subscriptions_unassign():
     return jsonify({"user": user_key, "plans": users.get(user_key, [])})
 
 
+@app.post("/api/subscriptions/redeem")
+def api_subscriptions_redeem_special():
+    payload = request.get_json(force=True, silent=True) or {}
+    user_key = _ensure_user_subscription_key(
+        payload.get("user_id") or payload.get("user")
+    )
+    if not user_key:
+        if ALLOW_STUB_AUTH:
+            user_key = str(session.get("user_id") or "demo")
+        else:
+            return jsonify({"error": "user_id required"}), 400
+
+    special_id = (payload.get("special_id") or payload.get("offer_id") or payload.get("id") or "").strip()
+    code = (payload.get("code") or payload.get("promo") or payload.get("promo_code") or "").strip()
+    if not special_id and not code:
+        return jsonify({"error": "special id or code required"}), 400
+
+    data = _load_subscriptions_config()
+    specials = data.setdefault("specials", {})
+    special = specials.get(special_id) if special_id else None
+    if not special and code:
+        special = _find_special_by_code(specials, code)
+    if not special:
+        return jsonify({"error": "special not found"}), 404
+    if special.get("active") is False:
+        return jsonify({"error": "special inactive"}), 400
+
+    user_specials = data.setdefault("userSpecials", {})
+    current_specials = set(user_specials.get(user_key, []))
+    current_specials.add(special["id"])
+    user_specials[user_key] = sorted(current_specials)
+
+    modules = special.get("modules") or []
+    assigned_plan_ids = []
+    missing_modules = []
+    plans = data.get("plans", {})
+    if modules:
+        plan_matches, missing_modules = _best_plan_for_modules(modules, plans)
+        if plan_matches:
+            users = data.setdefault("userSubscriptions", {})
+            current_plans = set(users.get(user_key, []))
+            for plan_id in plan_matches.values():
+                current_plans.add(plan_id)
+            users[user_key] = sorted(current_plans)
+            assigned_plan_ids = sorted(plan_matches.values())
+
+    _write_subscriptions_config(data)
+    return jsonify(
+        {
+            "user": user_key,
+            "special": special,
+            "special_ids": user_specials[user_key],
+            "assigned_plan_ids": assigned_plan_ids,
+            "missing_modules": missing_modules,
+        }
+    )
+
+
 @app.get("/api/me/profile")
 def api_my_profile():
     uid = session.get("user_id")
@@ -1068,11 +1294,15 @@ def api_my_subscriptions():
     data = _load_subscriptions_config()
     plans = data.get("plans", {})
     user_plans = data.get("userSubscriptions", {}).get(key or "", [])
+    specials = data.get("specials", {})
+    user_special_ids = data.get("userSpecials", {}).get(key or "", [])
     return jsonify(
         {
             "user_id": key,
             "plan_ids": user_plans,
             "plans": [plans[p] for p in user_plans if p in plans],
+            "special_ids": user_special_ids,
+            "specials": [specials[s] for s in user_special_ids if s in specials],
         }
     )
 

@@ -141,6 +141,54 @@
             margin-top: 6px;
         }
 
+        .special-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: var(--gap-sm);
+            margin-bottom: var(--gap-sm);
+        }
+
+        .special-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--gap-xs);
+            align-items: center;
+        }
+
+        .special-form input {
+            background: var(--surface-alt);
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            color: var(--text-primary);
+            padding: 10px 14px;
+            font: 600 0.9rem 'Inter', system-ui, sans-serif;
+            min-width: 200px;
+        }
+
+        .special-list {
+            display: grid;
+            gap: var(--gap-sm);
+        }
+
+        .special-item {
+            background: var(--surface-alt);
+            border-radius: var(--radius-md);
+            padding: clamp(14px, 2vw, 18px);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            display: grid;
+            gap: var(--gap-xs);
+        }
+
+        .special-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 10px;
+            color: var(--text-soft);
+            font-size: 0.85rem;
+        }
+
         .btn {
             font: 600 0.92rem 'Inter', system-ui, sans-serif;
             padding: 10px 16px;
@@ -201,6 +249,15 @@
                 width: 100%;
                 justify-content: center;
             }
+
+            .special-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .special-form input {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -218,6 +275,20 @@
 
     <main>
         <section class="card">
+            <div class="special-header">
+                <div>
+                    <h2>Special Access</h2>
+                    <p class="status">Have a promo code or organization link? Redeem it here.</p>
+                </div>
+                <div class="special-form">
+                    <input id="specialCodeInput" type="text" placeholder="Enter promo code" />
+                    <button class="btn btn-primary" id="specialRedeemBtn" type="button">Unlock</button>
+                </div>
+            </div>
+            <div class="special-list" id="specialOffers"></div>
+        </section>
+
+        <section class="card">
             <h2>Your Active Plans</h2>
             <div class="plan-list" id="activePlans"></div>
         </section>
@@ -234,6 +305,9 @@
         (function () {
             const DOM = {
                 status: document.getElementById('pageStatus'),
+                specialOffers: document.getElementById('specialOffers'),
+                specialCodeInput: document.getElementById('specialCodeInput'),
+                specialRedeemBtn: document.getElementById('specialRedeemBtn'),
                 activePlans: document.getElementById('activePlans'),
                 availablePlans: document.getElementById('availablePlans'),
                 backToSessions: document.getElementById('backToSessions'),
@@ -245,6 +319,8 @@
                 plans: new Map(),
                 planOrder: [],
                 userPlanIds: new Set(),
+                specials: new Map(),
+                userSpecialIds: new Set(),
                 userId: null,
             };
 
@@ -283,6 +359,15 @@
                 return slug.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
             };
 
+            const fmtSpecialAmount = (special) => {
+                const amount = Number(special?.amount);
+                if (!Number.isFinite(amount) || amount <= 0) return 'Included';
+                const unit = (special?.term_unit || '').toLowerCase();
+                const value = Number(special?.term_value);
+                if (unit && value > 0) return `$${amount.toFixed(amount % 1 === 0 ? 0 : 2)} / ${value} ${unit}`;
+                return `$${amount.toFixed(amount % 1 === 0 ? 0 : 2)}`;
+            };
+
             function setStatus(message) {
                 if (DOM.status) DOM.status.textContent = message || '';
             }
@@ -294,6 +379,66 @@
                 div.className = 'empty';
                 div.textContent = message;
                 target.appendChild(div);
+            }
+
+            function renderSpecials() {
+                if (!DOM.specialOffers) return;
+                DOM.specialOffers.innerHTML = '';
+                if (!state.userSpecialIds.size) {
+                    renderEmpty(DOM.specialOffers, 'No special access redeemed yet.');
+                    return;
+                }
+                const specials = Array.from(state.userSpecialIds)
+                    .map((id) => state.specials.get(id))
+                    .filter(Boolean);
+                specials.forEach((special) => {
+                    const item = document.createElement('div');
+                    item.className = 'special-item';
+                    const header = document.createElement('div');
+                    header.className = 'plan-header';
+                    const title = document.createElement('h3');
+                    title.className = 'plan-title';
+                    title.textContent = special.title || special.id || 'Special Access';
+                    const price = document.createElement('div');
+                    price.className = 'plan-price';
+                    price.textContent = fmtSpecialAmount(special);
+                    header.append(title, price);
+                    item.appendChild(header);
+
+                    if (special.company) {
+                        const desc = document.createElement('p');
+                        desc.className = 'plan-description';
+                        desc.textContent = special.company;
+                        item.appendChild(desc);
+                    }
+
+                    const meta = document.createElement('div');
+                    meta.className = 'special-meta';
+                    if (special.term_value && special.term_unit) {
+                        meta.appendChild(document.createTextNode(`Term: ${special.term_value} ${special.term_unit}`));
+                    }
+                    if (Array.isArray(special.modules) && special.modules.length) {
+                        meta.appendChild(document.createTextNode(`Modules: ${special.modules.join(', ')}`));
+                    }
+                    if (special.code) {
+                        meta.appendChild(document.createTextNode(`Code: ${special.code}`));
+                    }
+                    item.appendChild(meta);
+
+                    if (special.signup_url) {
+                        const actions = document.createElement('div');
+                        actions.className = 'plan-actions';
+                        const link = document.createElement('a');
+                        link.className = 'btn btn-tonal';
+                        link.href = special.signup_url;
+                        link.target = '_blank';
+                        link.rel = 'noopener';
+                        link.textContent = 'Open Signup Link';
+                        actions.appendChild(link);
+                        item.appendChild(actions);
+                    }
+                    DOM.specialOffers.appendChild(item);
+                });
             }
 
             function makePlanCard(plan, subscribed) {
@@ -384,6 +529,8 @@
                 } else if (DOM.availablePlans) {
                     DOM.availablePlans.replaceChildren(...available.map((plan) => makePlanCard(plan, false)));
                 }
+
+                renderSpecials();
             }
 
             async function ensureUserId() {
@@ -445,6 +592,48 @@
                 }
             }
 
+            async function redeemSpecial(payload) {
+                const code = (payload?.code || '').trim();
+                const specialId = (payload?.special_id || '').trim();
+                if (!code && !specialId) {
+                    showToast('Enter a promo code to redeem.', 'warn');
+                    return;
+                }
+                if (state.loading) return;
+                state.loading = true;
+                render();
+                try {
+                    const userId = await ensureUserId();
+                    const res = await fetch('/api/subscriptions/redeem', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            code: code || undefined,
+                            special_id: specialId || undefined,
+                            user_id: userId,
+                        }),
+                    });
+                    if (!res.ok) {
+                        const msg = await res.text();
+                        throw new Error(msg || `HTTP ${res.status}`);
+                    }
+                    const data = await res.json();
+                    const missing = Array.isArray(data?.missing_modules) ? data.missing_modules : [];
+                    if (missing.length) {
+                        showToast(`Redeemed, but no plan found for: ${missing.join(', ')}`, 'warn', 4200);
+                    } else {
+                        showToast('Special access unlocked.', 'success', 3600);
+                    }
+                    if (DOM.specialCodeInput) DOM.specialCodeInput.value = '';
+                } catch (err) {
+                    console.error('[subscriptions] redeem failed', err);
+                    showToast('Unable to redeem that code right now.', 'error');
+                } finally {
+                    state.loading = false;
+                    await load();
+                }
+            }
+
             function startSession(planId) {
                 const plan = state.plans.get(planId);
                 if (!plan) {
@@ -485,8 +674,16 @@
                         const plan = plans[id];
                         if (plan) state.plans.set(id, { id, ...plan });
                     });
+                    const specials = allJson?.specials || {};
+                    state.specials = new Map();
+                    Object.keys(specials).forEach((id) => {
+                        const special = specials[id];
+                        if (special) state.specials.set(id, { id, ...special });
+                    });
                     const assigned = Array.isArray(mineJson?.plan_ids) ? mineJson.plan_ids : [];
                     state.userPlanIds = new Set(assigned);
+                    const specialIds = Array.isArray(mineJson?.special_ids) ? mineJson.special_ids : [];
+                    state.userSpecialIds = new Set(specialIds);
                     state.userId = mineJson?.user_id || state.userId;
                     render();
                 } catch (err) {
@@ -494,6 +691,7 @@
                     setStatus('Unable to load plans right now.');
                     renderEmpty(DOM.activePlans, 'We could not load your subscriptions.');
                     renderEmpty(DOM.availablePlans, 'Retry in a moment.');
+                    renderEmpty(DOM.specialOffers, 'Unable to load special access right now.');
                 } finally {
                     state.loading = false;
                 }
@@ -505,7 +703,42 @@
                 });
             }
 
-            load();
+            if (DOM.specialRedeemBtn) {
+                DOM.specialRedeemBtn.addEventListener('click', () => {
+                    redeemSpecial({ code: DOM.specialCodeInput?.value || '' });
+                });
+            }
+
+            if (DOM.specialCodeInput) {
+                DOM.specialCodeInput.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        redeemSpecial({ code: DOM.specialCodeInput?.value || '' });
+                    }
+                });
+            }
+
+            let autoRedeemHandled = false;
+
+            async function maybeAutoRedeem() {
+                if (autoRedeemHandled) return;
+                autoRedeemHandled = true;
+                const params = new URLSearchParams(window.location.search || '');
+                const code = params.get('code') || params.get('promo');
+                const specialId = params.get('special') || params.get('offer');
+                if (code && DOM.specialCodeInput) {
+                    DOM.specialCodeInput.value = code;
+                }
+                if (code || specialId) {
+                    await redeemSpecial({ code: code || '', special_id: specialId || '' });
+                    try {
+                        const cleanUrl = window.location.pathname;
+                        window.history.replaceState({}, '', cleanUrl);
+                    } catch { }
+                }
+            }
+
+            load().then(maybeAutoRedeem);
         })();
     </script>
 </body>

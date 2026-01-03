@@ -161,6 +161,22 @@
         assignInput: document.getElementById('subscriptionAssignUser'),
         assignBtn: document.getElementById('subscriptionAssignBtn'),
         reloadBtn: document.getElementById('subscriptionReloadBtn'),
+        specialList: document.getElementById('specialSubscriptionList'),
+        specialForm: document.getElementById('specialSubscriptionForm'),
+        specialId: document.getElementById('specialSubscriptionId'),
+        specialTitle: document.getElementById('specialSubscriptionTitle'),
+        specialCompany: document.getElementById('specialSubscriptionCompany'),
+        specialCode: document.getElementById('specialSubscriptionCode'),
+        specialLink: document.getElementById('specialSubscriptionLink'),
+        specialAmount: document.getElementById('specialSubscriptionAmount'),
+        specialTermValue: document.getElementById('specialSubscriptionTermValue'),
+        specialTermUnit: document.getElementById('specialSubscriptionTermUnit'),
+        specialModules: document.getElementById('specialSubscriptionModules'),
+        specialActive: document.getElementById('specialSubscriptionActive'),
+        specialSaveBtn: document.getElementById('specialSubscriptionSaveBtn'),
+        specialDeactivateBtn: document.getElementById('specialSubscriptionDeactivateBtn'),
+        specialNewBtn: document.getElementById('specialSubscriptionNewBtn'),
+        specialStatus: document.getElementById('specialSubscriptionStatus'),
     };
 
     const communityFilterInput = document.getElementById('communityFilter');
@@ -202,6 +218,9 @@
         usersByPlan: new Map(),
         userPlans: new Map(),
         selectedPlanId: null,
+        specials: new Map(),
+        selectedSpecialId: null,
+        modules: [],
         loading: false,
     };
 
@@ -4812,6 +4831,251 @@
         });
     };
 
+    const formatSpecialAmount = (special) => {
+        const amount = Number(special?.amount);
+        if (!Number.isFinite(amount) || amount <= 0) return 'Included';
+        const unit = (special?.term_unit || '').toLowerCase();
+        const value = Number(special?.term_value);
+        if (unit && value > 0) return `${subscriptionCurrencyFmt.format(amount)} / ${value} ${unit}`;
+        return subscriptionCurrencyFmt.format(amount);
+    };
+
+    const renderSpecialOffers = () => {
+        if (!subscriptionUI.specialList) return;
+        const list = subscriptionUI.specialList;
+        list.innerHTML = '';
+        if (subscriptionState.loading) {
+            list.innerHTML = '<div class="subscription-empty">Loading specials...</div>';
+            return;
+        }
+        if (!subscriptionState.specials.size) {
+            list.innerHTML = '<div class="subscription-empty">No specials configured.</div>';
+            return;
+        }
+        const entries = Array.from(subscriptionState.specials.values())
+            .filter(Boolean)
+            .sort((a, b) => (a?.title || a?.id || '').localeCompare(b?.title || b?.id || ''));
+        entries.forEach((special) => {
+            const item = document.createElement('div');
+            item.className = 'specials-item';
+            if (special.id === subscriptionState.selectedSpecialId) item.classList.add('selected');
+            if (special.active === false) item.classList.add('inactive');
+            const title = document.createElement('div');
+            title.className = 'special-title';
+            title.textContent = special.title || special.id;
+            const meta = document.createElement('div');
+            meta.className = 'special-meta';
+            if (special.company) {
+                const company = document.createElement('span');
+                company.textContent = special.company;
+                meta.appendChild(company);
+            }
+            const amount = document.createElement('span');
+            amount.textContent = formatSpecialAmount(special);
+            meta.appendChild(amount);
+            if (Array.isArray(special.modules) && special.modules.length) {
+                const modules = document.createElement('span');
+                modules.textContent = `modules: ${special.modules.join(', ')}`;
+                meta.appendChild(modules);
+            }
+            if (special.code) {
+                const code = document.createElement('span');
+                code.className = 'special-pill';
+                code.textContent = special.code;
+                meta.appendChild(code);
+            }
+            const status = document.createElement('span');
+            status.className = 'special-pill' + (special.active === false ? '' : ' active');
+            status.textContent = special.active === false ? 'inactive' : 'active';
+            meta.appendChild(status);
+            item.append(title, meta);
+            item.addEventListener('click', () => selectSpecialOffer(special.id));
+            list.appendChild(item);
+        });
+    };
+
+    const setSpecialStatus = (message = '', tone = 'info') => {
+        if (!subscriptionUI.specialStatus) return;
+        subscriptionUI.specialStatus.textContent = message || '';
+        subscriptionUI.specialStatus.classList.remove('success', 'error', 'warn');
+        if (tone === 'success' || tone === 'error' || tone === 'warn') {
+            subscriptionUI.specialStatus.classList.add(tone);
+        }
+    };
+
+    const ensureSpecialModulesOptions = (modules, selected = []) => {
+        if (!subscriptionUI.specialModules) return;
+        const select = subscriptionUI.specialModules;
+        const optionValues = new Set();
+        select.innerHTML = '';
+        (modules || []).forEach((module) => {
+            if (!module?.slug) return;
+            const opt = document.createElement('option');
+            opt.value = module.slug;
+            opt.textContent = module.name || module.slug;
+            select.appendChild(opt);
+            optionValues.add(module.slug);
+        });
+        (selected || []).forEach((value) => {
+            const clean = String(value || '').trim();
+            if (!clean || optionValues.has(clean)) return;
+            const opt = document.createElement('option');
+            opt.value = clean;
+            opt.textContent = clean;
+            select.appendChild(opt);
+            optionValues.add(clean);
+        });
+        if (selected && selected.length) {
+            const selectedSet = new Set(selected.map((value) => String(value || '').trim()).filter(Boolean));
+            Array.from(select.options).forEach((opt) => {
+                opt.selected = selectedSet.has(opt.value);
+            });
+        }
+    };
+
+    const populateSpecialForm = (special) => {
+        if (!subscriptionUI.specialForm) return;
+        if (!special) {
+            resetSpecialForm();
+            return;
+        }
+        if (subscriptionUI.specialId) {
+            subscriptionUI.specialId.value = special.id || '';
+            subscriptionUI.specialId.disabled = true;
+        }
+        if (subscriptionUI.specialTitle) subscriptionUI.specialTitle.value = special.title || '';
+        if (subscriptionUI.specialCompany) subscriptionUI.specialCompany.value = special.company || '';
+        if (subscriptionUI.specialCode) subscriptionUI.specialCode.value = special.code || '';
+        if (subscriptionUI.specialLink) subscriptionUI.specialLink.value = special.signup_url || '';
+        if (subscriptionUI.specialAmount) {
+            subscriptionUI.specialAmount.value = Number.isFinite(Number(special.amount)) ? Number(special.amount) : '';
+        }
+        if (subscriptionUI.specialTermValue) {
+            subscriptionUI.specialTermValue.value = Number.isFinite(Number(special.term_value)) ? Number(special.term_value) : '';
+        }
+        if (subscriptionUI.specialTermUnit) subscriptionUI.specialTermUnit.value = special.term_unit || '';
+        if (subscriptionUI.specialActive) subscriptionUI.specialActive.checked = special.active !== false;
+        ensureSpecialModulesOptions(subscriptionState.modules, special.modules || []);
+        if (subscriptionUI.specialDeactivateBtn) subscriptionUI.specialDeactivateBtn.disabled = special.active === false;
+    };
+
+    const resetSpecialForm = () => {
+        if (!subscriptionUI.specialForm) return;
+        subscriptionUI.specialForm.reset();
+        if (subscriptionUI.specialActive) subscriptionUI.specialActive.checked = true;
+        if (subscriptionUI.specialId) subscriptionUI.specialId.disabled = false;
+        ensureSpecialModulesOptions(subscriptionState.modules, []);
+        if (subscriptionUI.specialDeactivateBtn) subscriptionUI.specialDeactivateBtn.disabled = true;
+    };
+
+    const selectSpecialOffer = (specialId) => {
+        if (!subscriptionUI.specialList) return;
+        if (!specialId || !subscriptionState.specials.has(specialId)) {
+            subscriptionState.selectedSpecialId = null;
+            resetSpecialForm();
+        } else {
+            subscriptionState.selectedSpecialId = specialId;
+            populateSpecialForm(subscriptionState.specials.get(specialId));
+        }
+        renderSpecialOffers();
+    };
+
+    const readSpecialForm = () => {
+        if (!subscriptionUI.specialForm) throw new Error('Special form unavailable.');
+        const id = (subscriptionUI.specialId?.value || '').trim();
+        if (!id) throw new Error('Offer ID is required.');
+        const title = (subscriptionUI.specialTitle?.value || '').trim() || id;
+        const company = (subscriptionUI.specialCompany?.value || '').trim();
+        const code = (subscriptionUI.specialCode?.value || '').trim();
+        const signup_url = (subscriptionUI.specialLink?.value || '').trim();
+        const amount = Number(subscriptionUI.specialAmount?.value || 0) || 0;
+        const term_value = Number(subscriptionUI.specialTermValue?.value || 0) || 0;
+        const term_unit = (subscriptionUI.specialTermUnit?.value || '').trim();
+        const modules = Array.from(subscriptionUI.specialModules?.selectedOptions || []).map((opt) => opt.value).filter(Boolean);
+        const active = subscriptionUI.specialActive ? !!subscriptionUI.specialActive.checked : true;
+        return {
+            id,
+            title,
+            company,
+            code,
+            signup_url,
+            amount: amount < 0 ? 0 : amount,
+            term_value: term_value < 0 ? 0 : term_value,
+            term_unit,
+            modules,
+            active,
+        };
+    };
+
+    const saveSpecialOffer = async () => {
+        if (!subscriptionUI.specialForm) return;
+        let payload;
+        try {
+            payload = readSpecialForm();
+        } catch (err) {
+            setSpecialStatus(err.message || 'Unable to save special.', 'warn');
+            return;
+        }
+        if (subscriptionUI.specialSaveBtn) subscriptionUI.specialSaveBtn.disabled = true;
+        try {
+            setSpecialStatus('Saving special...', 'info');
+            const res = await fetch('/api/subscriptions/special', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) {
+                const msg = await res.text();
+                throw new Error(msg || res.statusText || `http ${res.status}`);
+            }
+            subscriptionState.selectedSpecialId = payload.id;
+            setSpecialStatus('Special saved.', 'success');
+            await loadSubscriptionConfig();
+            selectSpecialOffer(payload.id);
+        } catch (err) {
+            console.error('[admin] save special offer failed', err);
+            setSpecialStatus(`Save failed: ${err.message || err}`, 'error');
+        } finally {
+            if (subscriptionUI.specialSaveBtn) subscriptionUI.specialSaveBtn.disabled = false;
+        }
+    };
+
+    const deactivateSpecialOffer = async () => {
+        const specialId = subscriptionState.selectedSpecialId;
+        if (!specialId) {
+            setSpecialStatus('Select a special to deactivate.', 'warn');
+            return;
+        }
+        if (!confirm(`Deactivate ${specialId}?`)) return;
+        if (subscriptionUI.specialDeactivateBtn) subscriptionUI.specialDeactivateBtn.disabled = true;
+        try {
+            setSpecialStatus('Deactivating special...', 'info');
+            const res = await fetch(`/api/subscriptions/special/${encodeURIComponent(specialId)}`, {
+                method: 'DELETE',
+            });
+            if (!res.ok) {
+                const msg = await res.text();
+                throw new Error(msg || res.statusText || `http ${res.status}`);
+            }
+            setSpecialStatus('Special deactivated.', 'success');
+            await loadSubscriptionConfig();
+            selectSpecialOffer(specialId);
+        } catch (err) {
+            console.error('[admin] deactivate special offer failed', err);
+            setSpecialStatus(`Deactivate failed: ${err.message || err}`, 'error');
+        } finally {
+            if (subscriptionUI.specialDeactivateBtn) subscriptionUI.specialDeactivateBtn.disabled = false;
+        }
+    };
+
+    const newSpecialOffer = () => {
+        subscriptionState.selectedSpecialId = null;
+        resetSpecialForm();
+        renderSpecialOffers();
+        setSpecialStatus('Creating new special.', 'info');
+        subscriptionUI.specialId?.focus();
+    };
+
     const populateSubscriptionForm = (plan) => {
         if (!subscriptionUI.planForm) return;
         if (!plan) {
@@ -4878,6 +5142,25 @@
         return payload;
     };
 
+    const loadSubscriptionModules = async () => {
+        if (!subscriptionUI.specialModules) return;
+        try {
+            const res = await fetch('/api/projects');
+            if (!res.ok) throw new Error(`http ${res.status}`);
+            const data = await res.json();
+            const projects = data?.projects || {};
+            const modules = Object.entries(projects).map(([slug, meta]) => ({
+                slug,
+                name: meta?.name || slug,
+            }));
+            modules.sort((a, b) => (a.name || a.slug).localeCompare(b.name || b.slug));
+            subscriptionState.modules = modules;
+            ensureSpecialModulesOptions(modules, subscriptionState.specials.get(subscriptionState.selectedSpecialId || '')?.modules || []);
+        } catch (err) {
+            console.warn('[admin] load modules failed', err);
+        }
+    };
+
     const loadSubscriptionConfig = async (showLoadingMessage = false) => {
         if (!subscriptionUI.planList) return;
         if (subscriptionState.loading) return;
@@ -4885,7 +5168,9 @@
         if (showLoadingMessage) setSubscriptionStatus('Loading subscriptions...', 'info');
         renderSubscriptionPlans();
         renderSubscriptionAssignments();
+        renderSpecialOffers();
         try {
+            await loadSubscriptionModules();
             const res = await fetch('/api/subscriptions');
             if (!res.ok) throw new Error(`http ${res.status}`);
             const data = await res.json();
@@ -4907,6 +5192,11 @@
             subscriptionState.plans = plansMap;
             subscriptionState.usersByPlan = usersByPlan;
             subscriptionState.userPlans = userPlans;
+            const specialsMap = new Map();
+            Object.values(data?.specials || {}).forEach((special) => {
+                if (special && special.id) specialsMap.set(special.id, special);
+            });
+            subscriptionState.specials = specialsMap;
             const previous = subscriptionState.selectedPlanId;
             let next = previous && plansMap.has(previous) ? previous : null;
             if (!next && plansMap.size) {
@@ -4918,6 +5208,18 @@
                 populateSubscriptionForm(plansMap.get(next));
             } else {
                 resetSubscriptionForm();
+            }
+            const prevSpecial = subscriptionState.selectedSpecialId;
+            let nextSpecial = prevSpecial && specialsMap.has(prevSpecial) ? prevSpecial : null;
+            if (!nextSpecial && specialsMap.size) {
+                nextSpecial = Array.from(specialsMap.values())
+                    .sort((a, b) => (a?.title || a?.id || '').localeCompare(b?.title || b?.id || ''))[0]?.id || null;
+            }
+            subscriptionState.selectedSpecialId = nextSpecial;
+            if (nextSpecial) {
+                populateSpecialForm(specialsMap.get(nextSpecial));
+            } else {
+                resetSpecialForm();
             }
             const count = plansMap.size;
             if (count) {
@@ -4932,6 +5234,7 @@
             subscriptionState.loading = false;
             renderSubscriptionPlans();
             renderSubscriptionAssignments();
+            renderSpecialOffers();
             if (selectedUserId) {
                 const email = selectedUserDetail?.user?.email || selectedUserDetail?.profile?.email || '';
                 renderUserSubscriptions(selectedUserId, email);
@@ -5873,6 +6176,12 @@
 
     if (subscriptionUI.deactivateBtn) subscriptionUI.deactivateBtn.addEventListener('click', deactivateSubscriptionPlan);
 
+    if (subscriptionUI.specialNewBtn) subscriptionUI.specialNewBtn.addEventListener('click', newSpecialOffer);
+
+    if (subscriptionUI.specialSaveBtn) subscriptionUI.specialSaveBtn.addEventListener('click', saveSpecialOffer);
+
+    if (subscriptionUI.specialDeactivateBtn) subscriptionUI.specialDeactivateBtn.addEventListener('click', deactivateSpecialOffer);
+
     if (subscriptionUI.assignBtn) subscriptionUI.assignBtn.addEventListener('click', assignSubscriptionUser);
 
     if (subscriptionUI.assignInput) subscriptionUI.assignInput.addEventListener('keydown', (event) => {
@@ -5902,6 +6211,8 @@
         resetSubscriptionForm();
         renderSubscriptionPlans();
         renderSubscriptionAssignments();
+        resetSpecialForm();
+        renderSpecialOffers();
         loadSubscriptionConfig();
     }
 
