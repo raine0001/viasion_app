@@ -4840,6 +4840,26 @@
         return subscriptionCurrencyFmt.format(amount);
     };
 
+    const buildSpecialSignupLink = (offerId) => {
+        const clean = String(offerId || '').trim();
+        if (!clean) return '';
+        const origin = window.location.origin || '';
+        const path = `/s/${encodeURIComponent(clean)}`;
+        return origin ? `${origin}${path}` : path;
+    };
+
+    const syncSpecialSignupLink = () => {
+        if (!subscriptionUI.specialLink || !subscriptionUI.specialId) return;
+        const offerId = (subscriptionUI.specialId.value || '').trim();
+        if (!offerId) return;
+        const autoLink = buildSpecialSignupLink(offerId);
+        const wasAuto = subscriptionUI.specialLink.dataset.auto === '1';
+        if (!subscriptionUI.specialLink.value || wasAuto) {
+            subscriptionUI.specialLink.value = autoLink;
+            subscriptionUI.specialLink.dataset.auto = '1';
+        }
+    };
+
     const renderSpecialOffers = () => {
         if (!subscriptionUI.specialList) return;
         const list = subscriptionUI.specialList;
@@ -4946,7 +4966,20 @@
         if (subscriptionUI.specialTitle) subscriptionUI.specialTitle.value = special.title || '';
         if (subscriptionUI.specialCompany) subscriptionUI.specialCompany.value = special.company || '';
         if (subscriptionUI.specialCode) subscriptionUI.specialCode.value = special.code || '';
-        if (subscriptionUI.specialLink) subscriptionUI.specialLink.value = special.signup_url || '';
+        if (subscriptionUI.specialLink) {
+            const autoLink = buildSpecialSignupLink(special.id);
+            const stored = special.signup_url || '';
+            if (stored) {
+                subscriptionUI.specialLink.value = stored;
+                subscriptionUI.specialLink.dataset.auto = stored === autoLink ? '1' : '0';
+            } else if (autoLink) {
+                subscriptionUI.specialLink.value = autoLink;
+                subscriptionUI.specialLink.dataset.auto = '1';
+            } else {
+                subscriptionUI.specialLink.value = '';
+                subscriptionUI.specialLink.dataset.auto = '1';
+            }
+        }
         if (subscriptionUI.specialAmount) {
             subscriptionUI.specialAmount.value = Number.isFinite(Number(special.amount)) ? Number(special.amount) : '';
         }
@@ -4964,6 +4997,10 @@
         subscriptionUI.specialForm.reset();
         if (subscriptionUI.specialActive) subscriptionUI.specialActive.checked = true;
         if (subscriptionUI.specialId) subscriptionUI.specialId.disabled = false;
+        if (subscriptionUI.specialLink) {
+            subscriptionUI.specialLink.value = '';
+            subscriptionUI.specialLink.dataset.auto = '1';
+        }
         ensureSpecialModulesOptions(subscriptionState.modules, []);
         if (subscriptionUI.specialDeactivateBtn) subscriptionUI.specialDeactivateBtn.disabled = true;
     };
@@ -4987,7 +5024,8 @@
         const title = (subscriptionUI.specialTitle?.value || '').trim() || id;
         const company = (subscriptionUI.specialCompany?.value || '').trim();
         const code = (subscriptionUI.specialCode?.value || '').trim();
-        const signup_url = (subscriptionUI.specialLink?.value || '').trim();
+        let signup_url = (subscriptionUI.specialLink?.value || '').trim();
+        if (!signup_url) signup_url = buildSpecialSignupLink(id);
         const amount = Number(subscriptionUI.specialAmount?.value || 0) || 0;
         const term_value = Number(subscriptionUI.specialTermValue?.value || 0) || 0;
         const term_unit = (subscriptionUI.specialTermUnit?.value || '').trim();
@@ -5028,10 +5066,12 @@
                 const msg = await res.text();
                 throw new Error(msg || res.statusText || `http ${res.status}`);
             }
-            subscriptionState.selectedSpecialId = payload.id;
+            const data = await res.json();
+            const savedId = data?.special?.id || payload.id;
+            subscriptionState.selectedSpecialId = savedId;
             setSpecialStatus('Special saved.', 'success');
             await loadSubscriptionConfig();
-            selectSpecialOffer(payload.id);
+            selectSpecialOffer(savedId);
         } catch (err) {
             console.error('[admin] save special offer failed', err);
             setSpecialStatus(`Save failed: ${err.message || err}`, 'error');
@@ -6181,6 +6221,19 @@
     if (subscriptionUI.specialSaveBtn) subscriptionUI.specialSaveBtn.addEventListener('click', saveSpecialOffer);
 
     if (subscriptionUI.specialDeactivateBtn) subscriptionUI.specialDeactivateBtn.addEventListener('click', deactivateSpecialOffer);
+
+    if (subscriptionUI.specialId) {
+        subscriptionUI.specialId.addEventListener('input', () => {
+            if (subscriptionUI.specialLink) subscriptionUI.specialLink.dataset.auto = '1';
+            syncSpecialSignupLink();
+        });
+    }
+
+    if (subscriptionUI.specialLink) {
+        subscriptionUI.specialLink.addEventListener('input', () => {
+            subscriptionUI.specialLink.dataset.auto = '0';
+        });
+    }
 
     if (subscriptionUI.assignBtn) subscriptionUI.assignBtn.addEventListener('click', assignSubscriptionUser);
 

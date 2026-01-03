@@ -500,7 +500,18 @@
             }
         }
 
-        const returnTo = sanitizeReturn(params.get('return'));
+        let returnTarget = params.get('return');
+        if (!returnTarget) {
+            const code = params.get('code') || params.get('promo');
+            const special = params.get('special') || params.get('offer');
+            if (code || special) {
+                const qs = new URLSearchParams();
+                if (code) qs.set('code', code);
+                if (special) qs.set('special', special);
+                returnTarget = `/static/subscriptions.html?${qs.toString()}`;
+            }
+        }
+        const returnTo = sanitizeReturn(returnTarget);
 
         async function post(url, body) {
             const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

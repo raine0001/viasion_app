@@ -1250,6 +1250,23 @@ def api_subscriptions_redeem_special():
     )
 
 
+@app.get("/s/<slug>")
+def special_signup_redirect(slug):
+    slug_raw = str(slug or "").strip()
+    if not slug_raw:
+        return redirect("/static/subscriptions.html")
+    data = _load_subscriptions_config()
+    specials = data.get("specials", {})
+    special_id = _slugify_special_id(slug_raw)
+    special = specials.get(special_id) or specials.get(slug_raw)
+    if not special:
+        special = _find_special_by_code(specials, slug_raw)
+    if not special:
+        return redirect("/static/subscriptions.html")
+    qs = urlencode({"special": special.get("id") or special_id or slug_raw})
+    return redirect(f"/static/subscriptions.html?{qs}")
+
+
 @app.get("/api/me/profile")
 def api_my_profile():
     uid = session.get("user_id")
