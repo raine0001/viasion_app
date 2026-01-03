@@ -491,11 +491,12 @@ def _dataset_summary(dataset_cfg):
     return summary
 
 
-SUBSCRIPTIONS_CONFIG_PATH = os.path.join(
+_LEGACY_SUBSCRIPTIONS_CONFIG_PATH = os.path.join(
     app.root_path, "static", "config", "subscriptions.json"
 )
 _SUBSCRIPTIONS_CACHE = None
 _SUBSCRIPTIONS_MTIME = None
+_SUBSCRIPTIONS_PATH = None
 _DEFAULT_SUBSCRIPTIONS = {
     "plans": {
         "basketball_monthly": {
@@ -523,6 +524,37 @@ _DEFAULT_SUBSCRIPTIONS = {
 }
 
 
+def _get_subscriptions_config_path():
+    override = (os.getenv("SUBSCRIPTIONS_CONFIG_PATH") or "").strip()
+    if override:
+        if os.path.isabs(override):
+            return os.path.abspath(override)
+        return os.path.abspath(os.path.join(app.root_path, override))
+    base_dir = globals().get("SESSIONS_DIR")
+    if not base_dir:
+        try:
+            base_dir = _resolve_sessions_dir()
+        except Exception:
+            base_dir = os.path.join(app.root_path, "sessions")
+    return os.path.join(base_dir, "_config", "subscriptions.json")
+
+
+def _maybe_migrate_subscriptions_config(target_path):
+    legacy_path = _LEGACY_SUBSCRIPTIONS_CONFIG_PATH
+    try:
+        if os.path.abspath(target_path) == os.path.abspath(legacy_path):
+            return
+    except Exception:
+        pass
+    if os.path.exists(target_path) or not os.path.exists(legacy_path):
+        return
+    try:
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        shutil.copy2(legacy_path, target_path)
+    except Exception:
+        pass
+
+
 def _ensure_subscription_defaults(data):
     if not isinstance(data, dict):
         data = {}
@@ -532,9 +564,15 @@ def _ensure_subscription_defaults(data):
 
 
 def _load_subscriptions_config():
-    global _SUBSCRIPTIONS_CACHE, _SUBSCRIPTIONS_MTIME
+    global _SUBSCRIPTIONS_CACHE, _SUBSCRIPTIONS_MTIME, _SUBSCRIPTIONS_PATH
+    path = _get_subscriptions_config_path()
+    if _SUBSCRIPTIONS_PATH != path:
+        _SUBSCRIPTIONS_PATH = path
+        _SUBSCRIPTIONS_CACHE = None
+        _SUBSCRIPTIONS_MTIME = None
+    _maybe_migrate_subscriptions_config(path)
     try:
-        mtime = os.path.getmtime(SUBSCRIPTIONS_CONFIG_PATH)
+        mtime = os.path.getmtime(path)
     except OSError:
         data = json.loads(json.dumps(_DEFAULT_SUBSCRIPTIONS))
         _write_subscriptions_config(data)
@@ -544,7 +582,7 @@ def _load_subscriptions_config():
         return _SUBSCRIPTIONS_CACHE
 
     try:
-        with open(SUBSCRIPTIONS_CONFIG_PATH, "r", encoding="utf-8") as f:
+        with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
         data = json.loads(json.dumps(_DEFAULT_SUBSCRIPTIONS))
@@ -556,15 +594,18 @@ def _load_subscriptions_config():
 
 
 def _write_subscriptions_config(data):
-    global _SUBSCRIPTIONS_CACHE, _SUBSCRIPTIONS_MTIME
-    os.makedirs(os.path.dirname(SUBSCRIPTIONS_CONFIG_PATH), exist_ok=True)
-    tmp_path = SUBSCRIPTIONS_CONFIG_PATH + ".tmp"
+    global _SUBSCRIPTIONS_CACHE, _SUBSCRIPTIONS_MTIME, _SUBSCRIPTIONS_PATH
+    path = _get_subscriptions_config_path()
+    if _SUBSCRIPTIONS_PATH != path:
+        _SUBSCRIPTIONS_PATH = path
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp_path = path + ".tmp"
     with open(tmp_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    os.replace(tmp_path, SUBSCRIPTIONS_CONFIG_PATH)
+    os.replace(tmp_path, path)
     _SUBSCRIPTIONS_CACHE = data
     try:
-        _SUBSCRIPTIONS_MTIME = os.path.getmtime(SUBSCRIPTIONS_CONFIG_PATH)
+        _SUBSCRIPTIONS_MTIME = os.path.getmtime(path)
     except OSError:
         _SUBSCRIPTIONS_MTIME = None
 
