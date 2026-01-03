@@ -1290,6 +1290,17 @@ def _resolve_sessions_dir():
     data_root = (os.getenv("DATA_DIR") or "").strip()
     if data_root:
         return os.path.abspath(os.path.join(data_root, "sessions"))
+    output_dir = (os.getenv("OUTPUT_DIRECTORY") or "").strip()
+    if output_dir:
+        if os.path.isabs(output_dir):
+            return os.path.abspath(output_dir)
+        return os.path.abspath(os.path.join(app.root_path, output_dir))
+    for base in ("/var/data", "/data", "/mnt/data"):
+        try:
+            if os.path.isdir(base):
+                return os.path.abspath(os.path.join(base, "sessions"))
+        except OSError:
+            pass
     for candidate in ("/app/sessions", "/app/sesions"):
         try:
             if os.path.isdir(candidate):
