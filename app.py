@@ -1295,16 +1295,31 @@ def _resolve_sessions_dir():
         if os.path.isabs(output_dir):
             return os.path.abspath(output_dir)
         return os.path.abspath(os.path.join(app.root_path, output_dir))
+    mount_candidates = [
+        ("/app/sesions", False),
+        ("/app/sessions", False),
+        ("/var/data", True),
+        ("/data", True),
+        ("/mnt/data", True),
+    ]
+    for base, append_sessions in mount_candidates:
+        try:
+            if os.path.ismount(base):
+                return os.path.abspath(
+                    os.path.join(base, "sessions") if append_sessions else base
+                )
+        except OSError:
+            pass
+    for candidate in ("/app/sesions", "/app/sessions"):
+        try:
+            if os.path.isdir(candidate):
+                return os.path.abspath(candidate)
+        except OSError:
+            pass
     for base in ("/var/data", "/data", "/mnt/data"):
         try:
             if os.path.isdir(base):
                 return os.path.abspath(os.path.join(base, "sessions"))
-        except OSError:
-            pass
-    for candidate in ("/app/sessions", "/app/sesions"):
-        try:
-            if os.path.isdir(candidate):
-                return os.path.abspath(candidate)
         except OSError:
             pass
     return os.path.join(app.root_path, "sessions")
