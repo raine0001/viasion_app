@@ -140,6 +140,10 @@ let __startPromise = null;
 let __communityPendingSummary = null;
 let __communitySessionFinalized = false;
 let __communityPublishing = false;
+let __communityPublishRetries = 0;
+let __communityPublishRetryTimer = null;
+const COMMUNITY_PUBLISH_RETRY_LIMIT = 4;
+const COMMUNITY_PUBLISH_RETRY_DELAY_MS = 2500;
 
 // Display name for voice (fallbacks)
 function getDisplayName() {
@@ -169,6 +173,11 @@ async function startSession() {
         __communityPendingSummary = null;
         __communitySessionFinalized = false;
         __communityPublishing = false;
+        __communityPublishRetries = 0;
+        if (__communityPublishRetryTimer) {
+            clearTimeout(__communityPublishRetryTimer);
+            __communityPublishRetryTimer = null;
+        }
         try { window.__COMMUNITY_AUTOSHARE = null; } catch { }
         try { window.__SESSION_EVENT_FIRED = false; } catch { }
 
@@ -731,6 +740,18 @@ window.visaionSession = {
     get id() { return __sid; }
 };
 
+function scheduleCommunityPublishRetry(reason) {
+    if (__communityPublishRetries >= COMMUNITY_PUBLISH_RETRY_LIMIT) return;
+    if (__communityPublishRetryTimer) return;
+    __communityPublishRetries += 1;
+    const delay = COMMUNITY_PUBLISH_RETRY_DELAY_MS * __communityPublishRetries;
+    __communityPublishRetryTimer = window.setTimeout(() => {
+        __communityPublishRetryTimer = null;
+        publishCommunityRecapIfReady();
+    }, delay);
+    console.warn('[community] publish pending, retry scheduled', { reason, delay });
+}
+
 async function publishCommunityRecap(detail) {
     const sid = window.__SESSION_ID;
     if (!sid) return;
@@ -804,8 +825,21 @@ async function publishCommunityRecap(detail) {
             body: JSON.stringify(payload)
         });
         if (!res.ok) {
-            const msg = await res.text().catch(() => res.statusText || 'publish failed');
+            const text = await res.text().catch(() => res.statusText || 'publish failed');
+            let parsed = null;
+            try { parsed = JSON.parse(text); } catch { }
+            const validation = parsed?.validation;
+            if (res.status === 409 && validation?.status === 'pending') {
+                scheduleCommunityPublishRetry(validation);
+                return;
+            }
+            const msg = parsed?.error || text;
             throw new Error(msg || `HTTP ${res.status}`);
+        }
+        __communityPublishRetries = 0;
+        if (__communityPublishRetryTimer) {
+            clearTimeout(__communityPublishRetryTimer);
+            __communityPublishRetryTimer = null;
         }
         window.__COMMUNITY_AUTOSHARE = sid;
         console.info('[community] recap published', { sid });

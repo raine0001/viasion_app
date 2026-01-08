@@ -975,6 +975,38 @@ window.poseDetectSerial = poseDetectSerial;
         const rawKey = options?.captureKey != null ? String(options.captureKey) : '';
         const captureKey = rawKey.trim() ? rawKey : `${shotId}:${Math.round(performance.now())}`;
 
+        const ensureClipBuffer = async (compRef) => {
+            if (!compRef || preMs <= 0) return;
+            if (typeof window.ensureLandscapeRecorderReady === 'function') {
+                try { await window.ensureLandscapeRecorderReady(preMs); } catch { }
+                return;
+            }
+            const getCoverage = compRef?.getBufferCoverageMs;
+            if (typeof getCoverage !== 'function') return;
+            const startWait = performance.now();
+            const maxWait = Math.max(400, Math.min(1500, preMs + 400));
+            while (performance.now() - startWait < maxWait) {
+                if (getCoverage() >= Math.max(0, preMs - 80)) break;
+                await new Promise(r => setTimeout(r, 60));
+            }
+        };
+
+        const captureClipWithRetry = async (compRef) => {
+            let lastErr = null;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    await ensureClipBuffer(compRef);
+                    const blob = await compRef.captureClip({ preMs, totalMs, key: captureKey });
+                    if (blob && blob.size > 0) return blob;
+                    lastErr = new Error('empty clip');
+                } catch (err) {
+                    lastErr = err;
+                }
+                await new Promise(r => setTimeout(r, 140));
+            }
+            throw lastErr || new Error('capture failed');
+        };
+
         function getClipDimensions() {
             let width = null;
             let height = null;
@@ -1074,7 +1106,7 @@ window.poseDetectSerial = poseDetectSerial;
         if (comp && typeof comp.captureClip === 'function') {
             window.updateShot?.(shotId, { clip: { status: 'recording', ms: totalMs, frame: releaseFrame } });
             try {
-                const blob = await comp.captureClip({ preMs, totalMs, key: captureKey });
+                const blob = await captureClipWithRetry(comp);
                 await persistClipBlob(blob);
             } catch (err) {
                 window.updateShot?.(shotId, { clip: { status: 'error', reason: String(err) } });
@@ -2479,10 +2511,12 @@ function setPoseIfMissing(shotId, snap) {
                 window.__LAST_RELEASE_AT = Date.now();
             } catch { }
             let clipStartedEarly = Number.isFinite(shotId) && shotId === pendingShotId && pendingClipStarted;
+            const totalMs = Number(window.__MICROCLIP_MS) || 3000;
+            const preSetting = Number(window.__MICROCLIP_PRE_MS);
+            const preMs = Math.max(0, Math.min(Number.isFinite(preSetting) ? preSetting : 360, totalMs - 120));
             if (clipStartedEarly && swingState && Number.isFinite(swingState.clipTriggerTime)) {
                 const clipTriggerAgeMs = Date.now() - Number(swingState.clipTriggerTime || 0);
-                const totalMs = Number(window.__MICROCLIP_MS) || 3000;
-                const maxLeadMs = Math.max(1200, totalMs - 250);
+                const maxLeadMs = Math.max(1200, Math.min(totalMs - 250, preMs + 600));
                 if (Number.isFinite(clipTriggerAgeMs) && clipTriggerAgeMs > maxLeadMs) {
                     clipStartedEarly = false;
                     if (window.DEBUG_MICROCLIP === true || window.SWING_DEBUG === true) {
@@ -2496,9 +2530,6 @@ function setPoseIfMissing(shotId, snap) {
             }
             if (clipStartedEarly && swingState && Number.isFinite(swingState.clipTriggerTime)) {
                 try {
-                    const totalMs = Number(window.__MICROCLIP_MS) || 3000;
-                    const preSetting = Number(window.__MICROCLIP_PRE_MS);
-                    const preMs = Math.max(0, Math.min(Number.isFinite(preSetting) ? preSetting : 360, totalMs - 120));
                     const postMs = Math.max(0, totalMs - preMs);
                     const minPostMs = Math.max(900, Math.min(2000, postMs));
                     const releaseTime = Date.now();
@@ -3180,6 +3211,7 @@ function startPreDetectWarm(videoEl) {
         shoulderRatio: 0.2,
         hipRatio: 0.12,
         belowMemoryFrames: 96,
+        missingFramesMax: 10,
         minBackswingFrames: 4,
         maxSwingFrames: 150,
         cooldownMs: 1400,
@@ -3237,6 +3269,7 @@ function startPreDetectWarm(videoEl) {
             shoulderRatio: Number.isFinite(cfg.shoulderRatio) ? cfg.shoulderRatio : SWING_DEFAULTS.shoulderRatio,
             hipRatio: Number.isFinite(cfg.hipRatio) ? cfg.hipRatio : SWING_DEFAULTS.hipRatio,
             belowMemoryFrames: Number.isFinite(cfg.belowMemoryFrames) ? cfg.belowMemoryFrames : SWING_DEFAULTS.belowMemoryFrames,
+            missingFramesMax: Math.max(4, Number.isFinite(cfg.missingFramesMax) ? cfg.missingFramesMax : SWING_DEFAULTS.missingFramesMax),
             minBackswingFrames: Math.max(1, Number.isFinite(cfg.minBackswingFrames) ? cfg.minBackswingFrames : SWING_DEFAULTS.minBackswingFrames),
             maxSwingFrames: Math.max(8, Number.isFinite(cfg.maxSwingFrames) ? cfg.maxSwingFrames : SWING_DEFAULTS.maxSwingFrames),
             cooldownMs: Math.max(400, Number.isFinite(cfg.cooldownMs) ? cfg.cooldownMs : SWING_DEFAULTS.cooldownMs),
@@ -3270,7 +3303,7 @@ function startPreDetectWarm(videoEl) {
 
         if (!latest || !latest.keypoints || latest.keypoints.length < 33) {
             state.missingFrames = (state.missingFrames || 0) + 1;
-            if (state.missingFrames > 6) {
+            if (state.missingFrames > cfg.missingFramesMax) {
                 clearSwingState(state);
             }
             return {
@@ -3307,7 +3340,7 @@ function startPreDetectWarm(videoEl) {
 
         if (!shouldersVisible || !hipsVisible || !wristsVisible) {
             state.missingFrames = (state.missingFrames || 0) + 1;
-            if (state.missingFrames > 6) {
+            if (state.missingFrames > cfg.missingFramesMax) {
                 clearSwingState(state);
             }
             return {

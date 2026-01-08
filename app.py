@@ -163,8 +163,28 @@ def _trace(*args, **kwargs):
 
 PARTIAL_CHUNK_BYTES = 512 * 1024  # 512 KB initial streaming chunk
 FFMPEG_BIN = os.getenv("FFMPEG_BIN") or shutil.which("ffmpeg") or "ffmpeg"
+FFPROBE_BIN = os.getenv("FFPROBE_BIN") or shutil.which("ffprobe")
 FFMPEG_TRANSCODE_PRESET = os.getenv("FFMPEG_TRANSCODE_PRESET", "veryfast")
 FFMPEG_TRANSCODE_CRF = os.getenv("FFMPEG_TRANSCODE_CRF", "23")
+COMMUNITY_PUBLISH_VALIDATE = _truthy(
+    os.getenv("COMMUNITY_PUBLISH_VALIDATE", "1"), default=True
+)
+try:
+    CLIP_VALIDATE_MIN_BYTES = int(os.getenv("CLIP_VALIDATE_MIN_BYTES", "20000"))
+except Exception:
+    CLIP_VALIDATE_MIN_BYTES = 20000
+try:
+    CLIP_VALIDATE_MIN_RATIO = float(os.getenv("CLIP_VALIDATE_MIN_RATIO", "0.65"))
+except Exception:
+    CLIP_VALIDATE_MIN_RATIO = 0.65
+try:
+    CLIP_VALIDATE_MIN_SECONDS = float(os.getenv("CLIP_VALIDATE_MIN_SECONDS", "0.4"))
+except Exception:
+    CLIP_VALIDATE_MIN_SECONDS = 0.4
+try:
+    CLIP_VALIDATE_GRACE_MS = int(os.getenv("CLIP_VALIDATE_GRACE_MS", "15000"))
+except Exception:
+    CLIP_VALIDATE_GRACE_MS = 15000
 
 
 def _remux_to_mp4(src: Path) -> Path | None:
@@ -4137,6 +4157,446 @@ def _preferred_clip_rel(sid: str, idx_display: int) -> str:
     return ""
 
 
+def _resolve_project_for_session(sess: dict | None) -> dict | None:
+    if not isinstance(sess, dict):
+        return None
+    manifest = _get_project_manifest()
+    projects = manifest.get("projects") or {}
+    slug = sess.get("project")
+    if isinstance(slug, str):
+        project = projects.get(slug)
+        if project:
+            return project
+    dataset_slug = sess.get("dataset")
+    if isinstance(dataset_slug, str) and dataset_slug:
+        for project in projects.values():
+            for ds in project.get("datasets") or []:
+                if ds.get("slug") == dataset_slug:
+                    return project
+    name = sess.get("projectName")
+    if isinstance(name, str) and name:
+        name_norm = name.strip().lower()
+        for project in projects.values():
+            if (project.get("name") or "").strip().lower() == name_norm:
+                return project
+    return None
+
+
+def _session_clip_total_ms(sess: dict | None) -> int:
+    project = _resolve_project_for_session(sess)
+    clip_cfg = project.get("workflow", {}).get("clip") if project else None
+    total = None
+    if isinstance(clip_cfg, dict):
+        total = clip_cfg.get("totalMs")
+    try:
+        total_int = int(total) if total is not None else 0
+    except Exception:
+        total_int = 0
+    return total_int if total_int > 0 else 3000
+
+
+def _clip_candidate_urls(clip_payload, sid: str, idx_display: int) -> list[str]:
+    candidates: list[str] = []
+
+    def add(val):
+        if isinstance(val, str):
+            value = val.strip()
+            if value:
+                candidates.append(value)
+
+    if isinstance(clip_payload, dict):
+        for key in ("path", "mp4", "url", "href", "source"):
+            add(clip_payload.get(key))
+    elif isinstance(clip_payload, str):
+        add(clip_payload)
+
+    preferred = _preferred_clip_rel(sid, idx_display)
+    add(preferred)
+
+    seen = set()
+    out = []
+    for url in candidates:
+        if url in seen:
+            continue
+        seen.add(url)
+        out.append(url)
+    return out
+
+
+def _resolve_clip_local_path(sid: str, clip_url: str | None) -> tuple[Path | None, str | None]:
+    if not isinstance(clip_url, str) or not clip_url.strip():
+        return None, "missing_url"
+    raw = clip_url.strip()
+    raw = raw.split("?", 1)[0].split("#", 1)[0]
+    if raw.startswith(("http://", "https://")):
+        return None, "remote_url"
+    if os.path.isabs(raw):
+        try:
+            abs_path = Path(raw).resolve()
+            base = Path(_session_path(sid)).resolve()
+            if str(abs_path).startswith(str(base)):
+                return abs_path, None
+            return None, "outside_session"
+        except Exception:
+            return None, "invalid_path"
+    raw = raw.lstrip("/")
+    if raw.startswith("sessions/"):
+        rel = raw[len("sessions/") :]
+        parts = rel.split("/", 1)
+        if len(parts) == 2 and parts[0] == sid:
+            return Path(_session_path(sid)) / parts[1], None
+        return None, "session_mismatch"
+    if raw.startswith(f"{sid}/"):
+        return Path(_session_path(sid)) / raw[len(f"{sid}/") :], None
+    if raw.startswith("clips/"):
+        return Path(_session_path(sid)) / raw, None
+    if raw.startswith("shot-"):
+        return Path(_session_path(sid)) / "clips" / raw, None
+    return None, "invalid_url"
+
+
+def _read_clip_head(path: Path, size: int = 12) -> bytes:
+    try:
+        with open(path, "rb") as f:
+            return f.read(size)
+    except Exception:
+        return b""
+
+
+def _is_probably_mp4(head: bytes) -> bool:
+    return len(head) >= 8 and head[4:8] == b"ftyp"
+
+
+def _clip_header_ok(path: Path) -> tuple[bool, str | None]:
+    head = _read_clip_head(path, 12)
+    if not head:
+        return False, "read_failed"
+    ext = path.suffix.lower()
+    if ext in (".mp4", ".m4v"):
+        return (_is_probably_mp4(head), "bad_mp4_header") if not _is_probably_mp4(head) else (True, None)
+    if ext in (".webm", ".mkv"):
+        return (_is_valid_webm_header(head), "bad_webm_header") if not _is_valid_webm_header(head) else (True, None)
+    if _is_probably_mp4(head) or _is_valid_webm_header(head):
+        return True, None
+    return False, "bad_header"
+
+
+def _probe_clip_duration_ffprobe(path: Path) -> float | None:
+    if not FFPROBE_BIN:
+        return None
+    cmd = [
+        FFPROBE_BIN,
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=nk=1:nw=1",
+        str(path),
+    ]
+    try:
+        res = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            text=True,
+        )
+    except Exception:
+        return None
+    out = (res.stdout or "").strip()
+    try:
+        dur = float(out)
+    except Exception:
+        dur = None
+    if dur and dur > 0:
+        return dur
+    cmd = [
+        FFPROBE_BIN,
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=duration",
+        "-of",
+        "default=nk=1:nw=1",
+        str(path),
+    ]
+    try:
+        res = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            text=True,
+        )
+    except Exception:
+        return None
+    out = (res.stdout or "").strip()
+    try:
+        dur = float(out)
+    except Exception:
+        return None
+    return dur if dur and dur > 0 else None
+
+
+def _probe_clip_duration_cv2(path: Path) -> float | None:
+    try:
+        cap = cv2.VideoCapture(str(path))
+        if not cap or not cap.isOpened():
+            try:
+                cap.release()
+            except Exception:
+                pass
+            return None
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        try:
+            cap.release()
+        except Exception:
+            pass
+        if fps and frames and fps > 0:
+            return float(frames) / float(fps)
+    except Exception:
+        return None
+    return None
+
+
+def _clip_duration_seconds(path: Path) -> float | None:
+    dur = _probe_clip_duration_ffprobe(path)
+    if dur is not None:
+        return dur
+    return _probe_clip_duration_cv2(path)
+
+
+def _clip_expected_ms(clip_payload, default_ms: int) -> int:
+    if isinstance(clip_payload, dict):
+        for key in ("ms", "durationMs", "clipMs", "totalMs"):
+            raw = clip_payload.get(key)
+            try:
+                ms = int(float(raw))
+                if ms > 0:
+                    return ms
+            except Exception:
+                continue
+    return default_ms
+
+
+def _clip_pending_status(clip_payload, ended_at, now_ms: int) -> bool:
+    status = None
+    if isinstance(clip_payload, dict):
+        status = clip_payload.get("status")
+    if isinstance(status, str):
+        status_norm = status.strip().lower()
+        if status_norm in {
+            "recording",
+            "processing",
+            "saving",
+            "uploading",
+            "queued",
+            "pending",
+        }:
+            return True
+    if ended_at is None:
+        return True
+    try:
+        age = now_ms - int(ended_at)
+        if age < CLIP_VALIDATE_GRACE_MS:
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def _validate_community_publish(
+    sid: str, sess: dict, detail_shots: list[dict], now_ms: int | None = None
+) -> dict:
+    now_ms = now_ms or int(time.time() * 1000)
+    totals = sess.get("totals") or {}
+    shot_count = len(detail_shots)
+    attempts_raw = totals.get("attempts")
+    expected_attempts = 0
+    if attempts_raw is not None:
+        expected_attempts = _safe_count(attempts_raw, 0)
+    if expected_attempts <= 0:
+        expected_attempts = shot_count
+
+    count_mismatch = None
+    issues = []
+    if attempts_raw is not None and expected_attempts > 0 and shot_count:
+        if expected_attempts != shot_count:
+            count_mismatch = {"expected": expected_attempts, "shots": shot_count}
+            issues.append("count_mismatch")
+
+    if expected_attempts <= 0:
+        return {
+            "ok": False,
+            "status": "failed",
+            "error": "no_attempts",
+            "expectedAttempts": expected_attempts,
+            "shotCount": shot_count,
+        }
+
+    default_ms = _session_clip_total_ms(sess)
+    ended_at = sess.get("endedAt")
+
+    missing: list[dict] = []
+    invalid: list[dict] = []
+    partial: list[dict] = []
+    pending: list[dict] = []
+    duplicate_shots: list[int] = []
+    idx_seen: set[int] = set()
+    valid_count = 0
+
+    for shot in detail_shots:
+        idx_val = shot.get("idx")
+        try:
+            idx_display = int(idx_val)
+        except Exception:
+            continue
+        if idx_display in idx_seen:
+            duplicate_shots.append(idx_display)
+            continue
+        idx_seen.add(idx_display)
+        clip_payload = shot.get("clip")
+        candidates = _clip_candidate_urls(clip_payload, sid, idx_display)
+        local_path = None
+        last_reason = None
+        last_url = None
+        for url in candidates:
+            last_url = url
+            path, reason = _resolve_clip_local_path(sid, url)
+            if path and path.exists():
+                local_path = path
+                last_reason = None
+                break
+            if reason:
+                last_reason = reason
+
+        if local_path is None:
+            if _clip_pending_status(clip_payload, ended_at, now_ms):
+                pending.append(
+                    {
+                        "idx": idx_display,
+                        "reason": last_reason or "pending",
+                        "clip": last_url,
+                    }
+                )
+            else:
+                missing.append(
+                    {
+                        "idx": idx_display,
+                        "reason": last_reason or "missing",
+                        "clip": last_url,
+                    }
+                )
+            continue
+
+        try:
+            size = local_path.stat().st_size
+        except Exception:
+            size = 0
+        if size < CLIP_VALIDATE_MIN_BYTES:
+            invalid.append(
+                {
+                    "idx": idx_display,
+                    "reason": "too_small",
+                    "size": size,
+                    "clip": str(local_path),
+                }
+            )
+            continue
+
+        header_ok, header_reason = _clip_header_ok(local_path)
+        if not header_ok:
+            invalid.append(
+                {
+                    "idx": idx_display,
+                    "reason": header_reason or "bad_header",
+                    "size": size,
+                    "clip": str(local_path),
+                }
+            )
+            continue
+
+        duration = _clip_duration_seconds(local_path)
+        if duration is not None:
+            expected_ms = _clip_expected_ms(clip_payload, default_ms)
+            min_seconds = max(
+                CLIP_VALIDATE_MIN_SECONDS,
+                (expected_ms * CLIP_VALIDATE_MIN_RATIO) / 1000.0,
+            )
+            if duration < min_seconds:
+                partial.append(
+                    {
+                        "idx": idx_display,
+                        "duration": round(duration, 3),
+                        "minSeconds": round(min_seconds, 3),
+                        "expectedMs": expected_ms,
+                        "clip": str(local_path),
+                    }
+                )
+                continue
+        valid_count += 1
+
+    missing_shots = []
+    if expected_attempts > 0 and idx_seen:
+        for idx in range(1, expected_attempts + 1):
+            if idx not in idx_seen:
+                missing_shots.append(idx)
+
+    if duplicate_shots:
+        issues.append("duplicate_shots")
+    if missing_shots:
+        issues.append("missing_shots")
+    if missing:
+        issues.append("missing_clips")
+    if invalid:
+        issues.append("invalid_clips")
+    if partial:
+        issues.append("partial_clips")
+    if pending:
+        issues.append("pending_clips")
+    if valid_count != expected_attempts:
+        issues.append("clip_count_mismatch")
+
+    hard_fail = bool(
+        count_mismatch
+        or duplicate_shots
+        or missing_shots
+        or missing
+        or invalid
+        or partial
+    )
+    if hard_fail:
+        status = "failed"
+    elif pending:
+        status = "pending"
+    else:
+        status = "ok"
+
+    return {
+        "ok": status == "ok",
+        "status": status,
+        "expectedAttempts": expected_attempts,
+        "shotCount": shot_count,
+        "validClips": valid_count,
+        "countMismatch": count_mismatch,
+        "duplicateShots": duplicate_shots,
+        "missingShots": missing_shots,
+        "missingClips": missing,
+        "invalidClips": invalid,
+        "partialClips": partial,
+        "pendingClips": pending,
+        "minBytes": CLIP_VALIDATE_MIN_BYTES,
+        "minRatio": CLIP_VALIDATE_MIN_RATIO,
+        "minSeconds": CLIP_VALIDATE_MIN_SECONDS,
+        "clipTotalMs": default_ms,
+        "issues": issues,
+    }
+
+
 def _ensure_shot_clip_urls(sid: str, shots: list[dict]) -> bool:
     updated = False
     if not isinstance(shots, list):
@@ -4304,6 +4764,15 @@ def api_community_publish():
     pose_avg = None
     if pose_scores:
         pose_avg = round(sum(pose_scores) / max(1, len(pose_scores)))
+
+    if COMMUNITY_PUBLISH_VALIDATE:
+        validation = _validate_community_publish(sid, sess, detail_shots, now_ms)
+        if not validation.get("ok"):
+            return (
+                jsonify({"ok": False, "error": "validation_failed", "validation": validation}),
+                409,
+            )
+        attempts = int(validation.get("expectedAttempts") or attempts or 0)
 
     preview_path = _ensure_preview_image(sid)
     preview_rev = None
