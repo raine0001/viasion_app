@@ -198,26 +198,29 @@ async function startSession() {
             const projectMeta = getActiveProjectMeta();
             const qs = new URLSearchParams(location.search || '');
             const datasetSlug = qs.get('dataset') || null;
-            const attemptLabel = getWorkflowAttemptLabel();
-            const attemptsLabel = getWorkflowAttemptsLabel();
-            const readyPrompt = getWorkflowReadyPrompt();
-            const payload = {
-                device: navigator.userAgent,
-                project: projectMeta?.slug || null,
-                projectName: projectMeta?.name || null,
-                dataset: datasetSlug || (projectMeta?.datasets?.[0]?.slug ?? null),
-                tags: Array.isArray(projectMeta?.tags) ? projectMeta.tags : null,
-                attemptLabel: attemptLabel || null,
-                attemptsLabel: attemptsLabel || null,
-                readyPrompt: readyPrompt || null
-            };
+          const attemptLabel = getWorkflowAttemptLabel();
+          const attemptsLabel = getWorkflowAttemptsLabel();
+          const readyPrompt = getWorkflowReadyPrompt();
+          const trial = isTrialSession();
+          const payload = {
+              device: navigator.userAgent,
+              project: projectMeta?.slug || null,
+              projectName: projectMeta?.name || null,
+              dataset: datasetSlug || (projectMeta?.datasets?.[0]?.slug ?? null),
+              tags: Array.isArray(projectMeta?.tags) ? projectMeta.tags : null,
+              attemptLabel: attemptLabel || null,
+              attemptsLabel: attemptsLabel || null,
+              readyPrompt: readyPrompt || null,
+              trial: trial ? true : null
+          };
             if (!payload.project) delete payload.project;
             if (!payload.projectName) delete payload.projectName;
             if (!payload.dataset) delete payload.dataset;
             if (!payload.tags) delete payload.tags;
-            if (!payload.attemptLabel) delete payload.attemptLabel;
-            if (!payload.attemptsLabel) delete payload.attemptsLabel;
-            if (!payload.readyPrompt) delete payload.readyPrompt;
+          if (!payload.attemptLabel) delete payload.attemptLabel;
+          if (!payload.attemptsLabel) delete payload.attemptsLabel;
+          if (!payload.readyPrompt) delete payload.readyPrompt;
+          if (!payload.trial) delete payload.trial;
             const res = await postJSON('/api/sessions/start', payload);
             sessionId = res?.id || null;
         } catch (err) {

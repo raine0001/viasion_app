@@ -3280,6 +3280,9 @@ def api_session_start():
         "projectName": (b.get("projectName") or "").strip() or None,
         "dataset": (b.get("dataset") or "").strip() or None,
     }
+    trial_flag = b.get("trial")
+    if trial_flag is not None:
+        extra_fields["trial"] = _truthy(trial_flag, default=bool(trial_flag))
     attempt_label = b.get("attemptLabel")
     if isinstance(attempt_label, str):
         attempt_label = attempt_label.strip() or None
@@ -3561,7 +3564,11 @@ def api_session_end(sid):
     except Exception as e:
         _trace("db backfill error:", e)
     try:
-        _attempt_autopublish_session(sid, sess, reason="session_end")
+        ok = _attempt_autopublish_session(sid, sess, reason="session_end")
+        if not ok:
+            _schedule_autopublish_retry(sid, 12, "t1")
+            _schedule_autopublish_retry(sid, 28, "t2")
+            _schedule_autopublish_retry(sid, 45, "t3")
     except Exception as exc:
         _trace("community:autopublish_end_error", {"sid": sid, "error": str(exc)})
     _trace("api:sessions/end", {"sid": sid, "totals": sess["totals"]})
@@ -4518,6 +4525,7 @@ def _validate_community_publish(
     sid: str, sess: dict, detail_shots: list[dict], now_ms: int | None = None
 ) -> dict:
     now_ms = now_ms or int(time.time() * 1000)
+    is_trial = _truthy(sess.get("trial"), default=False) if isinstance(sess, dict) else False
     totals = sess.get("totals") or {}
     shot_count = len(detail_shots)
     attempts_raw = totals.get("attempts")
@@ -4545,6 +4553,10 @@ def _validate_community_publish(
 
     default_ms = _session_clip_total_ms(sess)
     ended_at = sess.get("endedAt")
+    min_ratio = CLIP_VALIDATE_MIN_RATIO
+    min_seconds_floor = CLIP_VALIDATE_MIN_SECONDS
+    if is_trial:
+        min_ratio = min(min_ratio, 0.35)
 
     missing: list[dict] = []
     invalid: list[dict] = []
@@ -4629,8 +4641,8 @@ def _validate_community_publish(
         if duration is not None:
             expected_ms = _clip_expected_ms(clip_payload, default_ms)
             min_seconds = max(
-                CLIP_VALIDATE_MIN_SECONDS,
-                (expected_ms * CLIP_VALIDATE_MIN_RATIO) / 1000.0,
+                min_seconds_floor,
+                (expected_ms * min_ratio) / 1000.0,
             )
             if duration < min_seconds:
                 partial.append(
@@ -4653,13 +4665,13 @@ def _validate_community_publish(
 
     if duplicate_shots:
         issues.append("duplicate_shots")
-    if missing_shots:
+    if missing_shots and not is_trial:
         issues.append("missing_shots")
     if missing:
         issues.append("missing_clips")
     if invalid:
         issues.append("invalid_clips")
-    if partial:
+    if partial and not is_trial:
         issues.append("partial_clips")
     if pending:
         issues.append("pending_clips")
@@ -4667,12 +4679,12 @@ def _validate_community_publish(
         issues.append("clip_count_mismatch")
 
     hard_fail = bool(
-        count_mismatch
+        (count_mismatch and not is_trial)
         or duplicate_shots
-        or missing_shots
+        or (missing_shots and not is_trial)
         or missing
         or invalid
-        or partial
+        or (partial and not is_trial)
     )
     if hard_fail:
         status = "failed"
@@ -4695,10 +4707,11 @@ def _validate_community_publish(
         "partialClips": partial,
         "pendingClips": pending,
         "minBytes": CLIP_VALIDATE_MIN_BYTES,
-        "minRatio": CLIP_VALIDATE_MIN_RATIO,
-        "minSeconds": CLIP_VALIDATE_MIN_SECONDS,
+        "minRatio": min_ratio,
+        "minSeconds": min_seconds_floor,
         "clipTotalMs": default_ms,
         "issues": issues,
+        "trial": is_trial,
     }
 
 
@@ -4875,6 +4888,32 @@ def _build_autopublish_payload(sid: str, sess: dict) -> dict | None:
 def _attempt_autopublish_session(sid: str, sess: dict, reason: str) -> bool:
     if not sid or not isinstance(sess, dict):
         return False
+
+
+_AUTOPUBLISH_RETRY_LOCK = threading.Lock()
+_AUTOPUBLISH_RETRY_SCHEDULED: set[str] = set()
+
+
+def _schedule_autopublish_retry(sid: str, delay_s: int, label: str) -> None:
+    if not sid:
+        return
+    key = f"{sid}:{label}"
+    with _AUTOPUBLISH_RETRY_LOCK:
+        if key in _AUTOPUBLISH_RETRY_SCHEDULED:
+            return
+        _AUTOPUBLISH_RETRY_SCHEDULED.add(key)
+
+    def run():
+        with _AUTOPUBLISH_RETRY_LOCK:
+            _AUTOPUBLISH_RETRY_SCHEDULED.discard(key)
+        sess = _read_session(sid)
+        if not isinstance(sess, dict):
+            return
+        _attempt_autopublish_session(sid, sess, reason=f"retry_{label}")
+
+    timer = threading.Timer(max(1, int(delay_s)), run)
+    timer.daemon = True
+    timer.start()
     if sess.get("communityHidden") is True:
         return False
     if _community_post_exists(sid):
