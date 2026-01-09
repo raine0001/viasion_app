@@ -5128,13 +5128,20 @@ def api_community_publish():
     if pose_scores:
         pose_avg = round(sum(pose_scores) / max(1, len(pose_scores)))
 
+    validation = None
     if COMMUNITY_PUBLISH_VALIDATE:
         validation = _validate_community_publish(sid, sess, detail_shots, now_ms)
         if not validation.get("ok"):
-            return (
-                jsonify({"ok": False, "error": "validation_failed", "validation": validation}),
-                409,
+            allow_pending = (
+                validation.get("status") == "pending" and validation.get("trial") is True
             )
+            if not allow_pending:
+                return (
+                    jsonify(
+                        {"ok": False, "error": "validation_failed", "validation": validation}
+                    ),
+                    409,
+                )
         attempts = int(validation.get("expectedAttempts") or attempts or 0)
 
     preview_path = _ensure_preview_image(sid)
@@ -5235,6 +5242,8 @@ def api_community_publish():
         "shareCount": summary_entry.get("shareCount", 0),
         "subscriberCount": summary_entry.get("subscriberCount", 0),
     }
+    if isinstance(validation, dict) and validation.get("status") == "pending":
+        detail_payload["pendingClips"] = validation.get("pendingClips")
     existing_comments = []
     if isinstance(existing_detail, dict) and isinstance(existing_detail.get("comments"), list):
         existing_comments = _sanitize_comment_list(existing_detail.get("comments"))
