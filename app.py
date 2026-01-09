@@ -71,6 +71,7 @@ import io
 import wave
 import mimetypes
 from email.message import EmailMessage
+from email.utils import make_msgid
 from datetime import date, datetime, timezone, timedelta
 from collections import defaultdict
 import random
@@ -3782,6 +3783,44 @@ def _clean_env_value(value: str | None) -> str | None:
     return val or None
 
 
+def _public_base_url() -> str:
+    base = _clean_env_value(
+        os.getenv("PUBLIC_BASE_URL")
+        or os.getenv("SITE_URL")
+        or os.getenv("APP_BASE_URL")
+        or os.getenv("BASE_URL")
+    )
+    if base:
+        return base.rstrip("/")
+    try:
+        url = url_for("static", filename="community.html", _external=True)
+        return url.rsplit("/static/", 1)[0].rstrip("/")
+    except Exception:
+        return ""
+
+
+def _build_community_post_url(sid: str) -> str:
+    qs = urlencode({"sid": sid})
+    base = _public_base_url()
+    if base:
+        return f"{base}/static/community.html?{qs}"
+    try:
+        url = url_for("static", filename="community.html", _external=True)
+        return f"{url}?{qs}"
+    except Exception:
+        return f"/static/community.html?{qs}"
+
+
+def _build_session_preview_url(sid: str) -> str:
+    base = _public_base_url()
+    if base:
+        return f"{base}/sessions/{sid}/preview.jpg"
+    try:
+        return url_for("serve_session_file", sid=sid, filename="preview.jpg", _external=True)
+    except Exception:
+        return f"/sessions/{sid}/preview.jpg"
+
+
 def _get_smtp_config() -> dict:
     host = _clean_env_value(os.getenv("SMTP_HOST") or os.getenv("SMTP_SERVER"))
     port_raw = _clean_env_value(os.getenv("SMTP_PORT")) or "587"
@@ -3809,10 +3848,14 @@ def _build_summary_email(payload: dict) -> tuple[str, str, str | None]:
     sid = payload.get("sid") or "unknown"
     summary = (payload.get("summary") or "").strip()
     lines = payload.get("lines") if isinstance(payload.get("lines"), list) else []
+    community_url = payload.get("communityUrl") or _build_community_post_url(str(sid))
+    preview_url = payload.get("previewUrl")
+    preview_cid = payload.get("previewCid")
     subject = f"{project} session summary"
     safe_project = html.escape(project)
     safe_sid = html.escape(str(sid))
     safe_summary = html.escape(summary) if summary else ""
+    safe_community_url = html.escape(str(community_url)) if community_url else ""
     text_lines = [
         "Thanks for training with Visaion.",
         "",
@@ -3829,13 +3872,29 @@ def _build_summary_email(payload: dict) -> tuple[str, str, str | None]:
                 continue
             text_lines.append(f"- {line.strip()}")
     text_lines.append("")
-    text_lines.append("Log in to view more sessions at https://www.visaion.app/static/login.html")
+    if preview_url:
+        text_lines.append(f"Preview image: {preview_url}")
+        text_lines.append("")
+    if community_url:
+        text_lines.append(f"View this session in the community: {community_url}")
+    else:
+        text_lines.append("Log in to view more sessions at https://www.visaion.app/static/login.html")
     text_body = "\n".join(text_lines)
 
     html_lines = [
         "<p>Thanks for training with Visaion.</p>",
         f"<p><strong>Session ID:</strong> {safe_sid}<br><strong>Project:</strong> {safe_project}</p>",
     ]
+    if preview_cid or preview_url:
+        img_src = ""
+        if preview_cid:
+            img_src = f"cid:{html.escape(str(preview_cid))}"
+        elif preview_url:
+            img_src = html.escape(str(preview_url))
+        if img_src:
+            html_lines.append(
+                f'<p><img src="{img_src}" alt="Session preview" style="width:100%;max-width:560px;border-radius:12px;border:1px solid #1f2937;" /></p>'
+            )
     if summary:
         html_lines.append(f"<p><strong>Summary:</strong> {safe_summary}</p>")
     if lines:
@@ -3846,9 +3905,14 @@ def _build_summary_email(payload: dict) -> tuple[str, str, str | None]:
         )
         if items:
             html_lines.append(f"<p><strong>Highlights:</strong></p><ul>{items}</ul>")
-    html_lines.append(
-        '<p>Log in to view more sessions at <a href="https://www.visaion.app/static/login.html">visaion.app</a></p>'
-    )
+    if community_url:
+        html_lines.append(
+            f'<p><a href="{safe_community_url}" style="display:inline-block;padding:10px 18px;border-radius:999px;background:#facc15;color:#1c1a05;text-decoration:none;font-weight:700;">View this session</a></p>'
+        )
+    else:
+        html_lines.append(
+            '<p>Log in to view more sessions at <a href="https://www.visaion.app/static/login.html">visaion.app</a></p>'
+        )
     html_body = "\n".join(html_lines)
     return subject, text_body, html_body
 
@@ -3859,6 +3923,26 @@ def _send_summary_email(to_addr: str, payload: dict) -> tuple[bool, str | None]:
         return False, "smtp_not_configured"
     if not cfg.get("username") or not cfg.get("password"):
         return False, "smtp_credentials_missing"
+    sid = payload.get("sid")
+    if sid:
+        payload.setdefault("communityUrl", _build_community_post_url(str(sid)))
+        preview_path = _ensure_preview_image(str(sid))
+        if preview_path and os.path.exists(preview_path):
+            payload.setdefault("previewUrl", _build_session_preview_url(str(sid)))
+            try:
+                size = os.path.getsize(preview_path)
+            except Exception:
+                size = 0
+            if size and size <= 2 * 1024 * 1024:
+                try:
+                    with open(preview_path, "rb") as f:
+                        payload["_previewBytes"] = f.read()
+                except Exception:
+                    payload.pop("_previewBytes", None)
+    preview_cid = None
+    if payload.get("_previewBytes"):
+        preview_cid = make_msgid(domain="visaion.app")
+        payload["previewCid"] = preview_cid[1:-1]
     subject, text_body, html_body = _build_summary_email(payload)
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -3867,6 +3951,17 @@ def _send_summary_email(to_addr: str, payload: dict) -> tuple[bool, str | None]:
     msg.set_content(text_body)
     if html_body:
         msg.add_alternative(html_body, subtype="html")
+        if preview_cid and payload.get("_previewBytes"):
+            try:
+                html_part = msg.get_payload()[-1]
+                html_part.add_related(
+                    payload["_previewBytes"],
+                    maintype="image",
+                    subtype="jpeg",
+                    cid=preview_cid,
+                )
+            except Exception:
+                pass
     try:
         with smtplib.SMTP(cfg["host"], cfg["port"], timeout=20) as server:
             server.ehlo()
@@ -4757,6 +4852,86 @@ def api_community_publish():
                 "coachNote": coach_note,
             }
         )
+
+    detail_idx = {
+        int(s.get("idx"))
+        for s in detail_shots
+        if isinstance(s, dict) and isinstance(s.get("idx"), (int, float))
+    }
+    session_idx = set()
+    for shot in session_shots:
+        try:
+            session_idx.add(int(shot.get("idx")))
+        except Exception:
+            continue
+    session_updated = False
+    if incoming_shots:
+        for shot in incoming_shots:
+            try:
+                idx_display = int(shot.get("idx"))
+            except Exception:
+                continue
+            if idx_display <= 0 or idx_display in detail_idx:
+                continue
+            clip_entry = shot.get("clip")
+            clip_payload = None
+            clip_path = None
+            if isinstance(clip_entry, dict):
+                clip_payload = dict(clip_entry)
+                clip_path = clip_entry.get("path") or clip_entry.get("url") or clip_entry.get("href")
+            elif isinstance(clip_entry, str):
+                clip_path = clip_entry
+            if not isinstance(clip_path, str) or not clip_path.strip():
+                clip_path = _preferred_clip_rel(sid, idx_display)
+            if isinstance(clip_payload, dict):
+                if clip_path:
+                    clip_payload["path"] = clip_path
+                else:
+                    clip_payload = None
+            else:
+                clip_payload = clip_path if isinstance(clip_path, str) and clip_path.strip() else None
+            coach_note = shot.get("coachNote")
+            if isinstance(coach_note, str):
+                coach_note = coach_note.strip()
+            else:
+                coach_note = None
+            pose_score = shot.get("poseScore")
+            if isinstance(pose_score, (int, float)):
+                pose_scores.append(pose_score)
+            detail_shots.append(
+                {
+                    "idx": idx_display,
+                    "clip": clip_payload,
+                    "poseScore": pose_score,
+                    "weightedScore": shot.get("weightedScore"),
+                    "coachNote": coach_note,
+                }
+            )
+            detail_idx.add(idx_display)
+            idx_server = idx_display - 1
+            if idx_server not in session_idx and idx_server >= 0:
+                session_shots.append(
+                    {
+                        "idx": idx_server,
+                        "clip": clip_payload,
+                        "poseScore": pose_score,
+                        "weightedScore": shot.get("weightedScore"),
+                        "coachNote": coach_note,
+                    }
+                )
+                session_idx.add(idx_server)
+                session_updated = True
+
+    if session_updated:
+        sess["shots"] = session_shots
+        attempts_calc = len(session_shots)
+        made_calc = sum(1 for s in session_shots if s.get("made") is True)
+        acc_calc = int(round((made_calc / attempts_calc) * 100)) if attempts_calc else 0
+        sess["totals"] = {"attempts": attempts_calc, "made": made_calc, "accuracy": acc_calc}
+        try:
+            _write_session(sid, sess)
+        except Exception:
+            pass
 
     totals = sess.get("totals") or {}
     attempts = int(totals.get("attempts") or len(detail_shots) or 0)

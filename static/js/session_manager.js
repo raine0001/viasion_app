@@ -740,6 +740,25 @@ window.visaionSession = {
     get id() { return __sid; }
 };
 
+function buildFallbackCommunitySummary() {
+    const shotsList = Array.isArray(window.__shotList) ? window.__shotList : [];
+    const count = shotsList.length || Number(window.__SESSION_SHOT_COUNT || 0) || 0;
+    if (!count) return null;
+    const project = getActiveProjectMeta?.() || null;
+    const attemptLabel = (getWorkflowAttemptLabel?.() || 'shot').toLowerCase();
+    const attemptsLabel = getWorkflowAttemptsLabel?.() || '';
+    const plural = count === 1 ? attemptLabel : `${attemptLabel}s`;
+    const summary = count === 1
+        ? `Quick ${attemptLabel} recap.`
+        : `Quick ${attemptLabel} recap with ${count} ${plural}.`;
+    const lineLabel = attemptsLabel || `${attemptLabel.charAt(0).toUpperCase()}${attemptLabel.slice(1)}s`;
+    return {
+        title: project?.name ? `${project.name} recap` : 'Session recap',
+        summary,
+        lines: [`${lineLabel}: ${count}`]
+    };
+}
+
 function scheduleCommunityPublishRetry(reason) {
     if (__communityPublishRetries >= COMMUNITY_PUBLISH_RETRY_LIMIT) return;
     if (__communityPublishRetryTimer) return;
@@ -850,8 +869,11 @@ async function publishCommunityRecap(detail) {
 
 function publishCommunityRecapIfReady() {
     if (__communityPublishing) return;
-    if (!__communityPendingSummary) return;
     if (!__communitySessionFinalized) return;
+    if (!__communityPendingSummary) {
+        __communityPendingSummary = buildFallbackCommunitySummary();
+    }
+    if (!__communityPendingSummary) return;
     if (!window.__SESSION_ID) return;
     if (window.__COMMUNITY_AUTOSHARE === window.__SESSION_ID) return;
     __communityPublishing = true;
