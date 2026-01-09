@@ -3492,6 +3492,12 @@ def api_microclip_upload():
     if remuxed:
         payload["mp4"] = rel_path
         payload["source"] = f"sessions/{safe_sid}/clips/{filename}"
+    try:
+        sess = _read_session(safe_sid)
+        if isinstance(sess, dict) and sess.get("endedAt"):
+            _attempt_autopublish_session(safe_sid, sess, reason="clip_upload")
+    except Exception as exc:
+        _trace("community:autopublish_clip_error", {"sid": safe_sid, "error": str(exc)})
     # enqueue background job here (fbf worker reads this path)
     return jsonify(payload)
 
@@ -3554,6 +3560,10 @@ def api_session_end(sid):
         _db_backfill_session_shots(sid)
     except Exception as e:
         _trace("db backfill error:", e)
+    try:
+        _attempt_autopublish_session(sid, sess, reason="session_end")
+    except Exception as exc:
+        _trace("community:autopublish_end_error", {"sid": sid, "error": str(exc)})
     _trace("api:sessions/end", {"sid": sid, "totals": sess["totals"]})
     return jsonify({"ok": True, "id": sid, "totals": sess["totals"]})
 
@@ -4761,6 +4771,145 @@ def _sanitize_tags(tags):
         if t:
             out.append(t[:48])
     return out
+
+
+def _community_post_exists(sid: str) -> bool:
+    posts = _load_community_feed()
+    _, post = _find_community_post(posts, sid)
+    return isinstance(post, dict)
+
+
+def _collect_clip_indices(sid: str) -> list[int]:
+    clips_dir = Path(_session_path(sid)) / "clips"
+    if not clips_dir.exists():
+        return []
+    idx_set: set[int] = set()
+    for clip_path in clips_dir.glob("shot-*"):
+        if not clip_path.is_file():
+            continue
+        match = re.search(r"shot[-_]?(\d+)", clip_path.name, re.IGNORECASE)
+        if match:
+            try:
+                idx_set.add(int(match.group(1)))
+            except Exception:
+                continue
+    return sorted(idx_set)
+
+
+def _build_autopublish_payload(sid: str, sess: dict) -> dict | None:
+    if not isinstance(sess, dict):
+        return None
+    session_shots = list(sess.get("shots") or [])
+    shots_payload = []
+    if session_shots:
+        for shot in session_shots:
+            try:
+                idx_display = int(shot.get("idx")) + 1
+            except Exception:
+                continue
+            clip_entry = shot.get("clip")
+            clip_payload = None
+            clip_path = None
+            if isinstance(clip_entry, dict):
+                clip_payload = dict(clip_entry)
+                clip_path = clip_entry.get("path") or clip_entry.get("url") or clip_entry.get("href")
+            elif isinstance(clip_entry, str):
+                clip_path = clip_entry
+            if not isinstance(clip_path, str) or not clip_path.strip():
+                clip_path = _preferred_clip_rel(sid, idx_display)
+            if isinstance(clip_payload, dict):
+                if clip_path:
+                    clip_payload["path"] = clip_path
+                else:
+                    clip_payload = None
+            else:
+                clip_payload = clip_path if isinstance(clip_path, str) and clip_path.strip() else None
+            shots_payload.append(
+                {
+                    "idx": idx_display,
+                    "clip": clip_payload,
+                    "poseScore": shot.get("poseScore"),
+                    "weightedScore": shot.get("weightedScore"),
+                    "coachNote": shot.get("coachNote"),
+                }
+            )
+    else:
+        for idx_display in _collect_clip_indices(sid):
+            clip_path = _preferred_clip_rel(sid, idx_display)
+            if not clip_path:
+                continue
+            shots_payload.append({"idx": idx_display, "clip": {"path": clip_path}})
+
+    if not shots_payload:
+        return None
+
+    attempts = len(shots_payload)
+    attempt_label = sess.get("attemptLabel") or "shot"
+    attempts_label = sess.get("attemptsLabel") or ""
+    attempt_plural = f"{attempt_label}s" if attempts != 1 else attempt_label
+    summary = (
+        f"Quick {attempt_label} recap."
+        if attempts == 1
+        else f"Quick {attempt_label} recap with {attempts} {attempt_plural}."
+    )
+    title = sess.get("projectName") or sess.get("project") or "Session recap"
+    tags = _sanitize_tags(sess.get("tags") or [])
+    if sess.get("project"):
+        tags.append(str(sess.get("project")))
+    if sess.get("dataset"):
+        tags.append(str(sess.get("dataset")))
+
+    return {
+        "sessionId": sid,
+        "title": title,
+        "summary": summary,
+        "author": sess.get("author") or "Player",
+        "tags": list(dict.fromkeys(tags)),
+        "attemptLabel": attempt_label,
+        "attemptsLabel": attempts_label,
+        "readyPrompt": sess.get("readyPrompt"),
+        "shots": shots_payload,
+    }
+
+
+def _attempt_autopublish_session(sid: str, sess: dict, reason: str) -> bool:
+    if not sid or not isinstance(sess, dict):
+        return False
+    if sess.get("communityHidden") is True:
+        return False
+    if _community_post_exists(sid):
+        return True
+    payload = _build_autopublish_payload(sid, sess)
+    if not payload:
+        return False
+    try:
+        with app.test_request_context(
+            "/api/community/publish", method="POST", json=payload
+        ):
+            resp = api_community_publish()
+        status = None
+        resp_obj = None
+        if isinstance(resp, tuple):
+            resp_obj = resp[0]
+            status = resp[1] if len(resp) > 1 else None
+        else:
+            resp_obj = resp
+        if status is None and hasattr(resp_obj, "status_code"):
+            status = resp_obj.status_code
+        ok = int(status or 500) < 300
+        if not ok:
+            try:
+                payload = resp_obj.get_json() if resp_obj else None
+            except Exception:
+                payload = None
+            _trace(
+                "community:autopublish_failed",
+                {"sid": sid, "status": status, "reason": reason, "payload": payload},
+            )
+        return ok
+    except Exception as exc:
+        _trace("community:autopublish_error", {"sid": sid, "reason": reason, "error": str(exc)})
+        return False
 
 
 @app.post("/api/community/publish")
