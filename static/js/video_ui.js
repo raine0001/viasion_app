@@ -941,6 +941,23 @@ function ensureShotTableStyles() {
     document.head.appendChild(css);
 }
 
+function positionShotSummaryModal(modal) {
+    if (!modal) return;
+    const viewportH = Number(window.innerHeight) || 0;
+    const defaultTopPx = viewportH ? Math.round(viewportH * 0.12) : 80;
+    let topPx = defaultTopPx;
+    const coach = document.getElementById('coachNotes');
+    if (coach && isElementVisible(coach)) {
+        const rect = coach.getBoundingClientRect();
+        if (rect && rect.height) {
+            topPx = Math.max(topPx, Math.round(rect.bottom + 12));
+        }
+    }
+    const maxTopPx = viewportH ? Math.round(viewportH * 0.35) : 220;
+    if (topPx > maxTopPx) topPx = maxTopPx;
+    modal.style.top = `${topPx}px`;
+}
+
 function deriveShotScore(shot) {
     if (!shot || typeof shot !== 'object') return null;
     const candidates = [
@@ -1086,6 +1103,7 @@ export function renderFullShotTable() {
     modal.querySelector('#closeFull').onclick = () => { modal.style.display = 'none'; };
     modal.style.display = 'block';
     try { modal.style.zIndex = '10060'; } catch { }
+    try { positionShotSummaryModal(modal); } catch { }
 
     try {
         const detail = window.__SESSION_REVIEW_LAST;
@@ -2219,6 +2237,10 @@ function ensureCoachFeedbackVisible() {
         coach.dataset.dismissed = 'false';
         if (!coach.dataset.baseZ) coach.dataset.baseZ = coach.style.zIndex || '10050';
         coach.style.zIndex = '10070';
+        const modal = document.getElementById('fullShotModal');
+        if (modal && isElementVisible(modal)) {
+            try { positionShotSummaryModal(modal); } catch { }
+        }
     } catch { }
 }
 
