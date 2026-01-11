@@ -266,7 +266,7 @@
                 "clip": {
                     "totalMs": 6000,
                     "preMs": 3000,
-                    "earlyTrigger": true
+                    "earlyTrigger": false
                 },
                 "poseStreakNeed": 1,
                 "swingDetection": {
