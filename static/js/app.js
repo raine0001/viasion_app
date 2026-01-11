@@ -2511,19 +2511,31 @@ function setPoseIfMissing(shotId, snap) {
                 window.__LAST_RELEASE_AT = Date.now();
             } catch { }
             let clipStartedEarly = Number.isFinite(shotId) && shotId === pendingShotId && pendingClipStarted;
+            const workflow = getWorkflowConfig();
+            const attemptLabel = String(workflow?.attemptLabel || '').toLowerCase();
+            const clipCfg = workflow?.clip || {};
             const totalMs = Number(window.__MICROCLIP_MS) || 3000;
             const preSetting = Number(window.__MICROCLIP_PRE_MS);
             const preMs = Math.max(0, Math.min(Number.isFinite(preSetting) ? preSetting : 360, totalMs - 120));
             if (clipStartedEarly && swingState && Number.isFinite(swingState.clipTriggerTime)) {
                 const clipTriggerAgeMs = Date.now() - Number(swingState.clipTriggerTime || 0);
-                const maxLeadMs = Math.max(1200, Math.min(totalMs - 250, preMs + 600));
+                const cfgMaxLead = Number(clipCfg.maxLeadMs);
+                const clipWindowMs = Math.max(1200, totalMs - 180);
+                const maxLeadMs = Number.isFinite(cfgMaxLead) && cfgMaxLead > 0
+                    ? cfgMaxLead
+                    : (attemptLabel === 'swing'
+                        ? clipWindowMs
+                        : Math.max(1200, Math.min(clipWindowMs, preMs + 600)));
                 if (Number.isFinite(clipTriggerAgeMs) && clipTriggerAgeMs > maxLeadMs) {
                     clipStartedEarly = false;
                     if (window.DEBUG_MICROCLIP === true || window.SWING_DEBUG === true) {
                         console.warn('[microclip] early clip stale; recapturing at release', {
                             shotId,
                             clipTriggerAgeMs: Math.round(clipTriggerAgeMs),
-                            totalMs
+                            maxLeadMs,
+                            totalMs,
+                            preMs,
+                            attemptLabel
                         });
                     }
                 }
