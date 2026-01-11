@@ -1600,10 +1600,11 @@ def _resolve_sessions_dir():
     if data_root:
         return os.path.abspath(os.path.join(data_root, "sessions"))
     output_dir = (os.getenv("OUTPUT_DIRECTORY") or "").strip()
+    fallback_output = None
     if output_dir:
         if os.path.isabs(output_dir):
             return os.path.abspath(output_dir)
-        return os.path.abspath(os.path.join(app.root_path, output_dir))
+        fallback_output = os.path.abspath(os.path.join(app.root_path, output_dir))
     mount_candidates = [
         ("/app/sesions", False),
         ("/app/sessions", False),
@@ -1631,6 +1632,8 @@ def _resolve_sessions_dir():
                 return os.path.abspath(os.path.join(base, "sessions"))
         except OSError:
             pass
+    if fallback_output:
+        return fallback_output
     return os.path.join(app.root_path, "sessions")
 
 
