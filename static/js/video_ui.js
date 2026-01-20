@@ -928,6 +928,13 @@ function ensureShotTableStyles() {
     const css = document.createElement('style');
     css.id = 'shotTableStyles';
     css.textContent = `
+    #fullShotModal{ display:flex; flex-direction:column; width:min(92vw, 960px); max-width:92vw; min-width:0; }
+    #fullShotModal .shot-summary-header{ display:flex; align-items:center; justify-content:space-between; gap:10px; position:sticky; top:0; z-index:3; background:rgba(0,0,0,0.88); padding:6px 0 8px; }
+    #fullShotModal .shot-summary-title{ font-weight:600; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+    #fullShotModal .shot-summary-body{ flex:1 1 auto; min-height:0; overflow:auto; -webkit-overflow-scrolling: touch; }
+    #fullShotModal .shot-summary-table-wrap{ overflow-x:auto; }
+    #fullShotModal .shot-summary-table-wrap::-webkit-scrollbar{ height:8px; }
+    #fullShotModal .shot-summary-table-wrap::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.18); border-radius:999px; }
     #fullShotModal .hud-table{ width:100%; border-collapse:collapse; table-layout:fixed; }
     #fullShotModal .hud-table col#cNum{ width:42px; } #fullShotModal .hud-table col#cCoach{ width:auto; }
     #fullShotModal .hud-table col#cClip{ width:90px; text-align:center; }
@@ -937,14 +944,122 @@ function ensureShotTableStyles() {
     #fullShotModal td.num, #fullShotModal td.score, #fullShotModal td.clip { text-align:center; }
     #fullShotModal td.coach{ white-space:normal; word-break:break-word; line-height:1.25; }
     #fullShotModal .hud-table #cScore { width:70px; }
+    #summaryProgressOverlay{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(92vw, 420px); padding:16px; text-align:center; z-index:10065; display:none; pointer-events:none; }
+    #summaryProgressOverlay .summary-progress-title{ font:700 14px/1.2 system-ui, -apple-system, Segoe UI, Arial; margin-bottom:8px; }
+    #summaryProgressOverlay .summary-progress-bar{ width:100%; height:8px; background:rgba(255,255,255,.18); border-radius:999px; overflow:hidden; }
+    #summaryProgressOverlay .summary-progress-bar span{ display:block; height:100%; width:0%; background:var(--hud-accent); transition:width .4s ease; }
+    #summaryProgressOverlay .summary-progress-label{ margin-top:8px; font:600 12px/1.2 system-ui, -apple-system, Segoe UI, Arial; opacity:.9; }
+    @media (max-width: 720px){
+      #fullShotModal{ top:6%; width:96vw; max-width:96vw; max-height:82vh; }
+      #fullShotModal .hud-table col#cNum{ width:32px; }
+      #fullShotModal .hud-table #cScore{ width:56px; }
+      #fullShotModal .hud-table col#cClip{ width:64px; }
+      #fullShotModal .hud-table th, #fullShotModal .hud-table td{ padding:6px 8px; font-size:12px; }
+      #summaryProgressOverlay{ width:min(92vw, 320px); }
+    }
   `;
     document.head.appendChild(css);
 }
 
+const SUMMARY_PROGRESS_STEPS = [
+    { pct: 50, label: 'Analyzing swings...', delay: 1600 },
+    { pct: 70, label: 'Building recap...', delay: 3000 },
+    { pct: 90, label: 'Finishing coach summary...', delay: 4800 }
+];
+let __summaryProgressTimers = [];
+let __summaryProgressActive = false;
+
+function ensureSummaryProgressOverlay() {
+    const root = ensureHudRoot();
+    let el = document.getElementById('summaryProgressOverlay');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'summaryProgressOverlay';
+        el.className = 'hud-card';
+        el.innerHTML = `
+      <div class="summary-progress-title">Preparing session summary</div>
+      <div class="summary-progress-bar"><span></span></div>
+      <div class="summary-progress-label">Finalizing clips... (30%)</div>
+    `;
+        root.appendChild(el);
+    } else if (!root.contains(el)) {
+        root.appendChild(el);
+    }
+    return el;
+}
+
+function clearSummaryProgressTimers() {
+    __summaryProgressTimers.forEach((id) => clearTimeout(id));
+    __summaryProgressTimers = [];
+}
+
+function setSummaryProgress(pct, label) {
+    const el = ensureSummaryProgressOverlay();
+    const bar = el.querySelector('.summary-progress-bar span');
+    const text = el.querySelector('.summary-progress-label');
+    const safePct = Math.max(0, Math.min(100, Number(pct) || 0));
+    if (bar) bar.style.width = `${safePct}%`;
+    if (text) text.textContent = `${label || 'Working...'} (${safePct}%)`;
+}
+
+function showSummaryProgress() {
+    const el = ensureSummaryProgressOverlay();
+    clearSummaryProgressTimers();
+    __summaryProgressActive = true;
+    el.dataset.active = 'true';
+    el.style.display = 'flex';
+    el.style.flexDirection = 'column';
+    el.style.alignItems = 'center';
+    el.style.gap = '8px';
+    setSummaryProgress(30, 'Finalizing clips...');
+    SUMMARY_PROGRESS_STEPS.forEach((step) => {
+        const id = setTimeout(() => {
+            if (el.dataset.active !== 'true') return;
+            setSummaryProgress(step.pct, step.label);
+        }, step.delay);
+        __summaryProgressTimers.push(id);
+    });
+}
+
+function completeSummaryProgress(label = 'Coach summary done') {
+    if (!__summaryProgressActive) return;
+    const el = ensureSummaryProgressOverlay();
+    setSummaryProgress(100, label);
+    __summaryProgressActive = false;
+    el.dataset.active = 'false';
+    clearSummaryProgressTimers();
+    const id = setTimeout(() => {
+        hideSummaryProgress();
+    }, 700);
+    __summaryProgressTimers.push(id);
+}
+
+function hideSummaryProgress() {
+    const el = document.getElementById('summaryProgressOverlay');
+    if (!el) return;
+    __summaryProgressActive = false;
+    el.dataset.active = 'false';
+    clearSummaryProgressTimers();
+    el.style.display = 'none';
+}
+
+function applyShotSummaryLayout(modal) {
+    if (!modal) return;
+    const isMobile = (Number(window.innerWidth) || 0) <= 720;
+    modal.style.width = isMobile ? '96vw' : 'min(92vw, 960px)';
+    modal.style.maxWidth = isMobile ? '96vw' : '92vw';
+    modal.style.minWidth = '0';
+    modal.style.maxHeight = isMobile ? '82vh' : '78vh';
+    modal.style.overflow = 'hidden';
+    modal.style.padding = isMobile ? '10px 10px 8px' : '12px 12px 10px';
+}
+
 function positionShotSummaryModal(modal) {
     if (!modal) return;
+    applyShotSummaryLayout(modal);
     const viewportH = Number(window.innerHeight) || 0;
-    const defaultTopPx = viewportH ? Math.round(viewportH * 0.12) : 80;
+    const isMobile = (Number(window.innerWidth) || 0) <= 720;
+    const defaultTopPx = viewportH ? Math.round(viewportH * (isMobile ? 0.06 : 0.12)) : 80;
     let topPx = defaultTopPx;
     const coach = document.getElementById('coachNotes');
     if (coach && isElementVisible(coach)) {
@@ -953,7 +1068,7 @@ function positionShotSummaryModal(modal) {
             topPx = Math.max(topPx, Math.round(rect.bottom + 12));
         }
     }
-    const maxTopPx = viewportH ? Math.round(viewportH * 0.35) : 220;
+    const maxTopPx = viewportH ? Math.round(viewportH * (isMobile ? 0.25 : 0.35)) : 220;
     if (topPx > maxTopPx) topPx = maxTopPx;
     modal.style.top = `${topPx}px`;
 }
@@ -1025,7 +1140,7 @@ function getClipHrefForShot(idx1Based, shot) {
     return null;
 }
 
-export function renderFullShotTable() {
+export function renderFullShotTable(opts = {}) {
     const list = (window.__shotList ||= []);
     list.forEach(normalizeShotScore);
     const root = ensureHudRoot();
@@ -1033,6 +1148,7 @@ export function renderFullShotTable() {
     const minimal = true; // skinny table only
 
     ensureShotTableStyles();
+    const showModal = opts?.show !== false;
     let modal = document.getElementById('fullShotModal');
     if (!modal) {
         modal = document.createElement('div');
@@ -1040,28 +1156,32 @@ export function renderFullShotTable() {
         modal.className = 'hud-card';
         Object.assign(modal.style, {
             position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: '12%',
-            maxWidth: '74%', minWidth: '640px', zIndex: 10020, pointerEvents: 'auto',
-            maxHeight: '78vh', overflowY: 'auto', WebkitOverflowScrolling: 'touch'
+            zIndex: 10020, pointerEvents: 'auto'
         });
         root.appendChild(modal);
     }
+    applyShotSummaryLayout(modal);
 
     modal.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-      <div style="font-weight:600; display:flex; align-items:center; gap:10px;">
+    <div class="shot-summary-header">
+      <div class="shot-summary-title">
         <span>Shot Summary (${list.length}/${formatCapDisplay(window.SESSION_SIZE)})</span>
-        <span id="sessFinalBadge" style="display:none; padding:3px 8px; border-radius:10px; font:600 11px system-ui; background:#f59e0b; color:#111;">Finalizing…</span>
+        <span id="sessFinalBadge" style="display:none; padding:3px 8px; border-radius:10px; font:600 11px system-ui; background:#f59e0b; color:#111;">Finalizing...</span>
       </div>
-      <div>
+      <div class="shot-summary-actions">
         <button id="closeFull" class="vc-btn">Close</button>
       </div>
     </div>
-    <div id="sessReviewLine" style="display:none;opacity:.95;margin:4px 0 10px;line-height:1.35"></div>
-    <table class="hud-table">
-      <colgroup><col id="cNum"><col id="cCoach"><col id="cScore"><col id="cClip"></colgroup>
-      <thead><tr><th>#</th><th>Coach Pose Assessment</th><th>Score</th><th>Clip</th></tr></thead>
-      <tbody></tbody>
-    </table>
+    <div class="shot-summary-body">
+      <div id="sessReviewLine" style="display:none;opacity:.95;margin:4px 0 10px;line-height:1.35"></div>
+      <div class="shot-summary-table-wrap">
+        <table class="hud-table">
+          <colgroup><col id="cNum"><col id="cCoach"><col id="cScore"><col id="cClip"></colgroup>
+          <thead><tr><th>#</th><th>Coach Pose Assessment</th><th>Score</th><th>Clip</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
   `;
 
     const tbody = modal.querySelector('tbody');
@@ -1101,9 +1221,12 @@ export function renderFullShotTable() {
     updateShotTableTotalsFromDOM(modal);
 
     modal.querySelector('#closeFull').onclick = () => { modal.style.display = 'none'; };
-    modal.style.display = 'block';
+    modal.style.display = showModal ? 'flex' : 'none';
     try { modal.style.zIndex = '10060'; } catch { }
     try { positionShotSummaryModal(modal); } catch { }
+    if (showModal) {
+        try { completeSummaryProgress(); } catch { }
+    }
 
     try {
         const detail = window.__SESSION_REVIEW_LAST;
@@ -2190,6 +2313,7 @@ function finalizeToStartOverlay() {
     __newSessionFinalized = true;
     clearNewSessionPromptTimers();
     setAwaitingNewSessionConfirm(false);
+    try { hideSummaryProgress(); } catch { }
     try {
         const blk = document.getElementById('endBlackout');
         if (blk) blk.style.display = 'none';
@@ -2320,6 +2444,7 @@ function handleHudStartSession(event) {
     setAwaitingNewSessionConfirm(false);
     __newSessionQuestionAsked = false;
     __newSessionFinalized = false;
+    try { hideSummaryProgress(); } catch { }
     try { window.__NEW_SESSION_PROMPTED = false; } catch { }
     try { window.__SESSION_REVIEW_SPOKEN = false; } catch { }
     try { window.__SESSION_REVIEW_LAST = null; } catch { }
@@ -2526,12 +2651,13 @@ async function autoEndSessionAndSummarize() {
     } catch { }
 
     try {
-        const modal = renderFullShotTable?.();
+        const modal = renderFullShotTable?.({ show: false });
         if (modal) {
             modal.dataset.pendingNewSession = '1';
             modal.style.display = 'none';
         }
     } catch { }
+    try { showSummaryProgress(); } catch { }
     try { window.dispatchEvent(new CustomEvent('hud:end-session')); } catch { }
 
     setTimeout(() => {

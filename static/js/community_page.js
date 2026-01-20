@@ -950,16 +950,34 @@
         return { width, height };
     }
 
+    function getClipRotation(clip) {
+        if (!clip || typeof clip !== 'object') return null;
+        const raw = clip.rotation ?? clip.rotate ?? clip.orientation;
+        const val = Number(raw);
+        if (!Number.isFinite(val)) return null;
+        const norm = ((val % 360) + 360) % 360;
+        return norm;
+    }
+
     function applyPortraitFix(videoEl, shot) {
         if (!videoEl) return;
+        const clip = (shot?.clip && typeof shot.clip === 'object') ? shot.clip : null;
         const dims = getClipDimensions(shot);
         const width = dims?.width ?? Number(videoEl.videoWidth);
         const height = dims?.height ?? Number(videoEl.videoHeight);
-        if (!Number.isFinite(width) || !Number.isFinite(height)) {
-            videoEl.classList.remove('video-portrait-fix');
-            return;
+        const rotation = getClipRotation(clip);
+        const explicitRotate = rotation != null && (rotation % 180 !== 0);
+        const forcedPortrait = clip?.sourceIsPortrait === true || clip?.portrait === true || clip?.isPortrait === true;
+        const portraitByDims = Number.isFinite(width) && Number.isFinite(height) ? height > width : false;
+        const shouldRotate = explicitRotate || portraitByDims || forcedPortrait;
+
+        videoEl.classList.toggle('video-portrait-fix', shouldRotate);
+        if (shouldRotate) {
+            const useDeg = (rotation === 270) ? -90 : 90;
+            videoEl.style.transform = `rotate(${useDeg}deg)`;
+        } else {
+            videoEl.style.transform = '';
         }
-        videoEl.classList.toggle('video-portrait-fix', height > width);
     }
 
     function matchesFilter(post) {

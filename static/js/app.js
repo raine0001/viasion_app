@@ -1033,6 +1033,69 @@ window.poseDetectSerial = poseDetectSerial;
             return { width, height };
         }
 
+        function getClipOrientationMeta() {
+            let sourceWidth = null;
+            let sourceHeight = null;
+            let sourcePortrait = null;
+            try {
+                const metrics = comp?.getSourceMetrics?.();
+                const mWidth = Number(metrics?.width);
+                const mHeight = Number(metrics?.height);
+                if (Number.isFinite(mWidth) && Number.isFinite(mHeight)) {
+                    sourceWidth = mWidth;
+                    sourceHeight = mHeight;
+                    sourcePortrait = metrics?.isPortrait ?? (mHeight > mWidth);
+                }
+            } catch { }
+            if (!Number.isFinite(sourceWidth) || !Number.isFinite(sourceHeight)) {
+                try {
+                    const stream = comp?.stream || v?.srcObject || null;
+                    const track = stream?.getVideoTracks?.()[0];
+                    const settings = track?.getSettings?.() || {};
+                    const sWidth = Number(settings.width);
+                    const sHeight = Number(settings.height);
+                    if (Number.isFinite(sWidth) && Number.isFinite(sHeight)) {
+                        sourceWidth = sWidth;
+                        sourceHeight = sHeight;
+                        sourcePortrait = sHeight > sWidth;
+                    }
+                } catch { }
+            }
+            if (!Number.isFinite(sourceWidth) || !Number.isFinite(sourceHeight)) {
+                const vWidth = Number(v?.videoWidth);
+                const vHeight = Number(v?.videoHeight);
+                if (Number.isFinite(vWidth) && Number.isFinite(vHeight)) {
+                    sourceWidth = vWidth;
+                    sourceHeight = vHeight;
+                    sourcePortrait = vHeight > vWidth;
+                }
+            }
+            if (sourcePortrait === null && Number.isFinite(sourceWidth) && Number.isFinite(sourceHeight)) {
+                sourcePortrait = sourceHeight > sourceWidth;
+            }
+            let viewportPortrait = null;
+            try {
+                const mq = window.matchMedia?.('(orientation: portrait)');
+                if (typeof mq?.matches === 'boolean') viewportPortrait = mq.matches;
+            } catch { }
+            if (viewportPortrait === null) {
+                const w = Number(window.innerWidth) || 0;
+                const h = Number(window.innerHeight) || 0;
+                if (w > 0 && h > 0) viewportPortrait = h > w;
+            }
+            const compositorRotated = !!(comp && typeof comp.captureClip === 'function' && sourcePortrait === true);
+            const fallbackPortrait = viewportPortrait === true
+                && Number.isFinite(sourceWidth)
+                && Number.isFinite(sourceHeight)
+                && sourceWidth >= sourceHeight;
+            const shouldRotate = !compositorRotated && (sourcePortrait === true || fallbackPortrait);
+            return {
+                sourcePortrait: sourcePortrait,
+                viewportPortrait: viewportPortrait,
+                rotation: shouldRotate ? 90 : 0
+            };
+        }
+
         async function ensureSessionId() {
             if (window.__SESSION_ID) return window.__SESSION_ID;
             if (window.visaionSession?.start) {
@@ -1088,6 +1151,16 @@ window.poseDetectSerial = poseDetectSerial;
                 if (dims) {
                     clipMeta.width = dims.width;
                     clipMeta.height = dims.height;
+                }
+                const orient = getClipOrientationMeta();
+                if (typeof orient?.sourcePortrait === 'boolean') {
+                    clipMeta.sourceIsPortrait = orient.sourcePortrait;
+                }
+                if (typeof orient?.viewportPortrait === 'boolean') {
+                    clipMeta.viewportPortrait = orient.viewportPortrait;
+                }
+                if (orient?.rotation) {
+                    clipMeta.rotation = orient.rotation;
                 }
                 if (j?.source) {
                     clipMeta.source = normalizePath(j.source) || j.source;
