@@ -76,6 +76,31 @@ async function postJSON(url, body) {
     return await r.json().catch(() => ({}));
 }
 
+const normalizeClipPath = (value) => {
+    if (!value || typeof value !== 'string') return value;
+    if (/^[a-z]+:/i.test(value)) return value;
+    const trimmed = value.replace(/^\/+/, '');
+    return `/${trimmed}`;
+};
+
+const coerceClip = (value) => {
+    if (!value) return null;
+    if (typeof value === 'string') {
+        return { path: normalizeClipPath(value) };
+    }
+    if (typeof value === 'object') {
+        const raw = value.path || value.url || value.href || null;
+        const path = normalizeClipPath(raw);
+        if (path) {
+            const next = { ...value, path };
+            if (next.source) next.source = normalizeClipPath(next.source);
+            if (next.mp4) next.mp4 = normalizeClipPath(next.mp4);
+            return next;
+        }
+    }
+    return null;
+};
+
 // Unified cap reader/writer (session_manager is the only writer)
 function setSessionCap(n) {
     const cap = Number(n);
@@ -110,6 +135,8 @@ window.getSessionCap = getSessionCap; // let others read
  */
 let __shotCounter = 0; // monotonic per session
 const __processedSummaries = new Set(); // keys: `sid|shotId` (or frame fallback)
+const __shotPersistCache = new Map();
+const __clipPersisted = new Map();
 
 // Returns the next 1-based shot index owned by the session manager
 function nextShotIndex() {
@@ -541,30 +568,6 @@ async function persistShotFromSummary(detail) {
         ? (weightedScoreRaw <= 1 ? weightedScoreRaw * 100 : weightedScoreRaw)
         : null;
 
-    const normalizeClipPath = (value) => {
-        if (!value || typeof value !== 'string') return value;
-        if (/^[a-z]+:/i.test(value)) return value;
-        const trimmed = value.replace(/^\/+/, '');
-        return `/${trimmed}`;
-    };
-
-    const coerceClip = (value) => {
-        if (!value) return null;
-        if (typeof value === 'string') {
-            return { path: normalizeClipPath(value) };
-        }
-        if (typeof value === 'object') {
-            const raw = value.path || value.url || value.href || null;
-            const path = normalizeClipPath(raw);
-            if (path) {
-                const next = { ...value, path };
-                if (next.source) next.source = normalizeClipPath(next.source);
-                if (next.mp4) next.mp4 = normalizeClipPath(next.mp4);
-                return next;
-            }
-        }
-        return null;
-    };
     let clipInfo =
         coerceClip(detail?.clip) ||
         coerceClip(detail?.clipPath) ||
@@ -621,6 +624,12 @@ async function persistShotFromSummary(detail) {
         hasPoseScore,
         hasWeighted
     });
+
+    if (Number.isFinite(shotNumber) && shotNumber > 0) {
+        try {
+            __shotPersistCache.set(shotNumber, { ...payload });
+        } catch { }
+    }
 
     try {
         await postJSON(`/api/sessions/${__sid}/shot`, payload);
@@ -693,6 +702,8 @@ function resetSessionForNewStart() {
     __ended = false;
     __shotCounter = 0;
     __processedSummaries.clear();
+    __shotPersistCache.clear();
+    __clipPersisted.clear();
     try {
         window.__SESSION_ID = null;
         window.__SESSION_ACTIVE = false;
@@ -724,6 +735,43 @@ function resetSessionForNewStart() {
         const detail = e?.detail || {};
         // Never gate summaries on "armed"; capture is upstream.
         persistShotFromSummary(detail).catch(() => { });
+    }, { passive: true });
+
+    window.addEventListener('shots:update', (e) => {
+        const rec = e?.detail?.rec || null;
+        const shotId = Number(rec?.id ?? rec?.shotId ?? rec?.idx);
+        if (!Number.isFinite(shotId) || shotId <= 0) return;
+        if (!__sid) return;
+        const clipInfo = coerceClip(rec?.clip);
+        if (!clipInfo || !clipInfo.path) return;
+        if (clipInfo.status && clipInfo.status !== 'saved') return;
+        const cached = __shotPersistCache.get(shotId);
+        if (!cached) return;
+        const signature = JSON.stringify({
+            path: clipInfo.path || null,
+            source: clipInfo.source || null,
+            mp4: clipInfo.mp4 || null,
+            rotation: clipInfo.rotation ?? null,
+            width: clipInfo.width ?? null,
+            height: clipInfo.height ?? null,
+            sourceIsPortrait: clipInfo.sourceIsPortrait ?? null,
+            viewportPortrait: clipInfo.viewportPortrait ?? null,
+            bufferReady: clipInfo.bufferReady ?? null,
+            bufferCoverageMs: clipInfo.bufferCoverageMs ?? null
+        });
+        if (__clipPersisted.get(shotId) === signature) return;
+        __clipPersisted.set(shotId, signature);
+        const payload = {
+            ...cached,
+            replace: true,
+            clip: {
+                ...clipInfo,
+                status: clipInfo.status || 'saved'
+            }
+        };
+        postJSON(`/api/sessions/${__sid}/shot`, payload).catch((err) => {
+            console.warn('[persistShot] clip update failed', err, { shotId, payload });
+        });
     }, { passive: true });
 
     // Voice exit (optional; ignores if voice isn’t available)

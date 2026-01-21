@@ -1168,6 +1168,16 @@ window.poseDetectSerial = poseDetectSerial;
                 if (j?.mp4) {
                     clipMeta.mp4 = normalizePath(j.mp4);
                 }
+                try {
+                    const coverage = comp?.getBufferCoverageMs?.();
+                    if (Number.isFinite(coverage)) {
+                        clipMeta.bufferCoverageMs = Math.round(coverage);
+                        const preMs = Number(window.__MICROCLIP_PRE_MS);
+                        if (Number.isFinite(preMs)) {
+                            clipMeta.bufferReady = coverage >= Math.max(0, preMs - 120);
+                        }
+                    }
+                } catch { }
                 window.updateShot?.(shotId, { clip: clipMeta });
                 return r.ok;
             } catch (err) {
@@ -3756,7 +3766,22 @@ function startPreDetectWarm(videoEl) {
             ? evaluateSwingGate(hist, workflow)
             : (window.releaseGate ? window.releaseGate(hist.slice(-8)) : { released: false });
         const clipConfig = workflow?.clip || {};
-        const allowEarlyClip = usingSwing && clipConfig.earlyTrigger === true;
+        let bufferReady = true;
+        if (usingSwing) {
+            try {
+                const comp = window.__landscapeRecController;
+                const preMs = Number(window.__MICROCLIP_PRE_MS);
+                const coverage = comp?.getBufferCoverageMs?.();
+                if (!Number.isFinite(coverage) || !Number.isFinite(preMs)) {
+                    bufferReady = false;
+                } else {
+                    bufferReady = coverage >= Math.max(0, preMs - 120);
+                }
+            } catch {
+                bufferReady = false;
+            }
+        }
+        const allowEarlyClip = usingSwing && (clipConfig.earlyTrigger === true || bufferReady === false);
         if (allowEarlyClip && gate?.clipTrigger) {
             maybeStartSwingClip(gate.clipTrigger);
         }
