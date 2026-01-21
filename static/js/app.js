@@ -1159,7 +1159,7 @@ window.poseDetectSerial = poseDetectSerial;
                 if (typeof orient?.viewportPortrait === 'boolean') {
                     clipMeta.viewportPortrait = orient.viewportPortrait;
                 }
-                if (orient?.rotation) {
+                if (Number.isFinite(orient?.rotation)) {
                     clipMeta.rotation = orient.rotation;
                 }
                 if (j?.source) {
@@ -3756,7 +3756,7 @@ function startPreDetectWarm(videoEl) {
             ? evaluateSwingGate(hist, workflow)
             : (window.releaseGate ? window.releaseGate(hist.slice(-8)) : { released: false });
         const clipConfig = workflow?.clip || {};
-        const allowEarlyClip = usingSwing && clipConfig.earlyTrigger !== false;
+        const allowEarlyClip = usingSwing && clipConfig.earlyTrigger === true;
         if (allowEarlyClip && gate?.clipTrigger) {
             maybeStartSwingClip(gate.clipTrigger);
         }

@@ -966,14 +966,18 @@
         const width = dims?.width ?? Number(videoEl.videoWidth);
         const height = dims?.height ?? Number(videoEl.videoHeight);
         const rotation = getClipRotation(clip);
-        const explicitRotate = rotation != null && (rotation % 180 !== 0);
-        const forcedPortrait = clip?.sourceIsPortrait === true || clip?.portrait === true || clip?.isPortrait === true;
-        const portraitByDims = Number.isFinite(width) && Number.isFinite(height) ? height > width : false;
+        const hasRotation = rotation != null;
+        const explicitRotate = hasRotation && (rotation % 180 !== 0);
+        const forcedPortrait = !hasRotation && (clip?.sourceIsPortrait === true || clip?.portrait === true || clip?.isPortrait === true);
+        const portraitByDims = !hasRotation && (Number.isFinite(width) && Number.isFinite(height) ? height > width : false);
         const shouldRotate = explicitRotate || portraitByDims || forcedPortrait;
 
         videoEl.classList.toggle('video-portrait-fix', shouldRotate);
         if (shouldRotate) {
-            const useDeg = (rotation === 270) ? -90 : 90;
+            let useDeg = 90;
+            if (hasRotation) {
+                useDeg = rotation === 270 ? -90 : (rotation === 180 ? 180 : 90);
+            }
             videoEl.style.transform = `rotate(${useDeg}deg)`;
         } else {
             videoEl.style.transform = '';
